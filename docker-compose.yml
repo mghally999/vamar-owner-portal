@@ -1,0 +1,54 @@
+# Local development infrastructure. Nothing here is used in deployed environments:
+# production runs on Neon (Postgres) and the real Firebase project.
+name: vamar-owner-portal
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vamar-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vamar
+      POSTGRES_PASSWORD: vamar
+      POSTGRES_DB: vamar
+      TZ: Asia/Dubai
+      PGTZ: Asia/Dubai
+    command:
+      - postgres
+      - -c
+      - log_statement=all
+      - -c
+      - log_min_duration_statement=0
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./tooling/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U vamar -d vamar']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  firebase:
+    # Firebase Auth emulator (phone + email/password). OTP codes are printed in the
+    # emulator UI at http://localhost:4000 and in this container's logs.
+    build: ./tooling/firebase
+    container_name: vamar-firebase
+    restart: unless-stopped
+    ports:
+      - '9099:9099' # Auth emulator
+      - '4000:4000' # Emulator UI
+    volumes:
+      - ./tooling/firebase/firebase.json:/app/firebase.json:ro
+      - ./tooling/firebase/.firebaserc:/app/.firebaserc:ro
+      - firebase-data:/app/data
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O- http://127.0.0.1:9099/ >/dev/null || exit 1']
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres-data:
+  firebase-data:

@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Supply-chain policy: pnpm waits for a minimum release age before installing a new
+# version; packages listed here are exempt because we pinned them deliberately.
+minimumReleaseAgeExclude:
+  - dotenv@18.0.6
+
+# Lifecycle (build) scripts we allow; pnpm blocks them by default.
+allowBuilds:
+  esbuild: true

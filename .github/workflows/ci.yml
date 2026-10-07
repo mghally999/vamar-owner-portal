@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck, lint, test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgres://vamar:vamar@localhost:5432/vamar
+      DATABASE_URL_TEST: postgres://vamar:vamar@localhost:5432/vamar_test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: vamar
+          POSTGRES_PASSWORD: vamar
+          POSTGRES_DB: vamar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vamar -d vamar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        # version is read from the packageManager field in package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare test database roles
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tooling/postgres/init/01-roles.sql
+
+      - name: Migrate
+        run: pnpm db:migrate
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Test
+        run: pnpm test
