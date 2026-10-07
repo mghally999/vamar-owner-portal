@@ -6,6 +6,9 @@ packages:
 # version; packages listed here are exempt because we pinned them deliberately.
 minimumReleaseAgeExclude:
   - dotenv@18.0.6
+  - '@cloudflare/workers-types@5.20261007.1'
+  - miniflare@5.20261006.0-alpha
+  - wrangler@4.148.0
 
 # Lifecycle (build) scripts we allow; pnpm blocks them by default.
 allowBuilds:

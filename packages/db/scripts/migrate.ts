@@ -1,6 +1,6 @@
 // Applies pending SQL migrations from ./migrations. Used locally and by CI; on Neon the same
 // script runs with DATABASE_URL pointing at the branch to migrate.
-import 'dotenv/config';
+import './load-env.js';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

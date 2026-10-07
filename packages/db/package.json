@@ -20,7 +20,9 @@
     "./seed": {
       "types": "./src/seed/index.ts",
       "default": "./src/seed/index.ts"
-    }
+    },
+    "./package.json": "./package.json",
+    "./migrations/*": "./migrations/*"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

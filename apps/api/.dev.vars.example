@@ -1,0 +1,12 @@
+# Copy to .dev.vars (gitignored). Deployed environments use `wrangler secret put <NAME>`.
+DATABASE_URL=postgres://vamar_app:vamar_app@localhost:5432/vamar
+# 32+ random bytes, base64url. Signs our 15-minute access tokens (HS256).
+JWT_SECRET=dev-only-change-me-dev-only-change-me-dev-only
+# 32 bytes base64 (AES-256-GCM key) used to encrypt staff TOTP secrets at rest.
+TOTP_ENC_KEY=ZGV2LW9ubHktdG90cC1rZXktMzItYnl0ZXMtbG9uZyEh
+# Firebase project the ID tokens must be issued for.
+FIREBASE_PROJECT_ID=demo-vamar
+# Dev only: when set, Firebase ID tokens are accepted unsigned from the Auth emulator.
+FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099
+# Optional: Expo access token for push (enhanced security). Empty in dev.
+EXPO_ACCESS_TOKEN=

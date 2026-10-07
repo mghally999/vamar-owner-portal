@@ -1,6 +1,6 @@
 // Seeds realistic demo data into an already-migrated database. Idempotent: refuses to run
 // if owners already exist (use `pnpm db:reset` locally to start over).
-import 'dotenv/config';
+import './load-env.js';
 import { count } from 'drizzle-orm';
 import { createNodeDb } from '../src/node.js';
 import { owners } from '../src/schema/index.js';

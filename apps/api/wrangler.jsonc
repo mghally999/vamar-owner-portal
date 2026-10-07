@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vamar-owner-portal",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  // The built dashboard is served from the same Worker: `/` = dashboard, `/api/*` = API.
+  "assets": {
+    "directory": "../dashboard/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/privacy", "/healthz"],
+  },
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "vamar-files" }],
+  // One cron: daily alerts at 08:00 Dubai (04:00 UTC).
+  "triggers": { "crons": ["0 4 * * *"] },
+  "vars": {
+    "FIREBASE_PROJECT_ID": "demo-vamar",
+    // Comma-separated ISO country codes whose phone numbers may sign in as owners.
+    "ALLOWED_PHONE_COUNTRIES": "AE",
+    "APP_ENV": "development",
+  },
+  "dev": { "port": 8787 },
+  // Secrets (set with `wrangler secret put`, locally in .dev.vars): DATABASE_URL, JWT_SECRET,
+  // TOTP_ENC_KEY, EXPO_ACCESS_TOKEN, FIREBASE_AUTH_EMULATOR_HOST (dev only)
+}

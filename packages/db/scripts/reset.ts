@@ -1,5 +1,5 @@
 // Local only: drop everything, re-run migrations, re-seed. Refuses to run against a non-local host.
-import 'dotenv/config';
+import './load-env.js';
 import { sql } from 'drizzle-orm';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { dirname, join } from 'node:path';
