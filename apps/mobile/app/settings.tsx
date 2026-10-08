@@ -1,11 +1,15 @@
 import * as Application from 'expo-application';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Linking, ScrollView, Switch, View } from 'react-native';
-import { API_BASE } from '@/lib/api';
+import { todayInDubai } from '@vamar/shared';
+import { API_BASE, request } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { notificationsEnabled, setNotifications } from '@/lib/push';
 import { useDevices, useRequestDeletion, useRevokeOtherDevices, useSetLang } from '@/lib/queries';
+import { periodLabel, shareStatement } from '@/lib/statement';
 import { useTheme } from '@/lib/theme';
+import type { ChequeItem, Page } from '@/lib/types';
 import { Button, Card, Row, SectionTitle, Separator, Text, layout } from '@/ui';
 
 export default function SettingsScreen() {
@@ -17,6 +21,35 @@ export default function SettingsScreen() {
   const del = useRequestDeletion();
   const setLang = useSetLang();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [notify, setNotify] = useState(true);
+  const [busyStatement, setBusyStatement] = useState<'month' | 'year' | null>(null);
+
+  useEffect(() => {
+    void notificationsEnabled().then(setNotify);
+  }, []);
+
+  async function statement(kind: 'month' | 'year') {
+    setBusyStatement(kind);
+    try {
+      const today = todayInDubai();
+      const qs = kind === 'month' ? `?month=${today.slice(0, 7)}&limit=100` : `?limit=100`;
+      const page = await request<Page<ChequeItem>>(`/api/owner/cheques${qs}`);
+      const cheques =
+        kind === 'year'
+          ? page.items.filter((c) => c.dueDate.startsWith(today.slice(0, 4)))
+          : page.items;
+      const ownerName = auth.owner ? (lang === 'ar' ? auth.owner.nameAr : auth.owner.nameEn) : '';
+      await shareStatement({
+        ownerName,
+        periodLabel: periodLabel(kind, today, lang),
+        cheques,
+        lang,
+        generatedOn: today,
+      });
+    } finally {
+      setBusyStatement(null);
+    }
+  }
 
   return (
     <ScrollView contentContainerStyle={layout.screen}>
@@ -47,6 +80,18 @@ export default function SettingsScreen() {
         </Row>
         <Separator />
         <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
+          <Text>{tr('settings_notifications')}</Text>
+          <Switch
+            value={notify}
+            onValueChange={(v) => {
+              setNotify(v);
+              void setNotifications(v);
+            }}
+            trackColor={{ true: t.colors.primary }}
+          />
+        </Row>
+        <Separator />
+        <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
           <Text>{tr('settings_biometrics')}</Text>
           <Switch
             value={auth.biometricsEnabled}
@@ -56,6 +101,24 @@ export default function SettingsScreen() {
           />
         </Row>
       </Card>
+
+      <View>
+        <SectionTitle>{tr('settings_statement')}</SectionTitle>
+        <Card style={{ padding: 16, gap: 8 }}>
+          <Button
+            title={tr('settings_statement_month')}
+            variant="secondary"
+            loading={busyStatement === 'month'}
+            onPress={() => void statement('month')}
+          />
+          <Button
+            title={tr('settings_statement_year')}
+            variant="secondary"
+            loading={busyStatement === 'year'}
+            onPress={() => void statement('year')}
+          />
+        </Card>
+      </View>
 
       <View>
         <SectionTitle>{tr('settings_devices')}</SectionTitle>

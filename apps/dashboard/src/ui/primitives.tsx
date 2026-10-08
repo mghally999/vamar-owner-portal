@@ -144,8 +144,8 @@ export function Field({
   hint?: string | undefined;
   error?: string | undefined;
   children: ReactNode;
-  required?: boolean;
-  htmlFor?: string;
+  required?: boolean | undefined;
+  htmlFor?: string | undefined;
 }) {
   const { t } = useI18n();
   return (

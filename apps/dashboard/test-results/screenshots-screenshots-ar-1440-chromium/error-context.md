@@ -12,10 +12,7 @@
 # Error details
 
 ```
-TimeoutError: locator.waitFor: Timeout 15000ms exceeded.
-Call log:
-  - waiting for locator('code[dir="ltr"]') to be visible
-
+Error: No TOTP secret for admin; reset the authenticator for this user and run again
 ```
 
 # Page snapshot
@@ -26,16 +23,23 @@ Call log:
     - img "Vamar Real Estate" [ref=f2e6]
     - paragraph [ref=f2e7]: بوابة ملاك فامار للعقارات
   - generic [ref=f2e9]:
-    - heading "دخول الموظفين" [level=1] [ref=f2e10]
-    - generic [ref=f2e11]:
-      - generic [ref=f2e12]: البريد الإلكتروني
-      - textbox "البريد الإلكتروني" [ref=f2e14]: admin@vamar.test
+    - generic [ref=f2e10]:
+      - heading "إعداد تطبيق المصادقة" [level=1] [ref=f2e11]
+      - paragraph [ref=f2e12]: امسح هذا الرمز بتطبيق Google Authenticator أو Microsoft Authenticator أو 1Password، ثم أدخل الرمز المكوّن من 6 أرقام.
+    - img "QR" [ref=f2e14]
     - generic [ref=f2e15]:
-      - generic [ref=f2e16]: كلمة المرور
-      - textbox "كلمة المرور" [ref=f2e18]: Vamar2026!
-    - alert [ref=f2e19]: البريد الإلكتروني أو كلمة المرور غير صحيحة.
-    - button "تسجيل الدخول" [ref=f2e20]
-  - button "English" [ref=f2e21]
+      - paragraph [ref=f2e16]: أو أدخل هذا المفتاح يدوياً
+      - code [ref=f2e17]: LA34 QOEV 772Q ZD4P Z2DT Z5NB JVNB VY46
+    - generic [ref=f2e18]:
+      - generic [ref=f2e19]:
+        - heading "رمز المصادقة" [level=1] [ref=f2e20]
+        - paragraph [ref=f2e21]: أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.
+      - generic [ref=f2e22]:
+        - generic [ref=f2e23]: الرمز
+        - textbox "الرمز" [active] [ref=f2e25]
+      - button "تحقق" [disabled]
+      - button "رجوع" [ref=f2e26]
+  - button "English" [ref=f2e27]
 ```
 
 # Test source
@@ -55,13 +59,13 @@ Call log:
   12 |   const clean = secretBase32.replace(/[^A-Z2-7]/gi, '').toUpperCase();
   13 |   let bits = '';
   14 |   for (const ch of clean) bits += alphabet.indexOf(ch).toString(2).padStart(5, '0');
-  15 |   const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
-  16 |   const counter = Buffer.alloc(8);
-  17 |   counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 1000 / 30)));
-  18 |   const h = createHmac('sha1', key).update(counter).digest();
+  15 |   const key = new Uint8Array((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
+  16 |   const counter = new Uint8Array(8);
+  17 |   new DataView(counter.buffer).setBigUint64(0, BigInt(Math.floor(Date.now() / 1000 / 30)));
+  18 |   const h = new Uint8Array(createHmac('sha1', key).update(counter).digest());
   19 |   const offset = (h[h.length - 1] ?? 0) & 0x0f;
-  20 |   const code = ((h.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
-  21 |   return code;
+  20 |   const value = new DataView(h.buffer, h.byteOffset, h.byteLength).getUint32(offset) & 0x7fffffff;
+  21 |   return (value % 1_000_000).toString().padStart(6, '0');
   22 | }
   23 | 
   24 | /**
@@ -80,17 +84,23 @@ Call log:
   37 |   // Either the enrollment screen (shows a secret) or the verify screen.
   38 |   const secretEl = page.locator('code[dir="ltr"]');
   39 |   const codeInput = page.getByLabel(/الرمز|Code/).first();
-> 40 |   await Promise.race([secretEl.waitFor({ timeout: 15_000 }), codeInput.waitFor({ timeout: 15_000 })]);
-     |                                ^ TimeoutError: locator.waitFor: Timeout 15000ms exceeded.
-  41 |   let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`];
-  42 |   if (await secretEl.isVisible()) {
-  43 |     secret = (await secretEl.textContent())?.replace(/\s/g, '') ?? '';
-  44 |     process.env[`TOTP_SECRET_${who.toUpperCase()}`] = secret;
-  45 |   }
-  46 |   if (!secret) throw new Error(`No TOTP secret for ${who}; reset the authenticator for this user and run again`);
-  47 |   await codeInput.fill(codeFromSecret(secret));
-  48 |   await page.getByRole('button', { name: /تحقق|Verify/ }).click();
-  49 |   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15_000 });
-  50 | }
-  51 | 
+  40 |   await Promise.race([
+  41 |     secretEl.waitFor({ timeout: 15_000 }),
+  42 |     codeInput.waitFor({ timeout: 15_000 }),
+  43 |   ]);
+  44 |   let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`];
+  45 |   if (await secretEl.isVisible()) {
+  46 |     secret = (await secretEl.textContent())?.replace(/\s/g, '') ?? '';
+  47 |     process.env[`TOTP_SECRET_${who.toUpperCase()}`] = secret;
+  48 |   }
+  49 |   if (!secret)
+> 50 |     throw new Error(
+     |           ^ Error: No TOTP secret for admin; reset the authenticator for this user and run again
+  51 |       `No TOTP secret for ${who}; reset the authenticator for this user and run again`,
+  52 |     );
+  53 |   await codeInput.fill(codeFromSecret(secret));
+  54 |   await page.getByRole('button', { name: /تحقق|Verify/ }).click();
+  55 |   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15_000 });
+  56 | }
+  57 | 
 ```

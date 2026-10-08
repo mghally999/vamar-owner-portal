@@ -12,13 +12,13 @@ function codeFromSecret(secretBase32: string): string {
   const clean = secretBase32.replace(/[^A-Z2-7]/gi, '').toUpperCase();
   let bits = '';
   for (const ch of clean) bits += alphabet.indexOf(ch).toString(2).padStart(5, '0');
-  const key = Buffer.from((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
-  const counter = Buffer.alloc(8);
-  counter.writeBigUInt64BE(BigInt(Math.floor(Date.now() / 1000 / 30)));
-  const h = createHmac('sha1', key).update(counter).digest();
+  const key = new Uint8Array((bits.match(/.{8}/g) ?? []).map((b) => parseInt(b, 2)));
+  const counter = new Uint8Array(8);
+  new DataView(counter.buffer).setBigUint64(0, BigInt(Math.floor(Date.now() / 1000 / 30)));
+  const h = new Uint8Array(createHmac('sha1', key).update(counter).digest());
   const offset = (h[h.length - 1] ?? 0) & 0x0f;
-  const code = ((h.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).toString().padStart(6, '0');
-  return code;
+  const value = new DataView(h.buffer, h.byteOffset, h.byteLength).getUint32(offset) & 0x7fffffff;
+  return (value % 1_000_000).toString().padStart(6, '0');
 }
 
 /**
@@ -37,13 +37,19 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
   // Either the enrollment screen (shows a secret) or the verify screen.
   const secretEl = page.locator('code[dir="ltr"]');
   const codeInput = page.getByLabel(/الرمز|Code/).first();
-  await Promise.race([secretEl.waitFor({ timeout: 15_000 }), codeInput.waitFor({ timeout: 15_000 })]);
+  await Promise.race([
+    secretEl.waitFor({ timeout: 15_000 }),
+    codeInput.waitFor({ timeout: 15_000 }),
+  ]);
   let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`];
   if (await secretEl.isVisible()) {
     secret = (await secretEl.textContent())?.replace(/\s/g, '') ?? '';
     process.env[`TOTP_SECRET_${who.toUpperCase()}`] = secret;
   }
-  if (!secret) throw new Error(`No TOTP secret for ${who}; reset the authenticator for this user and run again`);
+  if (!secret)
+    throw new Error(
+      `No TOTP secret for ${who}; reset the authenticator for this user and run again`,
+    );
   await codeInput.fill(codeFromSecret(secret));
   await page.getByRole('button', { name: /تحقق|Verify/ }).click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15_000 });

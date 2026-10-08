@@ -97,6 +97,7 @@ import {
   updateStaff,
 } from '../services/staff.js';
 import { runDailyJobs } from '../cron.js';
+import { commitImport, importCommitSchema } from '../services/imports.js';
 import { today } from '../util/today.js';
 import { ApiError } from '../errors.js';
 
@@ -571,6 +572,15 @@ export const staffRoutes = new Hono<AppEnv>()
       }),
     ),
     async (c) => c.json(await queryAudit(readDb(c), c.req.valid('query'))),
+  )
+
+  // Excel import: rows already parsed and mapped in the browser; validated and inserted here.
+  .post('/import/commit', editor, zValidator('json', importCommitSchema), async (c) =>
+    c.json(
+      await withTx(c, (tx) =>
+        commitImport(tx, actorFromContext(c, staffOf(c)), c.req.valid('json')),
+      ),
+    ),
   )
 
   // Manual trigger of the daily jobs (admin), useful for demos and tests.

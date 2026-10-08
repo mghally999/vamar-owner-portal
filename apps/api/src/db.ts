@@ -61,23 +61,20 @@ export async function withTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>):
   }
 }
 
-const LOCAL_POOL = Symbol.for('vamar.localPool');
+/**
+ * Local development runs on Node (or wrangler's local runtime), where one long-lived pg pool per
+ * process is the right shape; it is never used in deployed Workers.
+ */
+const localPools = new Map<string, Db>();
 
 function localPool(c: Context<AppEnv>): Db {
-  // One pg pool per request, closed after the response. Kept on the context so the read and
-  // write paths of a single request share it.
-  const holder = c as unknown as Record<symbol, Db | undefined>;
-  const existing = holder[LOCAL_POOL];
-  if (existing) return existing;
-  const pool = new pg.Pool({ connectionString: c.env.DATABASE_URL, max: 2 });
-  const db = drizzlePg({ client: pool, schema, casing: 'snake_case' }) as unknown as Db;
-  holder[LOCAL_POOL] = db;
-  c.executionCtx.waitUntil(
-    new Promise<void>((resolve) => {
-      // Give the handler time to finish streaming before closing.
-      setTimeout(() => void pool.end().finally(resolve), 50);
-    }),
-  );
+  const url = c.env.DATABASE_URL;
+  let db = localPools.get(url);
+  if (!db) {
+    const pool = new pg.Pool({ connectionString: url, max: 4 });
+    db = drizzlePg({ client: pool, schema, casing: 'snake_case' });
+    localPools.set(url, db);
+  }
   return db;
 }
 

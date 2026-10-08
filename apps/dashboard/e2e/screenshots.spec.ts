@@ -22,7 +22,9 @@ for (const lang of ['ar', 'en'] as const) {
     test(`screenshots ${lang} @${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
       await page.goto('/login');
-      await page.evaluate((l) => localStorage.setItem('vamar.lang', l), lang);
+      await page.evaluate((l) => {
+        localStorage.setItem('vamar.lang', l);
+      }, lang);
       await page.goto('/login');
       await page.screenshot({ path: `${OUT}/login-${lang}-${width}.png`, fullPage: true });
       await login(page, 'admin', lang);
@@ -36,11 +38,17 @@ for (const lang of ['ar', 'en'] as const) {
       await page.goto('/buildings');
       await page.locator('a[href^="/buildings/"]').first().click();
       await page.waitForLoadState('networkidle');
-      await page.screenshot({ path: `${OUT}/building-detail-${lang}-${width}.png`, fullPage: true });
+      await page.screenshot({
+        path: `${OUT}/building-detail-${lang}-${width}.png`,
+        fullPage: true,
+      });
       await page.goto('/contracts');
       await page.locator('a[href^="/contracts/"]').first().click();
       await page.waitForLoadState('networkidle');
-      await page.screenshot({ path: `${OUT}/contract-detail-${lang}-${width}.png`, fullPage: true });
+      await page.screenshot({
+        path: `${OUT}/contract-detail-${lang}-${width}.png`,
+        fullPage: true,
+      });
       await page.goto('/cheques');
       await page.locator('a[href^="/cheques/"]').first().click();
       await page.waitForLoadState('networkidle');

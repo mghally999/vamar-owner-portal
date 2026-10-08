@@ -19,6 +19,7 @@ import {
   refreshSession,
 } from './api';
 import { confirmCode, startPhoneSignIn, type Confirmation } from './firebase';
+import { registerForPush } from './push';
 import { deviceId, getItem, setItem } from './storage';
 import type { OwnerProfile } from './types';
 
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (savedOwner) setOwner(JSON.parse(savedOwner) as AuthState['owner']);
         setStage('authenticated');
         setLocked(bio === '1');
+        void registerForPush();
       } else setStage('anonymous');
     })();
     setSessionLostHandler(() => {
@@ -130,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setOwner(res.owner);
       setJustSignedIn(true);
       setStage('authenticated');
+      void registerForPush();
     } catch (e) {
       if (e instanceof ApiRequestError && e.code === 'owner_not_registered')
         throw new NotRegisteredError(e.message);

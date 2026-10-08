@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
@@ -8,6 +9,7 @@ import { authStaffRoutes } from './routes/auth-staff.js';
 import { ownerRoutes } from './routes/owner.js';
 import { staffRoutes } from './routes/staff.js';
 import { privacyPage } from './privacy.js';
+import { readDb } from './db.js';
 import { log } from './util/log.js';
 
 /**
@@ -46,7 +48,26 @@ export const app = new Hono<AppEnv>()
       },
     }),
   )
-  .get('/healthz', (c) => c.json({ ok: true, env: c.env.APP_ENV }))
+  .get('/healthz', async (c) => {
+    if (c.req.query('db') !== '1') return c.json({ ok: true, env: c.env.APP_ENV });
+    // Database probe for local troubleshooting: surfaces the driver's own error message.
+    try {
+      const r = await readDb(c).execute(sql`select 1 as one`);
+      return c.json({ ok: true, db: (r as { rows?: unknown[] }).rows?.length ?? 1 });
+    } catch (e) {
+      const err = e as Error & { cause?: unknown };
+      const cause = err.cause as (Error & { code?: string }) | undefined;
+      return c.json(
+        {
+          ok: false,
+          error: err.message.slice(0, 200),
+          causeMessage: cause?.message,
+          causeCode: cause?.code,
+        },
+        500,
+      );
+    }
+  })
   .get('/privacy', (c) => c.html(privacyPage()))
   .route('/api/auth/owner', authOwnerRoutes)
   .route('/api/auth/staff', authStaffRoutes)
@@ -68,7 +89,7 @@ export const app = new Hono<AppEnv>()
       requestId: c.var.requestId,
       path: c.req.path,
       error: err instanceof Error ? err.message : String(err),
-      cause: err instanceof Error && err.cause !== undefined ? String(err.cause) : undefined,
+      cause: err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined,
       stack: err instanceof Error ? err.stack?.slice(0, 800) : undefined,
     });
     return c.json({ error: { code: 'internal', message: 'Something went wrong' } }, 500);

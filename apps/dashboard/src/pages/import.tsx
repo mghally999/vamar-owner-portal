@@ -1,14 +1,350 @@
+/**
+ * Excel import: parse in the browser (SheetJS), pick the sheet and target, map columns, dry-run
+ * with the shared zod schemas, then commit in one request with an idempotency key.
+ */
+import { useMemo, useState } from 'react';
+import { read, utils, type WorkBook } from 'xlsx';
+import { z } from 'zod';
+import {
+  createBuildingSchema,
+  createOwnerSchema,
+  createTenantSchema,
+  createUnitSchema,
+  UNIT_TYPES,
+} from '@vamar/shared';
+import { request } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
-import { Card, PageHeader } from '@/ui/primitives';
+import type { MessageKey } from '@/lib/messages';
+import { Button, Card, Field, PageHeader, SectionTitle, Select, Toast } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 
-/** Excel import arrives in Phase 5 (SheetJS in the browser, dry run, batched commit). */
+type Target = 'owners' | 'buildings' | 'units' | 'tenants';
+
+const FIELDS: Record<
+  Target,
+  { key: string; label: { ar: string; en: string }; required?: boolean }[]
+> = {
+  owners: [
+    { key: 'nameAr', label: { ar: 'الاسم (عربي)', en: 'Name (Arabic)' }, required: true },
+    { key: 'nameEn', label: { ar: 'الاسم (إنجليزي)', en: 'Name (English)' }, required: true },
+    { key: 'phoneE164', label: { ar: 'الهاتف', en: 'Phone' }, required: true },
+    { key: 'email', label: { ar: 'البريد', en: 'Email' } },
+    { key: 'preferredLang', label: { ar: 'اللغة (ar/en)', en: 'Language (ar/en)' } },
+  ],
+  buildings: [
+    { key: 'nameAr', label: { ar: 'اسم المبنى (عربي)', en: 'Building (Arabic)' }, required: true },
+    {
+      key: 'nameEn',
+      label: { ar: 'اسم المبنى (إنجليزي)', en: 'Building (English)' },
+      required: true,
+    },
+    { key: 'area', label: { ar: 'المنطقة', en: 'Area' }, required: true },
+    { key: 'address', label: { ar: 'العنوان', en: 'Address' } },
+  ],
+  units: [
+    { key: 'building', label: { ar: 'المبنى (الاسم)', en: 'Building (name)' }, required: true },
+    { key: 'unitNo', label: { ar: 'رقم الوحدة', en: 'Unit no.' }, required: true },
+    { key: 'type', label: { ar: 'النوع', en: 'Type' } },
+    { key: 'bedrooms', label: { ar: 'غرف النوم', en: 'Bedrooms' } },
+    { key: 'sizeSqft', label: { ar: 'المساحة', en: 'Size (sq ft)' } },
+  ],
+  tenants: [
+    { key: 'name', label: { ar: 'الاسم', en: 'Name' }, required: true },
+    { key: 'phone', label: { ar: 'الهاتف', en: 'Phone' } },
+    { key: 'email', label: { ar: 'البريد', en: 'Email' } },
+    { key: 'company', label: { ar: 'الشركة', en: 'Company' } },
+  ],
+};
+
+const unitClientSchema = createUnitSchema
+  .omit({ buildingId: true })
+  .extend({ building: z.string().trim().min(1), type: z.enum(UNIT_TYPES).default('apartment') });
+const SCHEMAS: Record<Target, z.ZodType> = {
+  owners: createOwnerSchema,
+  buildings: createBuildingSchema,
+  units: unitClientSchema,
+  tenants: createTenantSchema,
+};
+
+/** Normalise cell values: trim strings, coerce numbers, phones to E.164, empty -> undefined. */
+function coerce(key: string, raw: unknown): unknown {
+  if (raw === null || raw === undefined) return undefined;
+  let v: unknown = typeof raw === 'string' ? raw.trim() : raw;
+  if (v === '') return undefined;
+  if (key === 'phoneE164' || key === 'phone') {
+    const digits = String(v).replace(/[^\d+]/g, '');
+    if (digits.startsWith('+')) v = digits;
+    else if (digits.startsWith('00')) v = `+${digits.slice(2)}`;
+    else if (digits.startsWith('971')) v = `+${digits}`;
+    else if (digits.startsWith('0')) v = `+971${digits.slice(1)}`;
+    else v = `+971${digits}`;
+  }
+  if (key === 'bedrooms' || key === 'sizeSqft') v = Number(v);
+  if (key === 'type' && typeof v === 'string') v = v.toLowerCase();
+  if (key === 'preferredLang' && typeof v === 'string')
+    v = v.toLowerCase().startsWith('en') ? 'en' : 'ar';
+  if (key === 'unitNo') v = String(v);
+  return v;
+}
+
+function cellText(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  return typeof v === 'object' ? JSON.stringify(v) : String(v);
+}
+
 export function ImportPage() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const [wb, setWb] = useState<WorkBook | null>(null);
+  const [fileName, setFileName] = useState('');
+  const [sheet, setSheet] = useState('');
+  const [target, setTarget] = useState<Target>('owners');
+  const [mapping, setMapping] = useState<Record<string, string>>({});
+  const [result, setResult] = useState<{
+    rowsOk: number;
+    rowsFailed: number;
+    results: { row: number; ok: boolean; errors?: string[] }[];
+  } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [key] = useState(() => crypto.randomUUID());
+
+  const rows = useMemo(() => {
+    if (!wb || !sheet) return [] as Record<string, unknown>[];
+    const ws = wb.Sheets[sheet];
+    return ws ? utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' }) : [];
+  }, [wb, sheet]);
+  const columns = useMemo(() => (rows[0] ? Object.keys(rows[0]) : []), [rows]);
+
+  // Dry run: shape each row with the mapping and validate with the shared schema.
+  const dryRun = useMemo(() => {
+    const schema = SCHEMAS[target];
+    return rows.map((r, i) => {
+      const data: Record<string, unknown> = {};
+      for (const f of FIELDS[target]) {
+        const col = mapping[f.key];
+        if (col) {
+          const v = coerce(f.key, r[col]);
+          if (v !== undefined) data[f.key] = v;
+        }
+      }
+      const parsed = schema.safeParse(data);
+      return {
+        row: i + 2,
+        data,
+        ok: parsed.success,
+        errors: parsed.success
+          ? []
+          : parsed.error.issues.map((is) => `${is.path.join('.')}: ${is.message}`),
+      };
+    });
+  }, [rows, mapping, target]);
+  const okRows = dryRun.filter((r) => r.ok);
+
+  async function onFile(file: File) {
+    const buf = await file.arrayBuffer();
+    const book = read(buf, { type: 'array' });
+    setWb(book);
+    setFileName(file.name);
+    setSheet(book.SheetNames[0] ?? '');
+    setMapping({});
+    setResult(null);
+  }
+
+  function autoMap(tg: Target, cols: string[]) {
+    const m: Record<string, string> = {};
+    for (const f of FIELDS[tg]) {
+      const hit = cols.find((c) => {
+        const n = c.toLowerCase().replace(/[^a-z؀-ۿ]/g, '');
+        return (
+          n.includes(f.key.toLowerCase().replace('e164', '')) ||
+          n.includes(f.label.ar.replace(/[^؀-ۿ]/g, '').slice(0, 4)) ||
+          n.includes(
+            f.label.en
+              .toLowerCase()
+              .replace(/[^a-z]/g, '')
+              .slice(0, 5),
+          )
+        );
+      });
+      if (hit) m[f.key] = hit;
+    }
+    setMapping(m);
+  }
+
+  async function commit() {
+    setBusy(true);
+    try {
+      const r = await request<typeof result>('/api/staff/import/commit', {
+        method: 'POST',
+        body: JSON.stringify({
+          target,
+          fileName,
+          idempotencyKey: `${key}:${target}:${sheet}`,
+          rows: okRows.map((x) => ({ row: x.row, data: x.data })),
+        }),
+      });
+      setResult(r);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <Page>
       <PageHeader title={t('import_title')} subtitle={t('import_intro')} />
-      <Card className="px-5 py-8 text-[15px] text-ink-soft">{t('import_pickFile')}</Card>
+      <Card className="grid gap-4 p-5 sm:grid-cols-3">
+        <Field label={t('import_pickFile')} required>
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="block h-11 w-full text-[15px] file:me-3 file:h-11 file:rounded-md file:border file:border-line-strong file:bg-elevated file:px-3"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) void onFile(f);
+            }}
+          />
+        </Field>
+        <Field label={t('import_sheet')} required>
+          <Select
+            value={sheet}
+            onChange={(e) => {
+              setSheet(e.target.value);
+            }}
+            disabled={!wb}
+          >
+            {wb?.SheetNames.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label={t('import_target')} required>
+          <Select
+            value={target}
+            onChange={(e) => {
+              const tg = e.target.value as Target;
+              setTarget(tg);
+              autoMap(tg, columns);
+              setResult(null);
+            }}
+          >
+            {(['owners', 'buildings', 'units', 'tenants'] as Target[]).map((tg) => (
+              <option key={tg} value={tg}>
+                {t(`import_target_${tg}` as MessageKey)}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </Card>
+
+      {columns.length > 0 ? (
+        <section>
+          <SectionTitle
+            aside={
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  autoMap(target, columns);
+                }}
+              >
+                {t('import_mapColumns')}
+              </Button>
+            }
+          >
+            {t('import_mapColumns')}
+          </SectionTitle>
+          <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+            {FIELDS[target].map((f) => (
+              <Field
+                key={f.key}
+                label={lang === 'ar' ? f.label.ar : f.label.en}
+                required={f.required}
+              >
+                <Select
+                  value={mapping[f.key] ?? ''}
+                  onChange={(e) => {
+                    setMapping({ ...mapping, [f.key]: e.target.value });
+                  }}
+                >
+                  <option value="">{t('import_ignore')}</option>
+                  {columns.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            ))}
+          </Card>
+        </section>
+      ) : null}
+
+      {rows.length > 0 ? (
+        <section>
+          <SectionTitle
+            aside={
+              <Button
+                onClick={() => void commit()}
+                disabled={okRows.length === 0 || result !== null}
+                loading={busy}
+              >
+                {t('import_commit', { n: okRows.length })}
+              </Button>
+            }
+          >
+            {t('import_dryRun')}
+          </SectionTitle>
+          {result ? (
+            <Toast kind={result.rowsFailed ? 'info' : 'success'}>
+              {t('import_done', { ok: result.rowsOk, failed: result.rowsFailed })}
+            </Toast>
+          ) : null}
+          <p className="mb-2 text-[15px] text-ink-soft">
+            <span className="text-status-cleared">{t('import_rowsOk', { n: okRows.length })}</span>{' '}
+            ·{' '}
+            <span className={dryRun.length - okRows.length ? 'text-status-bounced' : ''}>
+              {t('import_rowsFailed', { n: dryRun.length - okRows.length })}
+            </span>
+          </p>
+          <Card className="max-h-[480px] overflow-auto">
+            <table className="w-full min-w-[720px] text-[13px]">
+              <thead>
+                <tr className="row-line text-ink-soft">
+                  <th className="px-3 py-2 text-start font-medium">{t('import_row')}</th>
+                  {FIELDS[target].map((f) => (
+                    <th key={f.key} className="px-3 py-2 text-start font-medium">
+                      {lang === 'ar' ? f.label.ar : f.label.en}
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-start font-medium">{t('import_errors')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dryRun.map((r) => {
+                  const serverErrors = result?.results.find((x) => x.row === r.row)?.errors;
+                  return (
+                    <tr
+                      key={r.row}
+                      className={`row-line last:border-b-0 ${!r.ok || serverErrors ? 'bg-status-bounced-bg/40' : ''}`}
+                    >
+                      <td className="px-3 py-2 tnum text-ink-soft">{r.row}</td>
+                      {FIELDS[target].map((f) => (
+                        <td key={f.key} className="px-3 py-2" dir="auto">
+                          {cellText(r.data[f.key])}
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-status-bounced">
+                        {[...r.errors, ...(serverErrors ?? [])].join('; ')}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </Card>
+        </section>
+      ) : null}
     </Page>
   );
 }

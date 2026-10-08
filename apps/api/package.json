@@ -11,14 +11,15 @@
     }
   },
   "scripts": {
-    "dev": "wrangler dev --port 8787",
+    "dev": "tsx watch src/dev-server.ts",
     "build": "echo 'worker is bundled by wrangler at deploy time'",
     "deploy": "wrangler deploy",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "dev:wrangler": "wrangler dev --port 8787"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
@@ -40,6 +41,8 @@
     "@types/pg": "^8.23.1",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3",
-    "wrangler": "^4.148.0"
+    "wrangler": "^4.148.0",
+    "@hono/node-server": "^1.19.0",
+    "tsx": "^4.23.15"
   }
 }

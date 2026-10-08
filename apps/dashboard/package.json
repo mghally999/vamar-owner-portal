@@ -29,7 +29,8 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-hook-form": "^7.89.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
@@ -42,6 +43,7 @@
     "typescript": "^5.9.3",
     "vite": "^8.3.3",
     "vitest": "^5.0.3",
-    "@cloudflare/workers-types": "^5.20261007.1"
+    "@cloudflare/workers-types": "^5.20261007.1",
+    "@types/node": "^24.19.1"
   }
 }
