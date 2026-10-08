@@ -108,16 +108,14 @@ export async function runDailyJobs(env: Bindings) {
       .where(and(eq(contracts.status, 'active'), lt(contracts.endDate, t)))
       .returning({ id: contracts.id });
     if (expired.length) {
-      await db
-        .insert(auditLog)
-        .values({
-          actorType: 'system',
-          actorId: null,
-          action: 'contract.expire',
-          entityType: 'contract',
-          entityId: null,
-          after: { ids: expired.map((e) => e.id), date: t },
-        });
+      await db.insert(auditLog).values({
+        actorType: 'system',
+        actorId: null,
+        action: 'contract.expire',
+        entityType: 'contract',
+        entityId: null,
+        after: { ids: expired.map((e) => e.id), date: t },
+      });
     }
 
     // 4. Rate limit cleanup (windows older than a day)

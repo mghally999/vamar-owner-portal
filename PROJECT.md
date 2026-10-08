@@ -29,7 +29,15 @@ for the dashboard.
 
 ## Local development
 
-Prerequisites: Node 24 (`.nvmrc`), pnpm 12 (`npm i -g pnpm`), Docker Desktop.
+Prerequisites: Node 24 (`.nvmrc`), pnpm 12 (`npm i -g pnpm`). Docker is optional: without it,
+install PostgreSQL 17 and a JDK (`winget install PostgreSQL.PostgreSQL.17 Microsoft.OpenJDK.21`)
+plus `npm i -g firebase-tools`; `pnpm dev` then starts Postgres, the Firebase Auth emulator, the
+API and the dashboard itself (`tooling/dev/start.mjs`). With Docker, `pnpm dev:docker` uses
+`docker-compose.yml` instead.
+
+On this machine the EDB installer's service occupies port 5432, so a user-level cluster lives at
+`C:\dev\pgdata` on **5433** (`.env` points there). Local secrets for the API live in
+`apps/api/.dev.vars` (copy `.dev.vars.example`).
 
 ```
 cp .env.example .env
@@ -41,7 +49,7 @@ pnpm check             # typecheck + lint + tests for every package
 pnpm dev               # infra + every app in watch mode (apps arrive in Phase 1)
 ```
 
-- Postgres: `postgres://vamar:vamar@localhost:5432/vamar` (logs every statement, so N+1s are
+- Postgres: `postgres://vamar:vamar@localhost:5433/vamar` (5432 with Docker) (logs every statement, so N+1s are
   visible in `docker compose logs postgres`). Integration tests use the `vamar_test` database.
 - Firebase Auth emulator: http://localhost:9099, UI at http://localhost:4000, project `demo-vamar`.
   OTP codes are printed in the UI and in `docker compose logs firebase`; no SMS is ever sent.
@@ -68,8 +76,10 @@ in the emulator any number works and the code is shown in the UI.
 
 Use **+971500000001** as the App Store reviewer demo account.
 
-Staff (dashboard, Firebase email + password, then TOTP): `admin@vamar.test`, `editor@vamar.test`,
-`viewer@vamar.test`. Passwords are set in the Firebase emulator / console, not in this repo.
+Staff (dashboard, Firebase email + password, then TOTP): `admin@vamar.test` (Admin) and
+`entry@vamar.test` (Data entry). The client has two dashboard users, so the UI shows only these two
+roles; the read-only `viewer` role stays in the API and tests. Emulator passwords are in `DEMO.md`;
+real passwords are set in the Firebase console, never in this repo.
 
 ## Data model notes
 
@@ -128,10 +138,13 @@ Lists use keyset pagination on `(due_date, id)` or `(created_at, id)`; never OFF
 
 ## Design tokens and brand
 
-`packages/tokens` holds the palette pulled from vamar.ae on 2026-10-07 (navy `#162842` on a
-warm off-white `#f5f4ef`, slate accent `#5f7180`) and the stroked "V" monogram from the site
-header. Everything brand-related is marked `TEMPORARY: from vamar.ae, replace with official files`.
-A unit test asserts WCAG AA contrast for text on every background and every status chip in both
+The official logo (sent by Hanan, PULSE Media, 14 Sep 2026; confirmed by Eng. Sultan) lives in
+`packages/tokens/assets/brand` with its README. Navy `#162842` is the primary colour, silver
+`#C4C6BE` is used only for the logo and small accents on navy, the background is the warm
+off-white `#F5F4EF`. The V monogram that vamar.ae shows is not the official logo and is not used
+anywhere. The dashboard renders the single-colour SVGs through a CSS mask so they take the text
+colour; the app uses the PNG variants, the 1024 px icon, the Android adaptive icon and the splash
+logo on a navy background. A unit test asserts WCAG AA contrast for text and status chips in both
 themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwind v4.
 
 ## Free-tier constraints designed for
@@ -157,6 +170,29 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 
 ## Decisions
 
+- **Roles in the UI: Admin and Data entry only** (client has one admin and one data-entry
+  employee). `viewer` remains in the API for a future read-only user.
+- **No Docker required for development.** `tooling/dev/start.mjs` starts a local Postgres cluster,
+  the Firebase emulator (native JDK) and both dev servers; `docker-compose.yml` stays for people
+  who have Docker.
+- **Database drivers per environment.** Neon HTTP for reads and a per-request Neon Pool for
+  transactions in deployed Workers (locked decision); plain `pg` when `DATABASE_URL` points at
+  localhost because the Neon drivers only speak to Neon's proxy; tests inject a PGlite database.
+- **Rate limits, TOTP failure counters and refresh-token replay detection run on an autocommit
+  connection before the transaction**, otherwise the failing request would roll back the very
+  record that is supposed to count against it.
+- **Owner-isolation helper.** Every owner query is scoped through `owner-scope.ts`
+  (`unit_ownerships` with `to_date IS NULL`); the isolation test suite proves 404s across owners.
+- **Dashboard uses `request<T>()` with explicit response interfaces** on top of the Hono `hc`
+  client; the route tree's inferred types are kept for the client but query strings and multipart
+  uploads are easier to type explicitly.
+- **TanStack Router with code-based routes** (no generated route tree) so typecheck and CI need no
+  generation step.
+- **Logo via CSS mask** in the dashboard so one SVG serves navy and silver without duplicating
+  files; PNGs in the app.
+- **Allowed owner phone countries** are a config value (`ALLOWED_PHONE_COUNTRIES`, default `AE`)
+  checked at exchange time, so adding a country is a Worker var change.
+
 - **Internal packages export source, not `dist`.** All consumers bundle; removes a build step
   and stale-output bugs. Turborepo calls this "just-in-time packages".
 - **Money as `number` fils in code, `bigint` in Postgres.** Safe to 2^53 fils; avoids BigInt JSON
@@ -178,19 +214,23 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 
 Nothing here blocks local development; all of it is for deployed environments or for pushing.
 
-1. **Docker Desktop** is not installed on this machine. Install it, then `pnpm infra:up`.
-2. **GitHub**: `gh` is installed but not logged in. Run `gh auth login`, then from the repo root:
-   `gh repo create mghally999/vamar-owner-portal --private --source=. --push`.
-3. **Neon**: create a project (Postgres 17), create role `vamar_app`, set `DATABASE_URL` and
+1. **GitHub**: `gh` is installed but not logged in. Run `gh auth login --web`, then from the repo
+   root: `gh repo create mghally999/vamar-owner-portal --private --source=. --push`.
+2. **Neon**: create a project (Postgres 17), create role `vamar_app`, set `DATABASE_URL` and
    run `pnpm db:migrate` against it, then re-apply `migrations/0001_app_role_grants.sql`.
-4. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone
+3. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone
    numbers from "Demo accounts", restrict the SMS region policy to the UAE, set a billing budget
    alert. Download the iOS/Android config files for the app (Phase 1).
-5. **Cloudflare**: account for Workers + R2 (private bucket) + one cron trigger. Secrets via
+4. **Cloudflare**: account for Workers + R2 (private bucket) + one cron trigger. Secrets via
    `wrangler secret put` (names listed in `apps/api/.dev.vars.example` from Phase 1).
-6. **Expo/EAS**: account and project for dev builds and push notifications (Phase 1/4).
+5. **Expo/EAS**: account and project for dev builds and push notifications (Phase 1/4).
 
 ## Phase log
+
+- **Phase 1 (2026-10-08)**: API with owner/staff auth, data entry, cheque lifecycle, disputes,
+  attachments, audit, daily jobs and the owner-isolation suite; dashboard (login + TOTP, overview,
+  owners, buildings and shares, contracts with the cheque grid, cheques, disputes, staff, audit);
+  owner app (phone login, home, cheques, properties, disputes, settings); official brand.
 
 - **Phase 0 (2026-10-07)**: monorepo, tooling, CI, Drizzle schema + migrations + indexes, seed
   script, shared business rules with unit tests, tokens from vamar.ae, Docker Postgres +

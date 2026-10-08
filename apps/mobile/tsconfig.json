@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2023"],
+    "types": ["react", "react-native"],
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "noPropertyAccessFromIndexSignature": false
+  },
+  "include": ["app", "src", "app.config.ts", "eas.json", "expo-env.d.ts"],
+  "exclude": ["node_modules", "android", "ios", ".expo"]
+}

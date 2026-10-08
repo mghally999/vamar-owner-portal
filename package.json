@@ -8,8 +8,8 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "pnpm infra:up && turbo run dev",
-    "infra:up": "docker compose up -d --wait",
+    "dev": "node tooling/dev/start.mjs",
+    "infra:up": "node tooling/dev/start.mjs db firebase",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v && docker compose up -d --wait",
     "build": "turbo run build",
@@ -23,7 +23,8 @@
     "db:migrate": "pnpm --filter @vamar/db migrate",
     "db:seed": "pnpm --filter @vamar/db seed",
     "db:reset": "pnpm --filter @vamar/db reset",
-    "db:studio": "pnpm --filter @vamar/db studio"
+    "db:studio": "pnpm --filter @vamar/db studio",
+    "dev:docker": "docker compose up -d --wait && turbo run dev"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

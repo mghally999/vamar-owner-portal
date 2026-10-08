@@ -107,17 +107,15 @@ export const authOwnerRoutes = new Hono<AppEnv>()
           .where(eq(devices.id, existingDevice.id));
         isNewDevice = existingDevice.revokedAt !== null;
       } else {
-        await tx
-          .insert(devices)
-          .values({
-            ownerId: owner.id,
-            deviceId: body.device.deviceId,
-            platform: body.device.platform,
-            model: body.device.model,
-            pushToken: body.device.pushToken,
-            firstSeen: now,
-            lastSeen: now,
-          });
+        await tx.insert(devices).values({
+          ownerId: owner.id,
+          deviceId: body.device.deviceId,
+          platform: body.device.platform,
+          model: body.device.model,
+          pushToken: body.device.pushToken,
+          firstSeen: now,
+          lastSeen: now,
+        });
         isNewDevice = true;
       }
       // Only one live session per device.

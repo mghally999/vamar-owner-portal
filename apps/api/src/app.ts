@@ -68,6 +68,7 @@ export const app = new Hono<AppEnv>()
       requestId: c.var.requestId,
       path: c.req.path,
       error: err instanceof Error ? err.message : String(err),
+      cause: err instanceof Error && err.cause !== undefined ? String(err.cause) : undefined,
       stack: err instanceof Error ? err.stack?.slice(0, 800) : undefined,
     });
     return c.json({ error: { code: 'internal', message: 'Something went wrong' } }, 500);

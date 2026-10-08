@@ -287,17 +287,15 @@ export async function activateContract(
     .where(eq(contracts.id, id))
     .returning();
   // Timeline: every cheque starts its life as upcoming at activation.
-  await db
-    .insert(chequeEvents)
-    .values(
-      grid.map((c) => ({
-        chequeId: c.id,
-        fromStatus: null,
-        toStatus: 'upcoming' as const,
-        note: '',
-        actorStaffId: actor.type === 'staff' ? actor.id : null,
-      })),
-    );
+  await db.insert(chequeEvents).values(
+    grid.map((c) => ({
+      chequeId: c.id,
+      fromStatus: null,
+      toStatus: 'upcoming' as const,
+      note: '',
+      actorStaffId: actor.type === 'staff' ? actor.id : null,
+    })),
+  );
   if (contract.previousContractId) {
     await db
       .update(contracts)
@@ -339,17 +337,15 @@ export async function terminateContract(db: Dbx, actor: AuditActor, id: string, 
     .where(and(eq(cheques.contractId, id), eq(cheques.status, 'upcoming')))
     .returning({ id: cheques.id });
   if (cancelled.length) {
-    await db
-      .insert(chequeEvents)
-      .values(
-        cancelled.map((c) => ({
-          chequeId: c.id,
-          fromStatus: 'upcoming' as const,
-          toStatus: 'cancelled' as const,
-          note: `Contract terminated: ${reason}`,
-          actorStaffId: actor.type === 'staff' ? actor.id : null,
-        })),
-      );
+    await db.insert(chequeEvents).values(
+      cancelled.map((c) => ({
+        chequeId: c.id,
+        fromStatus: 'upcoming' as const,
+        toStatus: 'cancelled' as const,
+        note: `Contract terminated: ${reason}`,
+        actorStaffId: actor.type === 'staff' ? actor.id : null,
+      })),
+    );
   }
   await audit(db, actor, {
     action: 'contract.terminate',

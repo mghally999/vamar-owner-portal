@@ -266,16 +266,14 @@ export async function changeChequeStatus(
       .returning();
     replacement = rep ?? null;
     if (rep) {
-      await db
-        .insert(chequeEvents)
-        .values({
-          chequeId: rep.id,
-          fromStatus: null,
-          toStatus: 'upcoming',
-          note: `Replaces cheque ${before.chequeNo ?? ''}`.trim(),
-          actorStaffId: actor.type === 'staff' ? actor.id : null,
-          at: now,
-        });
+      await db.insert(chequeEvents).values({
+        chequeId: rep.id,
+        fromStatus: null,
+        toStatus: 'upcoming',
+        note: `Replaces cheque ${before.chequeNo ?? ''}`.trim(),
+        actorStaffId: actor.type === 'staff' ? actor.id : null,
+        at: now,
+      });
     }
   }
 
