@@ -1,26 +1,26 @@
-// TEMPORARY: from vamar.ae, replace with official files
-// Extracted on 2026-10-07 from the vamar.ae stylesheet (CSS variables --ink, --bg, --bg-elev,
-// --accent, --feature-bg) and the site icon. The site uses a deep navy on a warm off-white.
-// Only brand.primary is used for primary actions, the active tab and the hero number.
+// Brand colours from the official Vamar assets (packages/tokens/assets/brand/README.md):
+// navy #162842 (primary), silver #C4C6BE (logo and small accents on navy only), warm off-white
+// #F5F4EF (background). Only brand.primary is used for primary actions, the active tab and the
+// hero number; silver is never used for body text.
 
 export const brand = {
   /** Vamar navy. Primary actions, active tab, hero number. */
   primary: '#162842',
-  /** Hover/pressed state of primary (vamar.ae --feature-bg). */
+  /** Hover/pressed state of primary. */
   primaryStrong: '#0d1f33',
-  /** Lighter navy used for primary surfaces on dark backgrounds (vamar.ae --feature-bg dark). */
+  /** Lighter navy used for primary surfaces on dark backgrounds. */
   primarySoft: '#1a3656',
-  /** Slate accent from vamar.ae (--accent). Secondary text and icons. */
+  /** Slate accent. Secondary text and icons. */
   accent: '#5f7180',
   /** Slate accent, dark theme variant (--accent dark). */
   accentDark: '#8fa0ad',
-  /** Warm sand from vamar.ae dark-theme ink. */
+  /** Warm sand used as ink on dark surfaces. */
   sand: '#ebe6dd',
-  /** Light grey used for the mark strokes in the site icon. */
-  markStroke: '#c4ccd3',
+  /** Official logo silver. Logo and small accents on navy only, never body text. */
+  silver: '#c4c6be',
 } as const;
 
-/** Warm grey neutrals. Step 0 is the vamar.ae page background. */
+/** Warm grey neutrals. Step 0 is the brand off-white background. */
 export const neutral = {
   0: '#f5f4ef',
   50: '#f3efe7',

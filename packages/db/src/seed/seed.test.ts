@@ -48,7 +48,7 @@ describe('migrations', () => {
 
 describe('seed data', () => {
   it('creates the expected volumes', () => {
-    expect(summary.staff).toBe(3);
+    expect(summary.staff).toBe(2);
     expect(summary.owners).toBe(5);
     expect(summary.buildings).toBe(5);
     expect(summary.units).toBe(32);

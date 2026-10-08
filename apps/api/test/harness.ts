@@ -105,6 +105,14 @@ export async function createWorld(): Promise<TestWorld> {
     TEST_TODAY: TODAY,
   };
 
+  // The seed has only admin + data entry (the client's two users); tests also need a read-only viewer.
+  await db.insert(schema.staffUsers).values({
+    email: 'viewer@vamar.test',
+    name: 'Test Viewer',
+    role: 'viewer',
+    firebaseUid: 'seed-staff-viewer',
+    active: true,
+  });
   const ownerRows = await db
     .select({ id: schema.owners.id, phone: schema.owners.phoneE164 })
     .from(schema.owners);

@@ -1,37 +1,33 @@
-// TEMPORARY: from vamar.ae, replace with official files
-// The site uses a stroked "V" monogram (viewBox 0 0 64 78) next to the word VAMAR set in a
-// serif (Marcellus) with 0.16em letter-spacing. The paths below are copied from the site header.
+/**
+ * Official Vamar brand assets (see assets/brand/README.md). The vectors are single-colour with
+ * fill="currentColor": navy on light surfaces, silver on navy. Web surfaces render them through a
+ * CSS mask so they take the surrounding text colour; native surfaces use the PNG variants.
+ */
+export const brandAssets = {
+  logoSvg: 'vamar-logo.svg',
+  markSvg: 'vamar-mark.svg',
+  logoNavyPng: 'vamar-logo-navy.png',
+  logoSilverPng: 'vamar-logo-silver.png',
+  logoWhitePng: 'vamar-logo-white.png',
+  markNavyPng: 'vamar-mark-navy.png',
+  markSilverPng: 'vamar-mark-silver.png',
+  markWhitePng: 'vamar-mark-white.png',
+  appIcon: 'app-icon-1024.png',
+  adaptiveIconForeground: 'adaptive-icon-foreground.png',
+  adaptiveIconMonochrome: 'adaptive-icon-monochrome.png',
+  splashLogo: 'splash-logo.png',
+  favicon: 'favicon-512.png',
+  appleTouchIcon: 'apple-touch-icon.png',
+} as const;
 
-/** Monogram paths, stroke only. Use `currentColor` so it adapts to the theme. */
-export const markPaths = [
-  'M5 6 L32 72 L59 6',
-  'M26.5 68 L26.5 33',
-  'M37.5 68 L37.5 24',
-  'M26.5 33 L37.5 24',
-  'M32 68 L32 29',
-] as const;
+/** Intrinsic aspect ratios of the vectors (width / height). */
+export const logoAspect = {
+  logo: 840 / 703,
+  mark: 453 / 478,
+} as const;
 
-export const markViewBox = '0 0 64 78';
-
-/** Inline SVG string for web contexts. `color` defaults to currentColor. */
-export function markSvg(options: { color?: string; size?: number } = {}): string {
-  const color = options.color ?? 'currentColor';
-  const size = options.size ?? 32;
-  const height = Math.round((size * 78) / 64);
-  const paths = markPaths.map((d) => `<path d="${d}"/>`).join('');
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${height}" viewBox="${markViewBox}" fill="none" aria-hidden="true">` +
-    `<g stroke="${color}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</g></svg>`
-  );
-}
-
-/** App icon: navy rounded square with the monogram, as published at vamar.ae/icon.svg. */
-export const appIconSvg =
-  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64" fill="none">' +
-  '<rect width="64" height="64" rx="13" fill="#162842"/>' +
-  '<g stroke="#c4ccd3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none">' +
-  '<path d="M14 15 L32 53 L50 15"/><path d="M27 50 L27 27"/><path d="M37 50 L37 21"/>' +
-  '<path d="M27 27 L37 21"/><path d="M32 50 L32 24"/></g></svg>';
+/** Splash and adaptive-icon background colour. */
+export const brandBackground = '#162842';
 
 export const wordmark = {
   text: 'VAMAR',

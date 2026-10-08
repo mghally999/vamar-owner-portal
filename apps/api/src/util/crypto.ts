@@ -23,7 +23,7 @@ export function base64url(bytes: Uint8Array): string {
   return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function fromBase64(b64: string): Uint8Array {
+export function fromBase64(b64: string): Uint8Array<ArrayBuffer> {
   const norm = b64.replace(/-/g, '+').replace(/_/g, '/');
   const padded = norm + '='.repeat((4 - (norm.length % 4)) % 4);
   const bin = atob(padded);
@@ -33,7 +33,7 @@ export function fromBase64(b64: string): Uint8Array {
 }
 
 async function aesKey(secretB64: string): Promise<CryptoKey> {
-  let raw = fromBase64(secretB64);
+  let raw: Uint8Array<ArrayBuffer> = fromBase64(secretB64);
   if (raw.length !== 32) {
     // Derive a 256-bit key from whatever was configured so misconfiguration fails loudly only in length.
     raw = new Uint8Array(await crypto.subtle.digest('SHA-256', raw));
@@ -45,7 +45,11 @@ async function aesKey(secretB64: string): Promise<CryptoKey> {
 export async function encryptString(plain: string, secretB64: string): Promise<string> {
   const key = await aesKey(secretB64);
   const iv = crypto.getRandomValues(new Uint8Array(12));
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(plain));
+  const ct = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    enc.encode(plain) as Uint8Array<ArrayBuffer>,
+  );
   return `${base64url(iv)}.${base64url(new Uint8Array(ct))}`;
 }
 

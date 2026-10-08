@@ -177,7 +177,7 @@ async function sendExpoBatch(env: Bindings, messages: ExpoMessage[]): Promise<Ex
       log('error', 'push.http_error', { status: res.status });
       return messages.map(() => ({ status: 'error' as const, message: `HTTP ${res.status}` }));
     }
-    const json = await res.json<{ data?: ExpoTicket[] }>();
+    const json: { data?: ExpoTicket[] } = await res.json();
     return json.data ?? [];
   } catch (e) {
     log('error', 'push.network_error', { error: e instanceof Error ? e.message : String(e) });

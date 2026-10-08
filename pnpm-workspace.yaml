@@ -13,3 +13,9 @@ minimumReleaseAgeExclude:
 # Lifecycle (build) scripts we allow; pnpm blocks them by default.
 allowBuilds:
   esbuild: true
+  protobufjs: true
+  "@firebase/util": true
+  workerd: true
+  sharp: true
+  "@tailwindcss/oxide": true
+  "@parcel/watcher": true

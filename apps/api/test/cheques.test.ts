@@ -8,7 +8,7 @@ let editor: string;
 let admin: string;
 beforeAll(async () => {
   w = await createWorld();
-  editor = await w.staffToken('editor@vamar.test');
+  editor = await w.staffToken('entry@vamar.test');
   admin = await w.staffToken('admin@vamar.test');
 });
 afterAll(() => w.close());

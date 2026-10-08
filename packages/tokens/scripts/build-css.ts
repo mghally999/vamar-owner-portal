@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  brand,
   dark,
   fontFamily,
   fontSize,
@@ -33,6 +34,8 @@ for (const [k, v] of Object.entries(fontSize)) {
 for (const [k, v] of Object.entries(spacing)) push(`spacing-${k}`, `${v}px`);
 for (const [k, v] of Object.entries(radius)) push(`radius-${k}`, `${v}px`);
 push('shadow-card', shadow.card.css);
+push('color-brand-silver', brand.silver);
+push('color-brand-navy', brand.primary);
 for (const [k, v] of Object.entries(neutral)) push(`color-neutral-${k}`, v);
 for (const [k, v] of Object.entries(light)) push(`color-${kebab(k)}`, v);
 for (const [k, v] of Object.entries(status)) {

@@ -84,7 +84,7 @@ describe('daily jobs', () => {
 
   it('admin can trigger the jobs through the API; editor cannot', async () => {
     const admin = await w.staffToken('admin@vamar.test');
-    const editor = await w.staffToken('editor@vamar.test');
+    const editor = await w.staffToken('entry@vamar.test');
     expect(
       (await w.request('/api/staff/jobs/daily', { method: 'POST', token: editor })).status,
     ).toBe(403);
@@ -99,7 +99,7 @@ describe('daily jobs', () => {
 
 describe('disputes, staff users, overview, security headers', () => {
   it('creates a dispute with a case number, adds owner-visible and internal updates', async () => {
-    const editor = await w.staffToken('editor@vamar.test');
+    const editor = await w.staffToken('entry@vamar.test');
     const [unit] = await w.db.select({ id: schema.units.id }).from(schema.units).limit(1);
     const r = await w.json<{ id: string; caseNo: string; status: string }>('/api/staff/disputes', {
       method: 'POST',
@@ -204,7 +204,7 @@ describe('disputes, staff users, overview, security headers', () => {
   });
 
   it('validation errors return 400 with details and unknown API paths return JSON 404', async () => {
-    const editor = await w.staffToken('editor@vamar.test');
+    const editor = await w.staffToken('entry@vamar.test');
     const r = await w.request('/api/staff/owners', {
       method: 'POST',
       token: editor,

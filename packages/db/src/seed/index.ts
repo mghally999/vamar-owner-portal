@@ -59,24 +59,19 @@ export const DEMO_OWNERS = [
   },
 ] as const;
 
+/** Two dashboard users, as agreed with the client: one admin and one data-entry employee. */
 export const DEMO_STAFF = [
   {
     email: 'admin@vamar.test',
-    name: 'Salem Admin',
+    name: 'Salem Al Marri',
     role: 'admin',
     firebaseUid: 'seed-staff-admin',
   },
   {
-    email: 'editor@vamar.test',
-    name: 'Noura Editor',
+    email: 'entry@vamar.test',
+    name: 'Noura Al Hammadi',
     role: 'editor',
-    firebaseUid: 'seed-staff-editor',
-  },
-  {
-    email: 'viewer@vamar.test',
-    name: 'Hamad Viewer',
-    role: 'viewer',
-    firebaseUid: 'seed-staff-viewer',
+    firebaseUid: 'seed-staff-entry',
   },
 ] as const;
 

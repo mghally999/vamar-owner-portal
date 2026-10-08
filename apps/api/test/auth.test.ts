@@ -174,7 +174,7 @@ describe('owner auth', () => {
 
 describe('staff auth', () => {
   it('exchange -> totp setup -> verify -> full token with refresh cookie; viewer is blocked from writes', async () => {
-    const fb = await w.firebaseToken({ email: 'editor@vamar.test', email_verified: true });
+    const fb = await w.firebaseToken({ email: 'entry@vamar.test', email_verified: true });
     const ex = await w.json<{ preAuthToken: string; totpEnrolled: boolean }>(
       '/api/auth/staff/exchange',
       { method: 'POST', body: JSON.stringify({ firebaseIdToken: fb }) },
@@ -266,7 +266,7 @@ describe('staff auth', () => {
 
   it('roles are enforced on the API', async () => {
     const viewer = await w.staffToken('viewer@vamar.test');
-    const editor = await w.staffToken('editor@vamar.test');
+    const editor = await w.staffToken('entry@vamar.test');
     const admin = await w.staffToken('admin@vamar.test');
     const owner = { nameAr: 'تجربة', nameEn: 'Test Owner', phoneE164: '+971501111111' };
     expect(
