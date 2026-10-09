@@ -13,7 +13,7 @@ function luminance(hex: string): number {
 
 /** Flattens an rgba() colour onto an opaque hex background. */
 function flatten(color: string, bgHex: string): string {
-  const m = /rgba((d+),s*(d+),s*(d+),s*([d.]+))/.exec(color);
+  const m = /rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/.exec(color);
   if (!m) return color;
   const a = Number(m[4]);
   const bg = [1, 3, 5].map((i) => parseInt(bgHex.slice(i, i + 2), 16));
