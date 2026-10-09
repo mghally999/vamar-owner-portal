@@ -18,10 +18,10 @@ If the database is empty: `pnpm db:migrate && pnpm db:seed`. To start over: `pnp
 
 ## Dashboard logins
 
-| Role       | Email               | Password     |
-| ---------- | ------------------- | ------------ |
-| Admin      | admin@vamar.test    | `Vamar2026!` |
-| Data entry | entry@vamar.test    | `Vamar2026!` |
+| Role       | Email            | Password     |
+| ---------- | ---------------- | ------------ |
+| Admin      | admin@vamar.test | `Vamar2026!` |
+| Data entry | entry@vamar.test | `Vamar2026!` |
 
 These accounts exist in the Firebase emulator (recreated by `pnpm dev` from `tooling/firebase/data`).
 
@@ -33,13 +33,13 @@ e2e helper (`apps/dashboard/e2e/helpers.ts`) computes codes from the shown key.
 
 ## Owner app logins (phone + OTP)
 
-| Owner              | Phone          | Story                                                    |
-| ------------------ | -------------- | -------------------------------------------------------- |
-| Khalid Al Mansoori | +971500000001  | 8 apartments in Al Noor Tower + 30 % of 4 Mamzar villas  |
-| Fatima Al Suwaidi  | +971500000002  | Al Safa Building, two units shared 60/40 with Omar       |
-| Omar Haddad        | +971500000003  | Offices and warehouses, English UI, shared units         |
-| Mariam Al Qasimi   | +971500000004  | Al Khan Residence (Sharjah) incl. two shops              |
-| Rashid Bin Touq    | +971500000005  | 50 % of the Mamzar villas                                |
+| Owner              | Phone         | Story                                                   |
+| ------------------ | ------------- | ------------------------------------------------------- |
+| Khalid Al Mansoori | +971500000001 | 8 apartments in Al Noor Tower + 30 % of 4 Mamzar villas |
+| Fatima Al Suwaidi  | +971500000002 | Al Safa Building, two units shared 60/40 with Omar      |
+| Omar Haddad        | +971500000003 | Offices and warehouses, English UI, shared units        |
+| Mariam Al Qasimi   | +971500000004 | Al Khan Residence (Sharjah) incl. two shops             |
+| Rashid Bin Touq    | +971500000005 | 50 % of the Mamzar villas                               |
 
 In the emulator the OTP is **any 6 digits** (the code is also printed at http://localhost:4000
 under Authentication). In the real Firebase project these numbers are registered as test numbers

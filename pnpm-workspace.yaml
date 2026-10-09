@@ -14,8 +14,8 @@ minimumReleaseAgeExclude:
 allowBuilds:
   esbuild: true
   protobufjs: true
-  "@firebase/util": true
+  '@firebase/util': true
   workerd: true
   sharp: true
-  "@tailwindcss/oxide": true
-  "@parcel/watcher": true
+  '@tailwindcss/oxide': true
+  '@parcel/watcher': true

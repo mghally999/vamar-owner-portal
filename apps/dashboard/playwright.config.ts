@@ -10,5 +10,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
     locale: 'ar-AE',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'], channel: process.env['PW_CHANNEL'] ?? 'msedge' } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'], channel: process.env['PW_CHANNEL'] ?? 'msedge' },
+    },
+  ],
 });

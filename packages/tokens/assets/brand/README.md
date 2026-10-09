@@ -4,11 +4,13 @@ Source: official logo sent by Hanan in the PULSE Media group (14 Sep 2026, IMG_8
 The V monogram on vamar.ae is NOT the official logo (confirmed by Eng. Sultan).
 
 Colours
+
 - Navy (primary, Sultan asked for navy): #162842
 - Silver (logo colour, accents on navy only): #C4C6BE
 - Warm off-white background: #F5F4EF
 
 Files
+
 - vamar-logo.svg / vamar-mark.svg: single-colour vectors, fill="currentColor"
 - vamar-logo-{navy,silver,white}.png, vamar-mark-{navy,silver,white}.png: transparent PNGs
 - app-icon-1024.png: iOS/Expo icon (no transparency)
