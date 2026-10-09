@@ -274,8 +274,22 @@ Nothing here blocks local development; all of it is for deployed environments or
 3. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone
    numbers from "Demo accounts", restrict the SMS region policy to the UAE, set a billing budget
    alert. Download the iOS/Android config files for the app (Phase 1).
-4. **Cloudflare**: account for Workers + R2 (private bucket) + one cron trigger. Secrets via
-   `wrangler secret put` (names listed in `apps/api/.dev.vars.example` from Phase 1).
+4. **Cloudflare**: done on 9 Oct 2026. Worker `vamar-owner-portal` (account
+   `d79f7d201117913b244dfa7dad50ba26`) serves the dashboard and the API at
+   https://vamar-owner-portal.vamar-api.workers.dev with the daily cron; R2 buckets `vamar-files`
+   (attachments) and `vamar-backups` (nightly dumps). Secrets set: `DATABASE_URL` (the
+   `vamar_app` Neon URL), `JWT_SECRET`, `TOTP_ENC_KEY`. Deploy with
+   `pnpm --filter @vamar/dashboard build && cd apps/api && npx wrangler deploy --var APP_ENV:production`.
+   Static files get their security headers from `apps/dashboard/public/_headers` (the asset layer
+   does not run the Worker). Still to set: `FIREBASE_PROJECT_ID` once the real Firebase project
+   exists (`--var` or wrangler.jsonc).
+   **Backups**: GitHub secrets `BACKUP_DATABASE_URL`, `BACKUP_AGE_RECIPIENT`, `R2_ACCOUNT_ID`,
+   `R2_BACKUP_BUCKET` are set. The age private key is in `.local/backup-age-key.txt` on the dev
+   machine (gitignored); copy it to a password manager. Missing: `R2_ACCESS_KEY_ID` and
+   `R2_SECRET_ACCESS_KEY` from Cloudflare > R2 > Manage R2 API tokens > Create API token
+   (Object Read & Write, bucket `vamar-backups`), then `gh secret set R2_ACCESS_KEY_ID` and
+   `gh secret set R2_SECRET_ACCESS_KEY`, then run the workflow once by hand (Actions > Nightly
+   database backup > Run workflow).
 5. **Expo/EAS**: account and project for dev builds and push notifications (Phase 1/4).
 
 ## Phase log
