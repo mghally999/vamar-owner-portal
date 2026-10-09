@@ -15,6 +15,7 @@ const PAGES: { name: string; path: string; settle?: (page: Page) => Promise<void
   { name: 'disputes', path: '/disputes' },
   { name: 'staff', path: '/staff' },
   { name: 'audit', path: '/audit' },
+  { name: 'import', path: '/import' },
 ];
 
 for (const lang of ['ar', 'en'] as const) {
@@ -43,7 +44,7 @@ for (const lang of ['ar', 'en'] as const) {
         fullPage: true,
       });
       await page.goto('/contracts');
-      await page.locator('a[href^="/contracts/"]').first().click();
+      await page.locator('a[href^="/contracts/"]:not([href$="/new"])').first().click();
       await page.waitForLoadState('networkidle');
       await page.screenshot({
         path: `${OUT}/contract-detail-${lang}-${width}.png`,
@@ -57,6 +58,13 @@ for (const lang of ['ar', 'en'] as const) {
       await page.locator('a[href^="/owners/"]').first().click();
       await page.waitForLoadState('networkidle');
       await page.screenshot({ path: `${OUT}/owner-detail-${lang}-${width}.png`, fullPage: true });
+      await page.goto('/disputes');
+      await page.locator('a[href^="/disputes/"]').first().click();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `${OUT}/dispute-detail-${lang}-${width}.png`,
+        fullPage: true,
+      });
     });
   }
 }

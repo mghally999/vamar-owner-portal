@@ -42,18 +42,26 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   { variant = 'primary', size = 'md', asChild, loading, className, children, disabled, ...rest },
   ref,
 ) {
-  const Comp = asChild ? Slot.Root : 'button';
+  const classes = cx(
+    'inline-flex items-center justify-center gap-2 rounded-md border font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none',
+    variantClass[variant],
+    sizeClass[size],
+    className,
+  );
+  if (asChild) {
+    // Slot needs exactly one child element; the loading spinner never applies to link buttons.
+    return (
+      <Slot.Root ref={ref} className={classes} {...rest}>
+        {children}
+      </Slot.Root>
+    );
+  }
   return (
-    <Comp
+    <button
       ref={ref}
-      className={cx(
-        'inline-flex items-center justify-center gap-2 rounded-md border font-medium whitespace-nowrap transition-colors disabled:opacity-50 disabled:pointer-events-none',
-        variantClass[variant],
-        sizeClass[size],
-        className,
-      )}
+      className={classes}
       disabled={Boolean(disabled) || Boolean(loading)}
-      {...(asChild ? {} : { type: rest.type ?? 'button' })}
+      type={rest.type ?? 'button'}
       {...rest}
     >
       {loading ? (
@@ -63,14 +71,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         />
       ) : null}
       {children}
-    </Comp>
+    </button>
   );
 });
 
 // Form controls ---------------------------------------------------------------------------------
 
 const controlClass =
-  'w-full h-11 rounded-md border border-line-strong bg-elevated px-3 text-[15px] placeholder:text-ink-faint focus:border-primary disabled:bg-sunken disabled:text-ink-soft';
+  'h-11 rounded-md border border-line-strong bg-elevated px-3 text-[15px] placeholder:text-ink-faint focus:border-primary disabled:bg-sunken disabled:text-ink-soft';
+
+/** Controls are full-width unless the caller passes an explicit width (w-40, w-52...). */
+function widthClass(className: string | undefined): string {
+  return /(^|s)(w-|min-w-|max-w-|flex-1|grow)/.test(className ?? '') ? '' : 'w-full';
+}
 
 export const Input = forwardRef<
   HTMLInputElement,
@@ -81,6 +94,7 @@ export const Input = forwardRef<
       ref={ref}
       className={cx(
         controlClass,
+        widthClass(className),
         numeric && 'tnum text-start',
         invalid && 'border-danger',
         className,
@@ -101,6 +115,7 @@ export const Select = forwardRef<
       ref={ref}
       className={cx(
         controlClass,
+        widthClass(className),
         'appearance-none bg-[length:16px] bg-no-repeat pe-9 ps-3',
         'bg-[image:var(--chevron)]',
         invalid && 'border-danger',
@@ -125,7 +140,13 @@ export const Textarea = forwardRef<
   return (
     <textarea
       ref={ref}
-      className={cx(controlClass, 'h-auto min-h-24 py-2', invalid && 'border-danger', className)}
+      className={cx(
+        controlClass,
+        widthClass(className),
+        'h-auto min-h-24 py-2',
+        invalid && 'border-danger',
+        className,
+      )}
       aria-invalid={invalid ? true : undefined}
       {...rest}
     />
@@ -359,7 +380,7 @@ export function Money({
 }) {
   const { money } = useI18n();
   return (
-    <span className={cx('tnum', strong && 'font-semibold', className)} dir="ltr">
+    <span className={cx('tnum whitespace-nowrap', strong && 'font-semibold', className)} dir="ltr">
       {money(fils)}
     </span>
   );
@@ -373,7 +394,7 @@ export function DateText({
   className?: string;
 }) {
   const i18n = useI18n();
-  return <span className={cx('tnum', className)}>{i18n.date(date)}</span>;
+  return <span className={cx('tnum whitespace-nowrap', className)}>{i18n.date(date)}</span>;
 }
 
 export function Toast({

@@ -177,20 +177,22 @@ export function ChequeGrid({
           <Money fils={v.totalFils} strong />
           <span className="text-ink-soft"> {t('contract_grid_vsRent')} </span>
           <Money fils={annualRentFils} />
-          <span
-            className={cx(
-              'ms-3 text-[13px]',
-              v.matchesRent ? 'text-status-cleared' : 'text-status-deposited',
-            )}
-          >
-            {v.matchesRent
-              ? t('contract_grid_matches')
-              : v.differenceFils < 0
-                ? t('contract_grid_short', { diff: formatNumber(-v.differenceFils, lang) })
-                : t('contract_grid_over', { diff: formatNumber(v.differenceFils, lang) })}
-          </span>
+          {annualRentFils > 0 ? (
+            <span
+              className={cx(
+                'ms-3 text-[13px]',
+                v.matchesRent ? 'text-status-cleared' : 'text-status-deposited',
+              )}
+            >
+              {v.matchesRent
+                ? t('contract_grid_matches')
+                : v.differenceFils < 0
+                  ? t('contract_grid_short', { diff: formatNumber(-v.differenceFils, lang) })
+                  : t('contract_grid_over', { diff: formatNumber(v.differenceFils, lang) })}
+            </span>
+          ) : null}
           {v.missingSeqs.length ? (
-            <span className="ms-3 text-[13px] text-ink-soft">
+            <span className="ms-3 text-[13px] text-ink-soft before:me-3 before:content-['·']">
               {t('contract_grid_missing', { n: v.missingSeqs.length })}
             </span>
           ) : null}

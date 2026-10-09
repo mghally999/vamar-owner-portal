@@ -1,0 +1,79 @@
+name: Nightly database backup
+
+# pg_dump of the Neon database, gzipped, encrypted with age, uploaded to a private R2 bucket
+# through its S3 API. Backups older than 30 days are deleted. Everything sensitive comes from
+# GitHub Actions secrets:
+#   BACKUP_DATABASE_URL   Neon connection string (read-only role is enough)
+#   BACKUP_AGE_RECIPIENT  age public key (age1...); the private key stays offline
+#   R2_ACCOUNT_ID         Cloudflare account id (endpoint https://<id>.r2.cloudflarestorage.com)
+#   R2_BACKUP_BUCKET      private bucket name, e.g. vamar-backups
+#   R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY   R2 API token scoped to that bucket
+
+on:
+  schedule:
+    - cron: '30 0 * * *' # 00:30 UTC = 04:30 Dubai, after the 04:00 UTC alerts cron has run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_EC2_METADATA_DISABLED: 'true'
+      R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      BUCKET: ${{ secrets.R2_BACKUP_BUCKET }}
+    steps:
+      - name: Install PostgreSQL 17 client and age
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates gnupg age
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+
+      - name: Dump, compress, encrypt
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y-%m-%dT%H%M%SZ)"
+          FILE="vamar-${STAMP}.sql.gz.age"
+          pg_dump --no-owner --no-privileges --format=plain "$DATABASE_URL" \
+            | gzip -9 \
+            | age --recipient "$AGE_RECIPIENT" --output "$FILE"
+          ls -l "$FILE"
+          echo "FILE=$FILE" >> "$GITHUB_ENV"
+
+      - name: Upload to R2
+        run: |
+          set -euo pipefail
+          aws s3 cp "$FILE" "s3://$BUCKET/postgres/$FILE" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          echo "uploaded postgres/$FILE"
+
+      - name: Delete backups older than 30 days
+        run: |
+          set -euo pipefail
+          CUTOFF="$(date -u -d '30 days ago' +%Y-%m-%d)"
+          aws s3 ls "s3://$BUCKET/postgres/" --endpoint-url "$R2_ENDPOINT" \
+            | awk '{print $1, $4}' \
+            | while read -r day key; do
+                if [ -n "$key" ] && [ "$day" \< "$CUTOFF" ]; then
+                  aws s3 rm "s3://$BUCKET/postgres/$key" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+                  echo "deleted $key ($day)"
+                fi
+              done
+
+      - name: Remove local dump
+        if: always()
+        run: rm -f ./*.age

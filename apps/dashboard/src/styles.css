@@ -132,3 +132,8 @@
   border-radius: var(--radius-sm);
   animation: shimmer 1.4s ease-in-out infinite;
 }
+
+/* Select chevron sits at the inline end: right in LTR, left in RTL. */
+html[dir='rtl'] {
+  --chev-pos: left 12px center;
+}

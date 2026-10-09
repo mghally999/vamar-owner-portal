@@ -56,6 +56,34 @@ pnpm dev               # infra + every app in watch mode (apps arrive in Phase 1
 - `pnpm db:reset` drops, migrates and reseeds the local database (refuses non-local hosts).
 - `pnpm db:generate` writes a new migration after a schema change; review the SQL before committing.
 - `pnpm db:studio` opens Drizzle Studio.
+- `pnpm dev` also recreates the two demo staff accounts in the Auth emulator on every start
+  (the emulator forgets them when it is killed without exporting), with fixed uids that match
+  the seed's `firebase_uid` values.
+
+### Android emulator (owner app demo without a phone)
+
+The app is a dev build (native Firebase), so it needs the Android SDK, not Expo Go. The SDK is
+installed per user, no admin rights needed, and nothing in the repo depends on its path:
+
+1. Command-line tools from https://developer.android.com/studio#command-line-tools-only unzipped
+   to `%LOCALAPPDATA%AndroidSdkcmdline-toolslatest`, then
+   `sdkmanager --licenses` and
+   `sdkmanager "platform-tools" "emulator" "platforms;android-36" "build-tools;36.0.0" "system-images;android-36;google_apis_playstore;x86_64"`.
+2. `ANDROID_HOME` user variable = that `Sdk` folder; `platform-tools`, `emulator` and
+   `cmdline-toolslatestin` on PATH. JDK 17 or 21 (`JAVA_HOME`); the Microsoft OpenJDK 21
+   used by the Firebase emulator works.
+3. **Windows Hypervisor Platform** must be enabled (Settings > Optional features > More Windows
+   features, or `Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` as admin)
+   and the machine restarted; with Hyper-V / WSL present, the emulator cannot use any other
+   accelerator.
+4. AVD: `avdmanager create avd -n Vamar_Demo -k "system-images;android-36;google_apis_playstore;x86_64" -d pixel_7`.
+5. First install of the dev build: `pnpm --filter @vamar/mobile android` (runs `expo run:android`,
+   several minutes the first time). After that `pnpm demo:android` starts Postgres, the Auth
+   emulator, the API, the AVD and Metro, and opens the app.
+
+Inside the emulator the app reaches the host through `10.0.2.2` (`apps/mobile/.env.development`).
+The placeholder `apps/mobile/firebase/google-services.json` (copied from the example) is enough
+for the Auth emulator; real files are only needed for a real Firebase project.
 
 The seed and migration test in `packages/db` runs against PGlite (in-process Postgres), so
 `pnpm test` works with no Docker and CI needs no database service for it.
@@ -167,6 +195,12 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - TOTP lockout: 5 failures lock for 15 minutes (`staff_users.totp_failures`, `totp_locked_until`).
 - Rate limits live in `rate_limits` (fixed windows per IP and per phone/email).
 - Never log tokens, OTPs, full phone numbers (mask to the last 3 digits) or file contents.
+- **Backups**: `.github/workflows/backup.yml` runs nightly at 00:30 UTC: `pg_dump`, gzip,
+  `age` encryption to a public key, upload to a private R2 bucket through its S3 API, delete
+  objects older than 30 days. Secrets: `BACKUP_DATABASE_URL`, `BACKUP_AGE_RECIPIENT`,
+  `R2_ACCOUNT_ID`, `R2_BACKUP_BUCKET`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`. The age
+  private key is kept offline by Vamar's admin; restore =
+  `age -d -i key.txt file.sql.gz.age | gunzip | psql "$DATABASE_URL"`.
 
 ## Decisions
 
@@ -193,6 +227,14 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Allowed owner phone countries** are a config value (`ALLOWED_PHONE_COUNTRIES`, default `AE`)
   checked at exchange time, so adding a country is a Worker var change.
 
+- **Dashboard form controls are full width unless the caller passes a width class** (`w-40`,
+  `flex-1`...), implemented in one `widthClass` helper; `cx` does not merge Tailwind classes, so
+  a fixed `w-full` in the base class used to win over the caller's width.
+- **Playwright runs with one worker and a global setup** that clears rate-limit rows and resets
+  the demo staff's authenticator in the local database, so the first login of every run enrols
+  TOTP and the helper reads the secret from the screen. The setup refuses non-local hosts.
+- **Android SDK via command-line tools, not Android Studio**, so no admin install is needed and
+  the setup is reproducible from PROJECT.md; Android Studio can be added later for its GUI.
 - **Internal packages export source, not `dist`.** All consumers bundle; removes a build step
   and stale-output bugs. Turborepo calls this "just-in-time packages".
 - **Money as `number` fils in code, `bigint` in Postgres.** Safe to 2^53 fils; avoids BigInt JSON
@@ -214,8 +256,8 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 
 Nothing here blocks local development; all of it is for deployed environments or for pushing.
 
-1. **GitHub**: `gh` is installed but not logged in. Run `gh auth login --web`, then from the repo
-   root: `gh repo create mghally999/vamar-owner-portal --private --source=. --push`.
+1. **GitHub**: done on 9 Oct 2026, private repo `mghally999/vamar-owner-portal`, CI runs on
+   every push. Still to add: the backup secrets listed under "Security notes".
 2. **Neon**: create a project (Postgres 17), create role `vamar_app`, set `DATABASE_URL` and
    run `pnpm db:migrate` against it, then re-apply `migrations/0001_app_role_grants.sql`.
 3. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone

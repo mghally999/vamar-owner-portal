@@ -197,15 +197,23 @@ export function ImportPage() {
       <PageHeader title={t('import_title')} subtitle={t('import_intro')} />
       <Card className="grid gap-4 p-5 sm:grid-cols-3">
         <Field label={t('import_pickFile')} required>
-          <input
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            className="block h-11 w-full text-[15px] file:me-3 file:h-11 file:rounded-md file:border file:border-line-strong file:bg-elevated file:px-3"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onFile(f);
-            }}
-          />
+          <div className="flex h-11 items-center gap-3">
+            <label className="inline-flex h-11 cursor-pointer items-center rounded-md border border-line-strong bg-elevated px-3 text-[15px] font-medium hover:bg-sunken">
+              {t('import_chooseFile')}
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onFile(f);
+                }}
+              />
+            </label>
+            <span className="truncate text-[15px] text-ink-soft" dir="auto">
+              {fileName || t('import_noFile')}
+            </span>
+          </div>
         </Field>
         <Field label={t('import_sheet')} required>
           <Select

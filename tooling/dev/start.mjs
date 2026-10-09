@@ -74,9 +74,11 @@ if (want('db')) {
     const pgData = process.env.PGDATA_DIR ?? 'C:\\dev\\pgdata';
     const pgBin = process.env.PG_BIN ?? 'C:\\Program Files\\PostgreSQL\\17\\bin';
     if (existsSync(pgData)) {
+      // shell: true concatenates arguments, so paths with spaces (C:Program Files) must be quoted.
+      const q = (p) => (isWin ? `"${p}"` : p);
       const r = spawnSync(
-        join(pgBin, 'pg_ctl'),
-        ['-D', pgData, '-l', join(pgData, 'server.log'), '-w', 'start'],
+        q(join(pgBin, 'pg_ctl')),
+        ['-D', q(pgData), '-l', q(join(pgData, 'server.log')), '-w', 'start'],
         { stdio: 'inherit', shell: isWin },
       );
       console.log(`[postgres]   pg_ctl start exited with ${r.status}`);
@@ -118,6 +120,43 @@ if (want('firebase')) {
       { cwd: join(root, 'tooling', 'firebase') },
     );
   }
+}
+
+// 2b. Demo staff accounts in the emulator. The emulator keeps nothing between runs unless it
+// exports on exit (a reboot or kill skips that), so recreate the two dashboard logins every start.
+// Fixed localIds match the seed's firebase_uid values; EMAIL_EXISTS / DUPLICATE_LOCAL_ID are fine.
+if (want('firebase')) {
+  const demoStaff = [
+    { localId: 'seed-staff-admin', email: 'admin@vamar.test' },
+    { localId: 'seed-staff-entry', email: 'entry@vamar.test' },
+  ];
+  const password = process.env.DEMO_STAFF_PASSWORD ?? 'Vamar2026!';
+  (async () => {
+    for (let i = 0; i < 60 && !(await portOpen(9099)); i++)
+      await new Promise((r) => setTimeout(r, 1000));
+    for (const u of demoStaff) {
+      try {
+        const res = await fetch(
+          'http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=emulator',
+          {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: 'Bearer owner' },
+            body: JSON.stringify({ ...u, password, emailVerified: true }),
+          },
+        );
+        const body = await res.json().catch(() => ({}));
+        const msg = body?.error?.message ?? '';
+        if (res.ok) console.log(`[firebase]   demo staff ${u.email} created`);
+        else if (/EMAIL_EXISTS|DUPLICATE_LOCAL_ID/.test(msg))
+          console.log(`[firebase]   demo staff ${u.email} present`);
+        else console.warn(`[firebase]   could not create ${u.email}: ${msg || res.status}`);
+      } catch (e) {
+        console.warn(
+          `[firebase]   could not reach the emulator to create demo staff: ${e.message}`,
+        );
+      }
+    }
+  })();
 }
 
 // 3 + 4. API and dashboard

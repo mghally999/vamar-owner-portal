@@ -146,7 +146,9 @@ export function ChequesPage() {
           className="w-40"
           aria-label={t('cheque_filter_status')}
         >
-          <option value="">{t('all')}</option>
+          <option value="">
+            {t('cheque_filter_status')}: {t('all')}
+          </option>
           {CHEQUE_STATUSES.map((s) => (
             <option key={s} value={s}>
               {t(`cheque_status_${s}` as MessageKey)}
