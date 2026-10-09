@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -12,6 +12,11 @@ export default defineConfig({
     port: 5173,
     // During dashboard work the API runs in wrangler dev on 8787; cookies stay same-site through the proxy.
     proxy: { '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false } },
+  },
+  test: {
+    // Unit tests only; the Playwright suite in e2e/ runs through `pnpm e2e`.
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
   },
   build: {
     target: 'es2022',

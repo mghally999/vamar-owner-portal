@@ -50,3 +50,6 @@ AGENTS.md
 apps/dashboard/test-results/
 apps/dashboard/playwright-report/
 apps/api/.dev-files/
+
+# local session notes (never committed)
+.local/

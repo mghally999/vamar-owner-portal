@@ -72,7 +72,7 @@ function coerce(key: string, raw: unknown): unknown {
   let v: unknown = typeof raw === 'string' ? raw.trim() : raw;
   if (v === '') return undefined;
   if (key === 'phoneE164' || key === 'phone') {
-    const digits = String(v).replace(/[^\d+]/g, '');
+    const digits = cellText(v).replace(/[^\d+]/g, '');
     if (digits.startsWith('+')) v = digits;
     else if (digits.startsWith('00')) v = `+${digits.slice(2)}`;
     else if (digits.startsWith('971')) v = `+${digits}`;
@@ -83,13 +83,17 @@ function coerce(key: string, raw: unknown): unknown {
   if (key === 'type' && typeof v === 'string') v = v.toLowerCase();
   if (key === 'preferredLang' && typeof v === 'string')
     v = v.toLowerCase().startsWith('en') ? 'en' : 'ar';
-  if (key === 'unitNo') v = String(v);
+  if (key === 'unitNo') v = cellText(v);
   return v;
 }
 
+/** Text for a spreadsheet cell: SheetJS gives strings, numbers, booleans or Date objects. */
 function cellText(v: unknown): string {
   if (v === null || v === undefined) return '';
-  return typeof v === 'object' ? JSON.stringify(v) : String(v);
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v);
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  return JSON.stringify(v);
 }
 
 export function ImportPage() {

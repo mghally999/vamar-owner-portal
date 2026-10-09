@@ -45,7 +45,7 @@ export async function listOwners(
       preferredLang: owners.preferredLang,
       status: owners.status,
       createdAt: owners.createdAt,
-      unitCount: sql<number>`(select count(*)::int from ${unitOwnerships} uo where uo.owner_id = ${owners.id} and uo.to_date is null)`,
+      unitCount: sql<number>`(select count(*)::int from ${unitOwnerships} uo where uo.owner_id = owners.id and uo.to_date is null)`,
     })
     .from(owners)
     .where(conditions.length ? and(...conditions) : undefined)

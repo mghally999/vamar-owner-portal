@@ -303,7 +303,7 @@ export async function ownerBuildings(db: Dbx, ownerId: string, todayDate: PlainD
       area: buildings.area,
       unitCount: sql<number>`count(distinct ${units.id})::int`,
       occupiedCount: sql<number>`count(distinct ${units.id}) filter (where exists (
-        select 1 from ${contracts} c where c.unit_id = ${units.id} and c.status = 'active'
+        select 1 from ${contracts} c where c.unit_id = units.id and c.status = 'active'
         and c.start_date <= ${todayDate} and c.end_date >= ${todayDate}))::int`,
     })
     .from(units)
@@ -343,7 +343,7 @@ export async function ownerUnits(
       annualRentFils: contracts.annualRentFils,
       vacantSince: sql<
         string | null
-      >`(select max(c2.end_date) from ${contracts} c2 where c2.unit_id = ${units.id} and c2.status <> 'draft' and c2.end_date < ${todayDate})`,
+      >`(select max(c2.end_date) from ${contracts} c2 where c2.unit_id = units.id and c2.status <> 'draft' and c2.end_date < ${todayDate})`,
     })
     .from(units)
     .innerJoin(unitOwnerships, eq(unitOwnerships.unitId, units.id))

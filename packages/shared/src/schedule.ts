@@ -108,12 +108,19 @@ export function validateChequeGrid(rows: GridRow[], annualRentFils: number): Gri
 }
 
 /**
- * Suggested equal split of the annual rent for pre-filling the grid: floor each cheque and
- * put the remainder fils on the first cheque so the total is exact. Staff can overwrite.
+ * Equal split of the annual rent for the optional "split equally" button in the cheque grid.
+ * Nothing is pre-filled: the grid starts empty and this runs only when staff press the button.
+ * Every cheque is a whole number of dirhams (a multiple of 100 fils); the first cheque takes the
+ * remainder so the total is exact. Staff can overwrite any amount afterwards.
  */
 export function suggestEqualAmounts(annualRentFils: number, chequeCount: number): number[] {
   const n = assertChequeCount(chequeCount);
-  const base = Math.floor(annualRentFils / n);
+  if (!Number.isInteger(annualRentFils) || annualRentFils < 0) {
+    throw new RangeError('annualRentFils must be a non-negative integer');
+  }
+  const FILS_PER_DIRHAM = 100;
+  const baseDirhams = Math.floor(Math.floor(annualRentFils / FILS_PER_DIRHAM) / n);
+  const base = baseDirhams * FILS_PER_DIRHAM;
   const remainder = annualRentFils - base * n;
   return Array.from({ length: n }, (_, i) => (i === 0 ? base + remainder : base));
 }

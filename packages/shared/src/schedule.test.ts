@@ -185,12 +185,30 @@ describe('validateChequeGrid', () => {
 });
 
 describe('suggestEqualAmounts', () => {
-  it('splits exactly, remainder on the first cheque', () => {
+  it('splits into whole dirhams, remainder on the first cheque, total exact', () => {
     expect(suggestEqualAmounts(10_000_000, 4)).toEqual([
       2_500_000, 2_500_000, 2_500_000, 2_500_000,
     ]);
+    // 100,000.01 AED over 3 cheques: 33,333 AED each, first takes 1 AED + 1 fils
     const parts = suggestEqualAmounts(10_000_001, 3);
-    expect(parts).toEqual([3_333_335, 3_333_333, 3_333_333]);
+    expect(parts).toEqual([3_333_401, 3_333_300, 3_333_300]);
+    expect(parts.every((p, i) => i === 0 || p % 100 === 0)).toBe(true);
     expect(parts.reduce((a, b) => a + b, 0)).toBe(10_000_001);
+  });
+
+  it('every cheque is a whole dirham amount except the remainder on the first', () => {
+    for (const rent of [8_500_000, 12_345_678, 99, 100, 7_777_777]) {
+      for (let n = 1; n <= 12; n++) {
+        const parts = suggestEqualAmounts(rent, n);
+        expect(parts).toHaveLength(n);
+        expect(parts.reduce((a, b) => a + b, 0)).toBe(rent);
+        expect(parts.slice(1).every((p) => p % 100 === 0)).toBe(true);
+      }
+    }
+  });
+
+  it('rejects fractional or negative rent', () => {
+    expect(() => suggestEqualAmounts(1.5, 2)).toThrow(RangeError);
+    expect(() => suggestEqualAmounts(-100, 2)).toThrow(RangeError);
   });
 });

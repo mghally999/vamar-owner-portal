@@ -22,9 +22,9 @@ export async function listBuildings(db: Dbx, todayDate: PlainDate) {
       nameEn: buildings.nameEn,
       area: buildings.area,
       address: buildings.address,
-      unitCount: sql<number>`(select count(*)::int from ${units} u where u.building_id = ${buildings.id} and u.active)`,
+      unitCount: sql<number>`(select count(*)::int from ${units} u where u.building_id = buildings.id and u.active)`,
       occupiedCount: sql<number>`(select count(distinct c.unit_id)::int from ${contracts} c join ${units} u on u.id = c.unit_id
-        where u.building_id = ${buildings.id} and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate})`,
+        where u.building_id = buildings.id and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate})`,
     })
     .from(buildings)
     .orderBy(asc(buildings.nameEn));

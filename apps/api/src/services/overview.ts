@@ -39,7 +39,7 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
       buildingNameAr: buildings.nameAr,
       buildingNameEn: buildings.nameEn,
       tenantName: tenants.name,
-      hasRenewalDraft: sql<boolean>`exists (select 1 from ${contracts} r where r.previous_contract_id = ${contracts.id})`,
+      hasRenewalDraft: sql<boolean>`exists (select 1 from ${contracts} r where r.previous_contract_id = contracts.id)`,
     })
     .from(contracts)
     .innerJoin(units, eq(units.id, contracts.unitId))
@@ -57,7 +57,7 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
   const [occ] = await db
     .select({
       total: sql<number>`count(*)::int`,
-      occupied: sql<number>`count(*) filter (where exists (select 1 from ${contracts} c where c.unit_id = ${units.id} and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate}))::int`,
+      occupied: sql<number>`count(*) filter (where exists (select 1 from ${contracts} c where c.unit_id = units.id and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate}))::int`,
     })
     .from(units)
     .where(eq(units.active, true));

@@ -59,6 +59,26 @@ describe('owners, buildings, units, shares', () => {
     expect(bad.status).toBe(400);
   });
 
+  it('lists buildings with unit and occupancy counts', async () => {
+    const r = await w.json<{
+      items: { nameEn: string; unitCount: number; occupiedCount: number }[];
+    }>('/api/staff/buildings', { token: editor });
+    expect(r.status).toBe(200);
+    const noor = r.body.items.find((b) => b.nameEn === 'Al Noor Tower');
+    expect(noor?.unitCount).toBe(8);
+    expect(noor?.occupiedCount).toBe(7);
+    const ov = await w.json<{ occupancy: { total: number; occupied: number } }>(
+      '/api/staff/overview',
+      { token: editor },
+    );
+    expect(ov.body.occupancy.occupied).toBeGreaterThan(20);
+    const owners = await w.json<{ items: { nameEn: string; unitCount: number }[] }>(
+      '/api/staff/owners?limit=50',
+      { token: editor },
+    );
+    expect(owners.body.items.find((o) => o.nameEn === 'Khalid Al Mansoori')?.unitCount).toBe(12);
+  });
+
   it('creates a building and unit; unit numbers are unique per building', async () => {
     const b = await post('/api/staff/buildings', {
       nameAr: 'برج الاختبار',

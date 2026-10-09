@@ -42,7 +42,11 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
     codeInput.waitFor({ timeout: 15_000 }),
   ]);
   let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`];
-  if (await secretEl.isVisible()) {
+  const enrolling = await page
+    .getByRole('heading', { name: /إعداد تطبيق المصادقة|Set up your authenticator/ })
+    .isVisible();
+  if (enrolling) await secretEl.waitFor({ timeout: 15_000 });
+  if (enrolling && (await secretEl.isVisible())) {
     secret = (await secretEl.textContent())?.replace(/\s/g, '') ?? '';
     process.env[`TOTP_SECRET_${who.toUpperCase()}`] = secret;
   }
