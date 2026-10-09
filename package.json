@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "node tooling/dev/start.mjs",
     "demo:android": "node tooling/dev/demo-android.mjs",
+    "demo:reset": "node tooling/dev/demo-reset.mjs",
     "infra:up": "node tooling/dev/start.mjs db firebase",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v && docker compose up -d --wait",

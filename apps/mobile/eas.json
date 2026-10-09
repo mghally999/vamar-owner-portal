@@ -1,5 +1,8 @@
 {
-  "cli": { "version": ">= 16.0.0", "appVersionSource": "remote" },
+  "cli": {
+    "version": ">= 16.0.0",
+    "appVersionSource": "remote"
+  },
   "build": {
     "development": {
       "developmentClient": true,
@@ -8,7 +11,9 @@
         "EXPO_PUBLIC_API_BASE": "http://10.0.2.2:8787",
         "EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_HOST": "10.0.2.2:9099"
       },
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -16,18 +21,34 @@
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev"
       },
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": false }
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      }
     },
     "production": {
       "autoIncrement": true,
       "channel": "production",
       "env": {
         "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
       }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "draft"
+      },
+      "ios": {}
+    }
   }
 }

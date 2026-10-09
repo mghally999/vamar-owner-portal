@@ -19,3 +19,7 @@ allowBuilds:
   sharp: true
   '@tailwindcss/oxide': true
   '@parcel/watcher': true
+
+# React Native + CMake on Windows need short, real paths: a flat node_modules like npm.
+# (Expo recommends hoisted for monorepos; pnpm 12 reads this from pnpm-workspace.yaml.)
+nodeLinker: hoisted
