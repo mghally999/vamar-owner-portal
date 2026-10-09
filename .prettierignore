@@ -6,3 +6,6 @@ coverage
 pnpm-lock.yaml
 packages/db/migrations/meta
 *.sql
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo
