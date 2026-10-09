@@ -76,7 +76,11 @@ installed per user, no admin rights needed, and nothing in the repo depends on i
    features, or `Enable-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` as admin)
    and the machine restarted; with Hyper-V / WSL present, the emulator cannot use any other
    accelerator.
-4. AVD: `avdmanager create avd -n Vamar_Demo -k "system-images;android-36;google_apis_playstore;x86_64" -d pixel_7`.
+4. AVD: `avdmanager create avd -n Vamar_Demo -k "system-images;android-36;google_apis_playstore;x86_64" -d pixel_7`,
+   then in `~/.android/avd/Vamar_Demo.avd/config.ini` set `hw.lcd.width = 720`, `hw.lcd.height = 1600`,
+   `hw.lcd.density = 320`, `hw.ramSize = 2048`. On this laptop the AMD driver gives a black window
+   with `-gpu host`, so the emulator runs with `swiftshader_indirect` (software rendering); the
+   smaller screen keeps it responsive. Never run a Gradle build while the emulator is open.
 5. First install of the dev build: `pnpm --filter @vamar/mobile android` (runs `expo run:android`,
    several minutes the first time). After that `pnpm demo:android` starts Postgres, the Auth
    emulator, the API, the AVD and Metro, and opens the app.
