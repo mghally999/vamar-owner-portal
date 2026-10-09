@@ -206,7 +206,9 @@ export function DisputeDetailPage() {
             <Card className="overflow-hidden">
               {d.updates.map((u) => (
                 <div key={u.id} className="row-line px-4 py-3 last:border-b-0">
-                  <p className="text-[15px]" dir="auto">{u.note}</p>
+                  <p className="text-[15px]" dir="auto">
+                    {u.note}
+                  </p>
                   <p className="mt-1 flex flex-wrap gap-x-3 text-[13px] text-ink-soft tnum">
                     <span className={u.visibleToOwner ? 'text-status-cleared' : 'text-ink-faint'}>
                       {u.visibleToOwner ? t('dispute_visible') : t('dispute_internal')}
@@ -312,7 +314,9 @@ export function DisputeDetailPage() {
                 }}
               />
             ) : (
-              <Card className="px-5 py-4 text-[15px] whitespace-pre-wrap" dir="auto">{d.notes || '—'}</Card>
+              <Card className="px-5 py-4 text-[15px] whitespace-pre-wrap">
+                <div dir="auto">{d.notes || '—'}</div>
+              </Card>
             )}
           </section>
         </div>

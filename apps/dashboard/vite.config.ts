@@ -26,6 +26,7 @@ export default defineConfig({
         // Keep the vendor chunk small and stable; route chunks are split by React.lazy.
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          if (id.includes('xlsx')) return 'xlsx';
           if (id.includes('firebase')) return 'firebase';
           if (id.includes('@tanstack')) return 'tanstack';
           if (id.includes('react')) return 'react';

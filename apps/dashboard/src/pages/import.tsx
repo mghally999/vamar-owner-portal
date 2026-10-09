@@ -3,7 +3,12 @@
  * with the shared zod schemas, then commit in one request with an idempotency key.
  */
 import { useMemo, useState } from 'react';
-import { read, utils, type WorkBook } from 'xlsx';
+import type * as Xlsx from 'xlsx';
+import type { WorkBook } from 'xlsx';
+
+// SheetJS is ~400 KB; it is loaded only when a file is chosen, never in the main bundle.
+let xlsx: typeof Xlsx | null = null;
+const loadXlsx = async () => (xlsx ??= await import('xlsx'));
 import { z } from 'zod';
 import {
   createBuildingSchema,
@@ -114,7 +119,7 @@ export function ImportPage() {
   const rows = useMemo(() => {
     if (!wb || !sheet) return [] as Record<string, unknown>[];
     const ws = wb.Sheets[sheet];
-    return ws ? utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' }) : [];
+    return ws && xlsx ? xlsx.utils.sheet_to_json<Record<string, unknown>>(ws, { defval: '' }) : [];
   }, [wb, sheet]);
   const columns = useMemo(() => (rows[0] ? Object.keys(rows[0]) : []), [rows]);
 
@@ -145,6 +150,7 @@ export function ImportPage() {
 
   async function onFile(file: File) {
     const buf = await file.arrayBuffer();
+    const { read } = await loadXlsx();
     const book = read(buf, { type: 'array' });
     setWb(book);
     setFileName(file.name);
