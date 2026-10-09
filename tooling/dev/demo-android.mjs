@@ -10,7 +10,7 @@
  * once with `pnpm --filter @vamar/mobile android` (see DEMO.md).
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import fs, { existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,11 +77,40 @@ else {
     console.error(`[emulator] AVD "${avd}" not found. Available: ${avds || 'none'}. See DEMO.md.`);
     process.exit(1);
   }
+  // Window: the emulator remembers position and zoom in emulator-user.ini; a Pixel 7 at 1:1 is
+  // taller than a laptop screen, so pin it to the top-left at 30 % (about 324 x 720 px).
+  const avdHome =
+    process.env.ANDROID_AVD_HOME ??
+    join(process.env.USERPROFILE ?? process.env.HOME ?? '', '.android', 'avd');
+  const userIni = join(avdHome, `${avd}.avd`, 'emulator-user.ini');
+  try {
+    const scale = process.env.ANDROID_EMULATOR_SCALE ?? '0.3';
+    fs.writeFileSync(
+      userIni,
+      `window.x=24
+window.y=8
+window.scale=${scale}
+`,
+    );
+  } catch {
+    // not fatal: the emulator falls back to its own window placement
+  }
   // 2 GB RAM and no snapshot load keep the emulator usable on an 8 GB laptop.
   run(
     'emulator',
     emulatorBin,
-    ['-avd', avd, '-memory', '2048', '-no-snapshot-load', '-no-boot-anim'],
+    [
+      '-avd',
+      avd,
+      '-memory',
+      '2048',
+      '-no-snapshot-load',
+      '-no-boot-anim',
+      '-cores',
+      '4',
+      '-gpu',
+      'swiftshader_indirect',
+    ],
     {
       cwd: join(sdk, 'emulator'),
     },
@@ -101,6 +130,21 @@ for (let i = 0; i < 180; i++) {
   await sleep(2000);
 }
 console.log(`[emulator] ${serial} booted`);
+if (isWin) {
+  // Put the window fully on screen (the emulator's remembered position can be off-screen).
+  const r = spawnSync(
+    'powershell',
+    [
+      '-NoProfile',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      join(root, 'tooling', 'dev', 'win-place-emulator.ps1'),
+    ],
+    { encoding: 'utf8' },
+  );
+  console.log(`[emulator] ${(r.stdout ?? '').trim() || 'window placement skipped'}`);
+}
 // The app talks to 10.0.2.2 (the host) for the API and the Auth emulator; nothing to forward.
 
 // 3. Metro, once the API answers
