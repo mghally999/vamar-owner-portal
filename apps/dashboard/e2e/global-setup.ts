@@ -8,7 +8,7 @@
  *
  * Refuses to touch anything that is not localhost.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Client } from 'pg';
@@ -30,6 +30,12 @@ function databaseUrl(): string {
 }
 
 export default async function globalSetup(): Promise<void> {
+  // Secrets from a previous run are invalid once the authenticator is reset below.
+  try {
+    unlinkSync(resolve(dirname(fileURLToPath(import.meta.url)), '.totp-secrets.json'));
+  } catch {
+    // nothing to remove
+  }
   const url = databaseUrl();
   const host = new URL(url).hostname;
   if (host !== 'localhost' && host !== '127.0.0.1') {

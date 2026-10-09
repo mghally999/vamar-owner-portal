@@ -87,6 +87,7 @@ export function StaffPage() {
                       <Select
                         value={s.role}
                         disabled={self}
+                        aria-label={`${t('staff_role')}: ${s.name}`}
                         onChange={(e) => {
                           m.update.mutate({ id: s.id, patch: { role: e.target.value } });
                         }}

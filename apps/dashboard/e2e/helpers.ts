@@ -1,5 +1,26 @@
 import type { Page } from '@playwright/test';
 import { createHmac } from 'node:crypto';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Secrets enrolled during a run are kept in a gitignored file so a replacement worker (Playwright
+// starts a new one after a failure) can still sign in without re-enrolling.
+const SECRETS_FILE = join(dirname(fileURLToPath(import.meta.url)), '.totp-secrets.json');
+function readSecrets(): Record<string, string> {
+  try {
+    return existsSync(SECRETS_FILE)
+      ? (JSON.parse(readFileSync(SECRETS_FILE, 'utf8')) as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+function saveSecret(who: string, secret: string) {
+  const all = { ...readSecrets(), [who]: secret };
+  mkdirSync(dirname(SECRETS_FILE), { recursive: true });
+  writeFileSync(SECRETS_FILE, JSON.stringify(all));
+}
 
 export const STAFF = {
   admin: { email: 'admin@vamar.test', password: 'Vamar2026!' },
@@ -41,7 +62,7 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
     secretEl.waitFor({ timeout: 15_000 }),
     codeInput.waitFor({ timeout: 15_000 }),
   ]);
-  let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`];
+  let secret = process.env[`TOTP_SECRET_${who.toUpperCase()}`] ?? readSecrets()[who];
   const enrolling = await page
     .getByRole('heading', { name: /إعداد تطبيق المصادقة|Set up your authenticator/ })
     .isVisible();
@@ -49,6 +70,7 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
   if (enrolling && (await secretEl.isVisible())) {
     secret = (await secretEl.textContent())?.replace(/\s/g, '') ?? '';
     process.env[`TOTP_SECRET_${who.toUpperCase()}`] = secret;
+    saveSecret(who, secret);
   }
   if (!secret)
     throw new Error(
