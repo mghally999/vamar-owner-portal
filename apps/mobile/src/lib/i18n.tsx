@@ -53,8 +53,16 @@ export function LangProvider({ children }: { children: ReactNode }) {
       setLang(l);
       const rtl = l === 'ar';
       if (I18nManager.isRTL !== rtl) {
+        // React Native applies the layout direction on the next launch, so the very first
+        // start in Arabic flips the flag and reloads once instead of showing an LTR screen.
         I18nManager.allowRTL(rtl);
         I18nManager.forceRTL(rtl);
+        try {
+          await Updates.reloadAsync();
+          return;
+        } catch {
+          // Reload unavailable (plain dev client): continue with the current direction.
+        }
       }
       setReady(true);
     })();

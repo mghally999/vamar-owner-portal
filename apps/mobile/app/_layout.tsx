@@ -38,9 +38,9 @@ function Root() {
   const auth = useAuth();
   const { ready } = useI18n();
   const [fontsLoaded] = useFonts({
-    'IBMPlexSansArabic-Regular': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.woff2'),
-    'IBMPlexSansArabic-Medium': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Medium.woff2'),
-    'IBMPlexSansArabic-SemiBold': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-SemiBold.woff2'),
+    'IBMPlexSansArabic-Regular': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    'IBMPlexSansArabic-Medium': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Medium.ttf'),
+    'IBMPlexSansArabic-SemiBold': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-SemiBold.ttf'),
   });
   const booted = fontsLoaded && ready && auth.stage !== 'loading';
 
