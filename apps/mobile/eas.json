@@ -14,7 +14,7 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.workers.dev"
+        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev"
       },
       "android": { "buildType": "apk" },
       "ios": { "simulator": false }
@@ -23,7 +23,7 @@
       "autoIncrement": true,
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.workers.dev"
+        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev"
       }
     }
   },
