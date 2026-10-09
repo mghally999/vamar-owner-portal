@@ -251,7 +251,8 @@ export function OwnerDialog({
             type="email"
             dir="ltr"
             {...form.register('email', {
-              setValueAs: (v: string) => (v.trim() === '' ? null : v.trim()),
+              setValueAs: (v: unknown) =>
+                typeof v === 'string' && v.trim() !== '' ? v.trim() : null,
             })}
           />
         </Field>
