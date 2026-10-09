@@ -40,3 +40,26 @@ alerts, money and date formatting) with 82 unit tests; design tokens.
 **Try it.** `pnpm dev`, then follow `DEMO.md`.
 
 تم إنجاز المرحلة الأولى من بوابة ملاك فامار بحيث أصبحت تعمل من البداية إلى النهاية. فقد تم بناء لوحة تحكم الموظفين التي يُسجَّل الدخول إليها بالبريد الإلكتروني وكلمة المرور ثم برمز من تطبيق المصادقة، وتم فيها تمكين إدخال الملاك والمباني والوحدات مع تحديد حصص الملاك المشتركين، وإنشاء العقود التي تُولَّد منها مواعيد الشيكات تلقائياً بينما تُدخَل المبالغ يدوياً، إضافة إلى متابعة حالة كل شيك من الإيداع إلى الصرف أو الارتجاع والاستبدال. كما تم بناء تطبيق المالك الذي يُسجَّل الدخول إليه برقم الجوال ورمز التحقق، ويعرض للمالك إجمالي شيكات الشهر والشيك التالي ونسبة الإشغال والوحدات الشاغرة والمنازعات، مع تصفية الشيكات حسب الشهر والعقار. وتم اعتماد شعار فامار الرسمي وألوانه في التطبيق ولوحة التحكم، وتم التحقق من أن كل مالك لا يرى سوى بياناته بواسطة اختبارات آلية.
+
+## Clean-up, GitHub and dashboard demo pass (9 Oct 2026)
+
+**Built.**
+
+- Green state: the half-applied SQL fixes were completed (buildings, owners, overview and owner
+  home queries qualify their columns; `/api/staff/buildings` works again, with a test), the
+  equal-split helper fills whole dirhams while the grid still starts empty, every package has
+  real unit tests, `pnpm check` and Prettier pass.
+- Repository pushed to the private GitHub repo `mghally999/vamar-owner-portal`; CI runs on every
+  push; nightly encrypted backup workflow added (secrets still to be set).
+- Dashboard demo pass over 64 screenshots (Arabic and English, 1440 px and 390 px, every page and
+  detail page): fixed a crash on the contracts page, filter widths, amounts and dates that
+  wrapped, the select chevron in Arabic, the browser's English file picker on the import page,
+  and the owner form. Playwright now covers the real flows: login with the authenticator, new
+  owner, unit with owner shares validated to 100 %, contract with the cheque grid and activation,
+  cheque deposit, bounce with a reason and replacement.
+- `pnpm dev` recreates the demo staff logins in the Firebase emulator on every start and starts
+  the local Postgres correctly; `pnpm demo:android` added for the emulator demo.
+
+**Try it.** `pnpm dev`, then `pnpm --filter @vamar/dashboard e2e` (flows and screenshots).
+
+تم تنظيف المشروع والتأكد من نجاح جميع الفحوصات والاختبارات الآلية، وتم رفع الشيفرة إلى مستودع خاص على GitHub بحيث تُحفظ نسخة من العمل بعد كل خطوة وتُشغَّل الفحوصات تلقائياً مع كل تحديث، كما تم إعداد نسخة احتياطية ليلية مشفرة لقاعدة البيانات. وتم مراجعة لوحة التحكم صفحةً صفحة باللغتين العربية والإنجليزية وعلى الشاشات الكبيرة والصغيرة، وتم إصلاح ما ظهر من أخطاء في العرض مثل التفاف الأرقام والتواريخ واتجاه القوائم في الواجهة العربية، وتم بناء اختبارات آلية تمر بالمسار الكامل للموظف من تسجيل الدخول إلى إضافة مالك ووحدة وعقد مع جدول الشيكات ثم تحديث حالة الشيك وارتجاعه واستبداله.

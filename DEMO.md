@@ -3,18 +3,27 @@
 Everything below runs on this machine against the seeded local database and the Firebase Auth
 emulator. No SMS is sent and no real Firebase project is needed.
 
-## Start everything (one command)
+## Start everything
+
+| What                                                 | Command             |
+| ---------------------------------------------------- | ------------------- |
+| Dashboard demo (DB, Auth emulator, API, dashboard)   | `pnpm dev`          |
+| Owner app demo (adds the Android emulator and Metro) | `pnpm demo:android` |
 
 ```
 cd C:\dev\vamar-owner-portal
-pnpm dev
+pnpm dev            # http://localhost:5173 (dashboard), http://localhost:4000 (emulator UI)
+pnpm demo:android   # same stack without Vite, plus the Vamar_Demo emulator and the app
 ```
 
-This starts PostgreSQL (if it is not already running), the Firebase Auth emulator, the API on
-http://localhost:8787 and the dashboard on http://localhost:5173. The emulator UI (where OTP codes
-appear) is at http://localhost:4000.
+Both can run at the same time (`pnpm dev` first, then `pnpm demo:android` in a second terminal;
+the second one notices the services that are already up). The emulator UI at
+http://localhost:4000 is where phone OTP codes appear.
 
 If the database is empty: `pnpm db:migrate && pnpm db:seed`. To start over: `pnpm db:reset`.
+The emulator demo needs the one-time Android setup in `PROJECT.md` (SDK, `Vamar_Demo` AVD,
+Windows Hypervisor Platform) and the dev build installed once with
+`pnpm --filter @vamar/mobile android`.
 
 ## Dashboard logins
 
@@ -23,55 +32,58 @@ If the database is empty: `pnpm db:migrate && pnpm db:seed`. To start over: `pnp
 | Admin      | admin@vamar.test | `Vamar2026!` |
 | Data entry | entry@vamar.test | `Vamar2026!` |
 
-These accounts exist in the Firebase emulator (recreated by `pnpm dev` from `tooling/firebase/data`).
+These accounts are recreated in the Firebase emulator every time `pnpm dev` starts.
 
-**Authenticator code (TOTP).** The first sign-in shows a QR code. Scan it with Google
-Authenticator / Microsoft Authenticator / 1Password, or type the key below the QR into any TOTP
-app, then enter the 6-digit code. Every later sign-in asks only for the code. If a demo phone is
-not at hand, the admin can reset a user's authenticator from **Staff users**, and the dashboard
-e2e helper (`apps/dashboard/e2e/helpers.ts`) computes codes from the shown key.
+**Authenticator code (TOTP).** The first sign-in of each account shows a QR code. Scan it with
+Google Authenticator / Microsoft Authenticator / 1Password, or type the key shown under the QR
+into any TOTP app, then enter the 6-digit code. Every later sign-in asks only for the code.
+Before a demo without the phone that enrolled: sign in as admin, open **Staff users** and
+**Reset authenticator** for the account, so the next sign-in shows the QR again.
 
 ## Owner app logins (phone + OTP)
 
-| Owner              | Phone         | Story                                                   |
-| ------------------ | ------------- | ------------------------------------------------------- |
-| Khalid Al Mansoori | +971500000001 | 8 apartments in Al Noor Tower + 30 % of 4 Mamzar villas |
-| Fatima Al Suwaidi  | +971500000002 | Al Safa Building, two units shared 60/40 with Omar      |
-| Omar Haddad        | +971500000003 | Offices and warehouses, English UI, shared units        |
-| Mariam Al Qasimi   | +971500000004 | Al Khan Residence (Sharjah) incl. two shops             |
-| Rashid Bin Touq    | +971500000005 | 50 % of the Mamzar villas                               |
+| Owner              | Phone         | Language | Story                                                   |
+| ------------------ | ------------- | -------- | ------------------------------------------------------- |
+| Khalid Al Mansoori | +971500000001 | Arabic   | 8 apartments in Al Noor Tower + 30 % of 4 Mamzar villas |
+| Fatima Al Suwaidi  | +971500000002 | Arabic   | Al Safa Building, two units shared 60/40 with Omar      |
+| Omar Haddad        | +971500000003 | English  | Offices and warehouses, shared units                    |
+| Mariam Al Qasimi   | +971500000004 | Arabic   | Al Khan Residence (Sharjah) incl. two shops             |
+| Rashid Bin Touq    | +971500000005 | English  | 50 % of the Mamzar villas                               |
 
-In the emulator the OTP is **any 6 digits** (the code is also printed at http://localhost:4000
-under Authentication). In the real Firebase project these numbers are registered as test numbers
-with code `123456`. Any other number gets the polite "not registered, contact Vamar" screen.
+In the emulator the OTP is **any 6 digits** (for example `123456`); the code is also shown at
+http://localhost:4000 under Authentication. In the real Firebase project these numbers are
+registered as test numbers with code `123456`. Any other number gets the polite "not
+registered, contact Vamar" screen.
 
 ## 5-minute click-through
 
-1. **Sign in** to the dashboard as `admin@vamar.test`, scan the QR, enter the code. Point out:
-   two steps, nothing stored in the browser, the session ends after 12 hours.
+1. **Dashboard sign-in** as `admin@vamar.test`: password, then the authenticator code. Point out
+   the two steps, nothing stored in the browser, the session ends after 12 hours.
 2. **Overview**: the hero number is this month's expected rent, with cleared / pending / bounced
-   under it. Scroll: bounced cheques needing action, cheques due in 7 days, contracts ending within
-   60 days with a one-click **Renew** button.
-3. **Owners**: search "Khalid", open him. Show his units with share percentages and the devices
-   list (empty until he signs in on the phone). Create a new owner (phone +9715…); explain that
-   this phone number is now allowed to sign in to the app.
-4. **Buildings & units**: open Al Safa Building. Units 301 and 302 show two owners (60 % / 40 %).
-   Click **Assign owners** on any unit: the total must be exactly 100 % or Save stays disabled.
-5. **Contracts → New contract**: pick a building, a vacant unit, a tenant, dates, annual rent
-   85,000 and 4 cheques. The schedule is generated (31 Jan → 28 Feb → 31 Mar is handled); type
-   amounts or press **Fill equal amounts**, cheque numbers and banks. Save as draft, then
+   under it. Below: bounced cheques needing action, cheques due in 7 days, contracts ending
+   within 60 days with a one-click **Renew**.
+3. **Owner app** (emulator): sign in as **+971500000001** (Khalid), code `123456`, accept or skip
+   the fingerprint prompt. Home shows the same month's total, the next cheque, "units rented"
+   with the vacant units, and open disputes. Open the **Cheques** tab and keep the app visible.
+4. **The change that appears in the app**: in the dashboard open **Cheques**, filter the
+   building "Al Noor Tower", open any **deposited** cheque of Khalid and **Mark bounced** with a
+   reason. Pull to refresh the app: the cheque turns red with the label "bounced", the home hero
+   line shows one bounced cheque, and a push alert was queued for Khalid. Then **Replace with a
+   new cheque**: the replacement shows in the app under the same unit.
+5. **Owners**: search "Khalid", open him: units with share percentages and the device that just
+   signed in. Create a new owner (phone +9715…): this number can now sign in to the app.
+6. **Buildings & units**: Al Safa Building, units 301 and 302 have two owners (60 % / 40 %).
+   **Assign owners** on a unit: Save stays disabled until the shares total exactly 100 %.
+7. **Contracts → New contract**: vacant unit, tenant, dates, annual rent 85,000, 4 cheques. The
+   due dates are generated (31 Jan → 28 Feb → 31 Mar is handled); amounts start empty, type them
+   or press **Fill equal amounts**, add cheque numbers and banks, **Save as draft**, then
    **Activate**: if the total differs from the rent, a reason is required and audited.
-6. **Cheques**: filter by month, building, owner and status. Select a few and **Bulk update** to
-   deposited. Open a deposited cheque and **Mark bounced** with a reason: the owner gets a push
-   alert and the cheque appears under "needing action"; then **Replace with a new cheque**.
-7. **Switch language** (bottom of the sidebar): the whole dashboard flips to English, LTR, same
-   Western digits.
-8. **Owner app** (screenshots in `demo/screenshots/app`, or the dev build): phone login →
-   OTP → home with this month's total, next cheque, "18 of 20 units rented", vacant units,
-   open disputes; cheques tab with month and property filters; properties and disputes tabs.
+8. **Language**: switch the dashboard to English from the sidebar (same Western digits), and in
+   the app from Settings (the app reloads in LTR).
 
 ## Screenshots
 
-`demo/screenshots/dashboard` (1440 px and 390 px, Arabic and English) and
-`demo/screenshots/app` (phone size, Arabic). Regenerate the dashboard set with
-`pnpm --filter @vamar/dashboard e2e -- screenshots` while `pnpm dev` is running.
+`demo/screenshots/dashboard` (1440 px and 390 px, Arabic and English, every page and detail
+page) and `demo/screenshots/app` (phone, Arabic). Regenerate the dashboard set with
+`pnpm --filter @vamar/dashboard e2e -- screenshots` while `pnpm dev` is running; the full flow
+tests run with `pnpm --filter @vamar/dashboard e2e`.
