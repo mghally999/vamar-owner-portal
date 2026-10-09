@@ -233,6 +233,8 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Playwright runs with one worker and a global setup** that clears rate-limit rows and resets
   the demo staff's authenticator in the local database, so the first login of every run enrols
   TOTP and the helper reads the secret from the screen. The setup refuses non-local hosts.
+- **Neon runtime role created by SQL, never from the console/CLI**, so that it is a plain role
+  without `neon_superuser` and the append-only audit grants hold (see "Setup I must do").
 - **Android SDK via command-line tools, not Android Studio**, so no admin install is needed and
   the setup is reproducible from PROJECT.md; Android Studio can be added later for its GUI.
 - **Internal packages export source, not `dist`.** All consumers bundle; removes a build step
@@ -258,8 +260,13 @@ Nothing here blocks local development; all of it is for deployed environments or
 
 1. **GitHub**: done on 9 Oct 2026, private repo `mghally999/vamar-owner-portal`, CI runs on
    every push. Still to add: the backup secrets listed under "Security notes".
-2. **Neon**: create a project (Postgres 17), create role `vamar_app`, set `DATABASE_URL` and
-   run `pnpm db:migrate` against it, then re-apply `migrations/0001_app_role_grants.sql`.
+2. **Neon**: done on 9 Oct 2026: project `vamar-owner-portal` (`shy-feather-42564852`, Postgres 17,
+   aws-eu-central-1 Frankfurt, the closest Neon region to the UAE), migrated and seeded. The runtime
+   role `vamar_app` was created **with plain SQL as `neondb_owner`**, not from the Neon console or
+   CLI: roles created through Neon's console/CLI are members of `neon_superuser` and ignore the
+   append-only grants on `audit_log` and `cheque_events` (verified: the console role could delete
+   audit rows, the SQL role gets "permission denied"). Connection strings live only in
+   `.local/neon.env` on the dev machine and in the Worker secret `DATABASE_URL`.
 3. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone
    numbers from "Demo accounts", restrict the SMS region policy to the UAE, set a billing budget
    alert. Download the iOS/Android config files for the app (Phase 1).

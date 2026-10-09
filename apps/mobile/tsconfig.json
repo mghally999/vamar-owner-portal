@@ -8,6 +8,6 @@
     "paths": { "@/*": ["src/*"] },
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["app", "src", "app.config.ts", "eas.json", "expo-env.d.ts"],
+  "include": ["app", "src", "app.config.ts", "eas.json"],
   "exclude": ["node_modules", "android", "ios", ".expo"]
 }
