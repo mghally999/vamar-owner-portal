@@ -29,7 +29,7 @@
 | ماذا                     | القيمة                                                   |
 | ------------------------ | -------------------------------------------------------- |
 | لوحة التحكم الحية        | https://vamar-owner-portal.vamar-api.workers.dev         |
-| رابط تنزيل التطبيق (APK) | [APK_LINK]                                               |
+| رابط تنزيل التطبيق (APK) | https://expo.dev/artifacts/eas/r9rdYlTv1pjPdglR2SaZ6azT9oxszQRx0LTwMkTx6WE.apk                                               |
 | QR لرابط التطبيق         | `demo/apk-qr.png` (اعرضه على الشاشة أو اطبعه)            |
 | سياسة الخصوصية           | https://vamar-owner-portal.vamar-api.workers.dev/privacy |
 
@@ -152,7 +152,7 @@ Authenticator، وبعدها كل دخول يطلب الرقم المكوّن م
 > Google Authenticator عشان كود الدخول.
 >
 > وده تطبيق الأندرويد، نزّلوه من اللينك وافتحوه:
-> [APK_LINK]
+> https://expo.dev/artifacts/eas/r9rdYlTv1pjPdglR2SaZ6azT9oxszQRx0LTwMkTx6WE.apk
 > ادخلوا برقم ‎+971500000001 والكود 123456 (ده مالك تجريبي اسمه خالد عنده شيكات بكل الحالات).
 >
 > أي حاجة تلاحظوها أو تحبوا تتغير قولولي على طول، ومستني منكم ملف الإكسل عشان نرفع البيانات
