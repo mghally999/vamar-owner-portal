@@ -5,8 +5,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,
-} from 'react';
+  type TextareaHTMLAttributes,, useEffect } from 'react';
 import type { ChequeStatus, ContractStatus, DisputeStatus } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -260,9 +259,20 @@ export function EmptyState({
 
 export function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
   const { t } = useI18n();
+  // Keep retrying on our own every 10 s while the server or the database comes back.
+  useEffect(() => {
+    if (!onRetry) return;
+    const id = window.setTimeout(onRetry, 10_000);
+    return () => {
+      window.clearTimeout(id);
+    };
+  }, [onRetry]);
   return (
     <div className="card flex flex-wrap items-center justify-between gap-3 border-status-bounced px-5 py-4">
-      <p className="text-[15px] text-danger">{message ?? t('error_generic')}</p>
+      <div>
+        <p className="text-[15px] text-danger">{message ?? t('error_generic')}</p>
+        {onRetry ? <p className="text-[13px] text-ink-soft">{t('error_autoRetry')}</p> : null}
+      </div>
       {onRetry ? (
         <Button variant="secondary" size="sm" onClick={onRetry}>
           {t('retry')}
