@@ -26,12 +26,12 @@
 
 ## الروابط وبيانات الدخول
 
-| ماذا                     | القيمة                                                   |
-| ------------------------ | -------------------------------------------------------- |
-| لوحة التحكم الحية        | https://vamar-owner-portal.vamar-api.workers.dev         |
-| رابط تنزيل التطبيق (APK) | https://expo.dev/artifacts/eas/r9rdYlTv1pjPdglR2SaZ6azT9oxszQRx0LTwMkTx6WE.apk                                               |
-| QR لرابط التطبيق         | `demo/apk-qr.png` (اعرضه على الشاشة أو اطبعه)            |
-| سياسة الخصوصية           | https://vamar-owner-portal.vamar-api.workers.dev/privacy |
+| ماذا                     | القيمة                                                                         |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| لوحة التحكم الحية        | https://vamar-owner-portal.vamar-api.workers.dev                               |
+| رابط تنزيل التطبيق (APK) | https://expo.dev/artifacts/eas/r9rdYlTv1pjPdglR2SaZ6azT9oxszQRx0LTwMkTx6WE.apk |
+| QR لرابط التطبيق         | `demo/apk-qr.png` (اعرضه على الشاشة أو اطبعه)                                  |
+| سياسة الخصوصية           | https://vamar-owner-portal.vamar-api.workers.dev/privacy                       |
 
 **موظفو لوحة التحكم**
 
