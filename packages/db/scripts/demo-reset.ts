@@ -16,9 +16,7 @@ if (!url) {
 const host = new URL(url).hostname;
 const label = process.env['DEMO_RESET_LABEL'] ?? host;
 
-interface Row {
-  [k: string]: unknown;
-}
+type Row = Record<string, unknown>;
 const rows = <T extends Row>(r: unknown): T[] => (r as { rows: T[] }).rows;
 
 const { db, pool } = createNodeDb(url);
