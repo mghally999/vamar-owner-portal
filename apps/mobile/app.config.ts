@@ -72,6 +72,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
     ['expo-build-properties', { ios: { useFrameworks: 'static' }, android: { minSdkVersion: 24 } }],
+    './plugins/withAndroidLocales.js',
   ],
   locales: {
     ar: './locales/ar.json',
