@@ -14,13 +14,11 @@ config.resolver.nodeModulesPaths = [
 config.resolver.disableHierarchicalLookup = true;
 // Native build output churns thousands of files; keep the watcher away from it.
 config.resolver.blockList = [
-  /apps[\/]mobile[\/]android[\/].*/,
-  /apps[\/]mobile[\/]ios[\/].*/,
-  /[\/].gradle[\/].*/,
-  /[\/].cxx[\/].*/,
+  /apps[/\\]mobile[/\\]android[/\\].*/,
+  /apps[/\\]mobile[/\\]ios[/\\].*/,
+  /[/\\]\.gradle[/\\].*/,
+  /[/\\]\.cxx[/\\].*/,
 ];
-
-module.exports = config;
 
 // The shared workspace packages are written as TypeScript ESM with explicit `./x.js` specifiers
 // (so that Node/tsx and bundlers agree). Metro resolves those back to the .ts/.tsx source.
@@ -36,3 +34,5 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   }
   return resolve(context, moduleName, platform);
 };
+
+module.exports = config;

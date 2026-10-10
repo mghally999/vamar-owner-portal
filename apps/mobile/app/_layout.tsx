@@ -46,7 +46,7 @@ function Root() {
 
   useEffect(() => {
     if (__DEV__ && !booted) {
-      console.log('[boot]', {
+      console.info('[boot]', {
         fontsLoaded,
         fontError: fontError?.message ?? null,
         ready,

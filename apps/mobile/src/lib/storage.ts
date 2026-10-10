@@ -2,7 +2,9 @@
  * Secure storage for tokens and small preferences. Everything sensitive lives in the device
  * keychain / keystore through expo-secure-store; nothing is written to AsyncStorage.
  */
+import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const KEYS = {
   accessToken: 'vamar.access',
@@ -37,12 +39,25 @@ export async function setItem(key: StorageKey, value: string | null): Promise<vo
 }
 
 /** A stable per-install id, generated once. */
+/**
+ * Opaque, stable id for this install: the Android ID / iOS vendor id (both reset on reinstall),
+ * with a random fallback. Hermes has no global WebCrypto, so no `crypto` is used here.
+ */
 export async function deviceId(): Promise<string> {
   const existing = await getItem('deviceId');
   if (existing) return existing;
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const id = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  let id: string | null;
+  try {
+    id =
+      Platform.OS === 'android'
+        ? Application.getAndroidId()
+        : await Application.getIosIdForVendorAsync();
+  } catch {
+    id = null;
+  }
+  if (!id || id.length < 8) {
+    id = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  }
   await setItem('deviceId', id);
   return id;
 }

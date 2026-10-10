@@ -63,7 +63,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Never let a native call keep the splash screen up: anything slower than 4 s or failing is
     // treated as "no session" and the user simply signs in again.
     const withTimeout = <T,>(p: Promise<T>, fallback: T) =>
-      Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), 4000))]).catch(
+      Promise.race([p, new Promise<T>((r) =>
+          setTimeout(() => {
+            r(fallback);
+          }, 4000),
+        )]).catch(
         () => fallback,
       );
     void (async () => {

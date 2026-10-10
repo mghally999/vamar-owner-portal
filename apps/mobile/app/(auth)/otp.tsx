@@ -29,6 +29,7 @@ export default function OtpScreen() {
       else if (e instanceof AccountDisabledError)
         router.replace({ pathname: '/(auth)/not-registered', params: { disabled: '1' } });
       else {
+        if (__DEV__) console.warn('[otp] verify failed', e);
         setError(tr('otp_wrong'));
         setCode('');
       }
