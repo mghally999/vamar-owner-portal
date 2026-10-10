@@ -10,11 +10,11 @@
  * ready-made PGlite database via `env.TEST_DB`. Service code only ever sees `Db` / `Tx`.
  */
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
-import type { ExtractTablesWithRelations } from 'drizzle-orm';
+import { sql, type ExtractTablesWithRelations, type SQL } from 'drizzle-orm';
 import { drizzle as drizzleNeonHttp } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
-import type { PgDatabase, PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
+import type { AnyPgColumn, PgDatabase, PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import { schema } from '@vamar/db';
 import pg from 'pg';
 import type { Context } from 'hono';
@@ -93,4 +93,16 @@ export function cronDb(env: Bindings): { db: Db; close: () => Promise<void> } {
     db: drizzleNeon({ client: pool, schema, casing: 'snake_case' }),
     close: () => pool.end(),
   };
+}
+
+/**
+ * Natural ordering for unit numbers: "801" before "1204", "G-02" with the shops, "W-1" with the
+ * warehouses. Sorts by the letters, then the numeric part, then the raw text.
+ */
+export function unitNoOrder(col: AnyPgColumn): SQL[] {
+  return [
+    sql`regexp_replace(${col}, '[0-9]+', '', 'g')`,
+    sql`nullif(regexp_replace(${col}, '[^0-9]', '', 'g'), '')::int`,
+    sql`${col}`,
+  ];
 }

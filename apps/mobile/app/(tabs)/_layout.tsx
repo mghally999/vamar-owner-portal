@@ -1,12 +1,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, Tabs } from 'expo-router';
 import { Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useI18n } from '@/lib/i18n';
 import { fonts, useTheme } from '@/lib/theme';
 
 export default function TabsLayout() {
   const t = useTheme();
   const { t: tr } = useI18n();
+  const insets = useSafeAreaInsets();
   return (
     <Tabs
       screenOptions={{
@@ -32,8 +34,10 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: t.colors.bgElevated,
           borderTopColor: t.colors.border,
-          height: 64,
+          // Edge-to-edge on Android 15+: a fixed height must include the gesture bar inset.
+          height: 58 + insets.bottom,
           paddingTop: 6,
+          paddingBottom: insets.bottom,
         },
         tabBarLabelStyle: { fontFamily: fonts.medium, fontSize: 12 },
         sceneStyle: { backgroundColor: t.colors.bg },

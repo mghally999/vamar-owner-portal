@@ -7,7 +7,7 @@ import {
   type PlainDate,
   type SetUnitOwnersInput,
 } from '@vamar/shared';
-import type { Dbx } from '../db.js';
+import { unitNoOrder, type Dbx } from '../db.js';
 import type { Patch } from '../util/types.js';
 import { ApiError, conflict, notFound } from '../errors.js';
 import { audit, type AuditActor } from './audit.js';
@@ -73,7 +73,7 @@ export async function getBuildingDetail(db: Dbx, id: string, todayDate: PlainDat
     .select()
     .from(units)
     .where(eq(units.buildingId, id))
-    .orderBy(asc(units.unitNo));
+    .orderBy(...unitNoOrder(units.unitNo));
   const unitIds = unitRows.map((u) => u.id);
   const ownerRows = unitIds.length
     ? await db

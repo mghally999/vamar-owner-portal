@@ -5,7 +5,7 @@
 import { and, asc, desc, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import { monthRange, ownerShareAmount, type ChequeStatus, type PlainDate } from '@vamar/shared';
-import type { Dbx } from '../db.js';
+import { unitNoOrder, type Dbx } from '../db.js';
 import { notFound } from '../errors.js';
 import {
   chequeInOwnerScope,
@@ -358,7 +358,7 @@ export async function ownerUnits(
     )
     .leftJoin(tenants, eq(tenants.id, contracts.tenantId))
     .where(and(...conditions))
-    .orderBy(asc(buildings.nameEn), asc(units.unitNo));
+    .orderBy(asc(buildings.nameEn), ...unitNoOrder(units.unitNo));
   return rows.map((r) => ({
     ...r,
     occupied: r.contractId !== null,

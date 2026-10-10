@@ -14,7 +14,7 @@ import { Button, Card, Row, SectionTitle, Separator, Text, layout } from '@/ui';
 
 export default function SettingsScreen() {
   const t = useTheme();
-  const { t: tr, lang, switchLang } = useI18n();
+  const { t: tr, lang, switchLang, date } = useI18n();
   const auth = useAuth();
   const devices = useDevices();
   const revoke = useRevokeOtherDevices();
@@ -87,7 +87,8 @@ export default function SettingsScreen() {
               setNotify(v);
               void setNotifications(v);
             }}
-            trackColor={{ true: t.colors.primary }}
+            trackColor={{ true: t.colors.primary, false: t.colors.borderStrong }}
+            thumbColor={t.colors.bgElevated}
           />
         </Row>
         <Separator />
@@ -97,7 +98,8 @@ export default function SettingsScreen() {
             value={auth.biometricsEnabled}
             disabled={!auth.biometricsAvailable}
             onValueChange={(v) => void auth.setBiometrics(v)}
-            trackColor={{ true: t.colors.primary }}
+            trackColor={{ true: t.colors.primary, false: t.colors.borderStrong }}
+            thumbColor={t.colors.bgElevated}
           />
         </Row>
       </Card>
@@ -128,18 +130,17 @@ export default function SettingsScreen() {
             .map((d, i) => (
               <View key={d.id}>
                 {i > 0 ? <Separator /> : null}
-                <Row style={{ justifyContent: 'space-between', minHeight: 52 }}>
-                  <Text>
-                    {d.model || d.platform}
+                <Row style={{ justifyContent: 'space-between', minHeight: 56, gap: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1}>{d.model || d.platform}</Text>
                     {d.current ? (
                       <Text variant="caption" color="soft">
-                        {'  '}
                         {tr('this_device')}
                       </Text>
                     ) : null}
-                  </Text>
+                  </View>
                   <Text variant="caption" color="faint" tnum>
-                    {d.lastSeen.slice(0, 10)}
+                    {date(d.lastSeen.slice(0, 10))}
                   </Text>
                 </Row>
               </View>
