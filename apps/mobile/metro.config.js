@@ -14,3 +14,18 @@ config.resolver.nodeModulesPaths = [
 config.resolver.disableHierarchicalLookup = true;
 
 module.exports = config;
+
+// The shared workspace packages are written as TypeScript ESM with explicit `./x.js` specifiers
+// (so that Node/tsx and bundlers agree). Metro resolves those back to the .ts/.tsx source.
+const defaultResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+  const resolve = defaultResolveRequest ?? context.resolveRequest;
+  if (/^\.{1,2}\//.test(moduleName) && moduleName.endsWith('.js')) {
+    try {
+      return resolve(context, moduleName.replace(/\.js$/, ''), platform);
+    } catch {
+      // fall through to the normal resolution (a real .js file)
+    }
+  }
+  return resolve(context, moduleName, platform);
+};
