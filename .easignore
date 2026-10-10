@@ -1,0 +1,20 @@
+# Files EAS Build does not need in the uploaded project tarball (keeps uploads small).
+# Workspace packages stay in so `pnpm install` on the build server matches the lockfile.
+.git
+.github
+.local
+demo
+*.zip
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.expo
+apps/dashboard/dist
+apps/dashboard/test-results
+apps/dashboard/playwright-report
+apps/api/.dev-files
+apps/api/.wrangler
+node_modules
+**/node_modules
+**/coverage
+**/.turbo
+tooling/firebase/data

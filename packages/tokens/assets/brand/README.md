@@ -15,6 +15,7 @@ Files
 - vamar-logo-{navy,silver,white}.png, vamar-mark-{navy,silver,white}.png: transparent PNGs
 - app-icon-1024.png: iOS/Expo icon (no transparency)
 - adaptive-icon-foreground.png + background #162842, adaptive-icon-monochrome.png: Android
-- splash-logo.png: silver logo for a #162842 splash background
+- splash-logo.png: silver logo for a #162842 splash background (iOS)
+- splash-android.png: square, mark only, for the Android 12+ system splash (it masks the image in a circle)
 - favicon-512.png, apple-touch-icon.png: dashboard
 - original-from-hanan.png: untouched original

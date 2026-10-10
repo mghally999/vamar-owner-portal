@@ -12,6 +12,13 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 config.resolver.disableHierarchicalLookup = true;
+// Native build output churns thousands of files; keep the watcher away from it.
+config.resolver.blockList = [
+  /apps[\/]mobile[\/]android[\/].*/,
+  /apps[\/]mobile[\/]ios[\/].*/,
+  /[\/].gradle[\/].*/,
+  /[\/].cxx[\/].*/,
+];
 
 module.exports = config;
 

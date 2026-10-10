@@ -64,6 +64,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         backgroundColor: '#162842',
         resizeMode: 'contain',
         imageWidth: 200,
+        // Android 12+ masks the splash image inside a circle, which clips the wide wordmark;
+        // the system splash gets the square mark-only asset instead.
+        android: { image: `${brand}/splash-android.png`, imageWidth: 160 },
       },
     ],
     '@react-native-firebase/app',
