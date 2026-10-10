@@ -63,3 +63,29 @@ alerts, money and date formatting) with 82 unit tests; design tokens.
 **Try it.** `pnpm dev`, then `pnpm --filter @vamar/dashboard e2e` (flows and screenshots).
 
 تم تنظيف المشروع والتأكد من نجاح جميع الفحوصات والاختبارات الآلية، وتم رفع الشيفرة إلى مستودع خاص على GitHub بحيث تُحفظ نسخة من العمل بعد كل خطوة وتُشغَّل الفحوصات تلقائياً مع كل تحديث، كما تم إعداد نسخة احتياطية ليلية مشفرة لقاعدة البيانات. وتم مراجعة لوحة التحكم صفحةً صفحة باللغتين العربية والإنجليزية وعلى الشاشات الكبيرة والصغيرة، وتم إصلاح ما ظهر من أخطاء في العرض مثل التفاف الأرقام والتواريخ واتجاه القوائم في الواجهة العربية، وتم بناء اختبارات آلية تمر بالمسار الكامل للموظف من تسجيل الدخول إلى إضافة مالك ووحدة وعقد مع جدول الشيكات ثم تحديث حالة الشيك وارتجاعه واستبداله.
+
+## Owner app on the emulator, live deployment, store readiness (10 Oct 2026)
+
+**Built.**
+
+- The owner app runs on the Android emulator from a local dev build and was taken through every
+  screen in Arabic and English, light and dark: phone sign-in with the Auth emulator code, the
+  "not registered" state, home with the month switcher, cheques with property and status filters,
+  cheque detail with the timeline, properties and unit detail, disputes and dispute detail,
+  settings (language with RTL reload, notifications, biometric lock, signed-in devices, PDF
+  statements shared from the phone, account deletion request). Fixes along the way: a device id
+  that does not need WebCrypto, TTF fonts, the Android splash, the tab bar on gesture-navigation
+  phones, device rows and dates in settings, natural unit ordering, and Arabic text clipping.
+- Live: Worker at https://vamar-owner-portal.vamar-api.workers.dev (dashboard + API + cron,
+  security headers on static files), Neon database in Frankfurt with an append-only audit role,
+  R2 buckets, backup secrets (R2 API token still to add), `pnpm demo:reset` for both databases.
+- EAS: project linked, preview APK built against the live API (link + QR in MEETING.md),
+  production and submit profiles, STORE.md with both stores' listing texts, privacy answers,
+  reviewer account and the publishing steps; store-sized screenshots in `demo/screenshots/store`.
+- MEETING.md: ten-minute checklist, logins, five-minute script, likely questions, backup plan and
+  the WhatsApp message for PULSE.
+
+**Waiting on one click**: Firebase console > Authentication > Get started, after which the live
+sign-in, the real push notifications and the APK sign-in test are switched on by script.
+
+تم تشغيل تطبيق المالك على محاكي أندرويد ومراجعته شاشةً شاشة باللغتين العربية والإنجليزية وبالوضعين الفاتح والداكن، من تسجيل الدخول برقم الجوال ورسالة الرقم غير المسجل، إلى الشاشة الرئيسية والشيكات بفلاترها وتفاصيل الشيك والعقارات والوحدات والمنازعات والإعدادات، مع إصدار كشف الحساب بصيغة PDF من الهاتف، وتم إصلاح كل ما ظهر من أخطاء في العرض والاتجاه العربي. وتم نشر النسخة الحية للوحة التحكم والخدمة الخلفية على الإنترنت مع قاعدة بيانات حقيقية ونسخة احتياطية ليلية، وتم بناء نسخة أندرويد قابلة للتنزيل برابط ورمز QR لتجربتها على أي هاتف، وتم تجهيز كل ما تطلبه متاجر التطبيقات من نصوص وصور وإجابات الخصوصية، وتم إعداد دليل الاجتماع مع العميل بالكامل.

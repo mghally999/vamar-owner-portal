@@ -241,6 +241,19 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
   without `neon_superuser` and the append-only audit grants hold (see "Setup I must do").
 - **Android SDK via command-line tools, not Android Studio**, so no admin install is needed and
   the setup is reproducible from PROJECT.md; Android Studio can be added later for its GUI.
+- **Owner app on the emulator, lessons that are now code or config.** Hermes has no global
+  WebCrypto, so the device id comes from `expo-application` (Android ID / iOS vendor id) instead of
+  `crypto.getRandomValues`. Android cannot load `.woff2` fonts natively, so the app and the PDF
+  statement embed the TTF files. The dev build must carry the demo `google-services.json`
+  (project `demo-vamar`) to talk to the Auth emulator; the real file is an EAS secret file
+  (`GOOGLE_SERVICES_JSON`) used only by cloud builds. Android 12+ masks the splash image in a
+  circle, so Android gets the square mark-only `splash-android.png`. Expo writes the iOS locale
+  keys into Android `strings.xml` and lint fails the release build; `plugins/withAndroidLocales.js`
+  keeps only the localised `app_name`. Android measures shaped Arabic slightly narrower than it
+  draws it and clips the last glyphs; the `Text` primitive sets `includeFontPadding: false` plus a
+  2 px end padding. Metro resolves the shared packages' `./x.js` specifiers back to `.ts`
+  (`metro.config.js`) and ignores the native build folders. `tooling/dev/emu.sh` drives the
+  emulator from scripts (dump, tap by text, type, wait, screenshot, Auth-emulator OTP).
 - **Internal packages export source, not `dist`.** All consumers bundle; removes a build step
   and stale-output bugs. Turborepo calls this "just-in-time packages".
 - **Money as `number` fils in code, `bigint` in Postgres.** Safe to 2^53 fils; avoids BigInt JSON
@@ -290,7 +303,16 @@ Nothing here blocks local development; all of it is for deployed environments or
    (Object Read & Write, bucket `vamar-backups`), then `gh secret set R2_ACCESS_KEY_ID` and
    `gh secret set R2_SECRET_ACCESS_KEY`, then run the workflow once by hand (Actions > Nightly
    database backup > Run workflow).
-5. **Expo/EAS**: account and project for dev builds and push notifications (Phase 1/4).
+5. **Expo/EAS**: done on 10 Oct 2026: project `@best-coder-alive/vamar-owner-portal`
+   (id `7e929192-4d31-4476-a3ef-49e0eeb78760`), Android keystore kept by EAS, preview APK built
+   against the live API (link in MEETING.md and `.local/apk-url.txt`). Production profile builds
+   an AAB; `eas submit` needs the store accounts listed in STORE.md.
+6. **Firebase (real project `vamar-owner-portal-c55c2`)**: created, Android app `ae.vamar.owner` and
+   web app registered, dashboard production config in `apps/dashboard/.env.production`, Worker var
+   `FIREBASE_PROJECT_ID` set. **Still needed in the console**: Build > Authentication > Get started;
+   `.local/firebase-auth-config.mjs` then enables Email/Password, Phone with the five test numbers
+   (code 123456) and the UAE-only SMS region through the Identity Toolkit API, and the demo staff
+   users are created the same way.
 
 ## Phase log
 

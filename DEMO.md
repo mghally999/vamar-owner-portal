@@ -85,6 +85,10 @@ registered, contact Vamar" screen.
 ## Screenshots
 
 `demo/screenshots/dashboard` (1440 px and 390 px, Arabic and English, every page and detail
-page) and `demo/screenshots/app` (phone, Arabic). Regenerate the dashboard set with
+page), `demo/screenshots/app` (emulator captures: login, OTP, not registered, home, cheques,
+cheque detail, properties, unit detail, disputes, dispute detail, settings, account deletion,
+statement share; Arabic and English, plus a dark-mode set) and `demo/screenshots/store`
+(`pnpm demo:store-shots`: the same frames at Google Play and App Store sizes). App captures are
+taken with `tooling/dev/emu.sh shot <file>` while the app runs. Regenerate the dashboard set with
 `pnpm --filter @vamar/dashboard e2e -- screenshots` while `pnpm dev` is running; the full flow
 tests run with `pnpm --filter @vamar/dashboard e2e`.

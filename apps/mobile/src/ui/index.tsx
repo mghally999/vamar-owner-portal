@@ -58,6 +58,10 @@ export function Text({
           color: colorValue,
           textAlign: 'left',
           writingDirection: 'auto',
+          // Android measures shaped Arabic a few pixels narrower than it draws it and clips the
+          // last glyphs; no font padding plus a 2 px end padding keeps the last word intact.
+          includeFontPadding: false,
+          paddingEnd: 2,
         },
         tnum ? { fontVariant: ['tabular-nums'] } : null,
         style,
