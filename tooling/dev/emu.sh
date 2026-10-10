@@ -20,8 +20,12 @@ dump() {
 center() { # $1 = bounds like [x1,y1][x2,y2]
   echo "$1" | sed -E 's/\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}'
 }
-find_bounds() { # $1 = text (substring, first match)
-  dump | grep -F "\"$1" | head -1 | grep -oE '\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]' | tail -1
+find_bounds() { # $1 = text; exact match first, then prefix match
+  local d line
+  d=$(dump)
+  line=$(echo "$d" | grep -F "=\"$1\"" | head -1)
+  [ -z "$line" ] && line=$(echo "$d" | grep -F "\"$1" | head -1)
+  echo "$line" | grep -oE '\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]' | tail -1
 }
 case "$1" in
   dump) dump ;;
