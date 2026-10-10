@@ -5,7 +5,9 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
-  type TextareaHTMLAttributes,, useEffect } from 'react';
+  type TextareaHTMLAttributes,
+  useEffect,
+} from 'react';
 import type { ChequeStatus, ContractStatus, DisputeStatus } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
