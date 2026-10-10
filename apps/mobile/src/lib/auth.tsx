@@ -60,22 +60,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Resume the session from the stored refresh token.
   useEffect(() => {
+    // Never let a native call keep the splash screen up: anything slower than 4 s or failing is
+    // treated as "no session" and the user simply signs in again.
+    const withTimeout = <T,>(p: Promise<T>, fallback: T) =>
+      Promise.race([p, new Promise<T>((r) => setTimeout(() => r(fallback), 4000))]).catch(
+        () => fallback,
+      );
     void (async () => {
-      const [bio, savedOwner, hasHw] = await Promise.all([
-        getItem('biometrics'),
-        getItem('owner'),
-        LocalAuthentication.hasHardwareAsync(),
-      ]);
-      const enrolled = hasHw ? await LocalAuthentication.isEnrolledAsync() : false;
-      setBiometricsAvailable(hasHw && enrolled);
-      setBiometricsEnabled(bio === '1');
-      const token = await refreshSession();
-      if (token) {
-        if (savedOwner) setOwner(JSON.parse(savedOwner) as AuthState['owner']);
-        setStage('authenticated');
-        setLocked(bio === '1');
-        void registerForPush();
-      } else setStage('anonymous');
+      try {
+        const [bio, savedOwner, hasHw] = await Promise.all([
+          withTimeout(getItem('biometrics'), null),
+          withTimeout(getItem('owner'), null),
+          withTimeout(LocalAuthentication.hasHardwareAsync(), false),
+        ]);
+        const enrolled = hasHw
+          ? await withTimeout(LocalAuthentication.isEnrolledAsync(), false)
+          : false;
+        setBiometricsAvailable(hasHw && enrolled);
+        setBiometricsEnabled(bio === '1');
+        const token = await withTimeout(refreshSession(), null);
+        if (token) {
+          if (savedOwner) setOwner(JSON.parse(savedOwner) as AuthState['owner']);
+          setStage('authenticated');
+          setLocked(bio === '1');
+          void registerForPush();
+        } else setStage('anonymous');
+      } catch (e) {
+        if (__DEV__) console.warn('[auth] bootstrap failed', e);
+        setStage('anonymous');
+      }
     })();
     setSessionLostHandler(() => {
       setAccessToken(null);

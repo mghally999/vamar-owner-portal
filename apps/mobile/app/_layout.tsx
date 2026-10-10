@@ -37,12 +37,23 @@ function Root() {
   const t = useTheme();
   const auth = useAuth();
   const { ready } = useI18n();
-  const [fontsLoaded] = useFonts({
+  const [fontsLoaded, fontError] = useFonts({
     'IBMPlexSansArabic-Regular': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.ttf'),
     'IBMPlexSansArabic-Medium': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Medium.ttf'),
     'IBMPlexSansArabic-SemiBold': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-SemiBold.ttf'),
   });
-  const booted = fontsLoaded && ready && auth.stage !== 'loading';
+  const booted = (fontsLoaded || fontError !== null) && ready && auth.stage !== 'loading';
+
+  useEffect(() => {
+    if (__DEV__ && !booted) {
+      console.log('[boot]', {
+        fontsLoaded,
+        fontError: fontError?.message ?? null,
+        ready,
+        stage: auth.stage,
+      });
+    }
+  }, [booted, fontsLoaded, fontError, ready, auth.stage]);
 
   useEffect(() => {
     if (booted) void SplashScreen.hideAsync();
