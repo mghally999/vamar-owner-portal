@@ -50,8 +50,9 @@ Before a demo without the phone that enrolled: sign in as admin, open **Staff us
 | Mariam Al Qasimi   | +971500000004 | Arabic   | Al Khan Residence (Sharjah) incl. two shops             |
 | Rashid Bin Touq    | +971500000005 | English  | 50 % of the Mamzar villas                               |
 
-In the emulator the OTP is **any 6 digits** (for example `123456`); the code is also shown at
-http://localhost:4000 under Authentication. In the real Firebase project these numbers are
+In the local Auth emulator the code is generated per request and shown at
+http://localhost:4000 (Authentication tab) and by
+`curl http://127.0.0.1:9099/emulator/v1/projects/demo-vamar/verificationCodes`. In the real Firebase project these numbers are
 registered as test numbers with code `123456`. Any other number gets the polite "not
 registered, contact Vamar" screen.
 

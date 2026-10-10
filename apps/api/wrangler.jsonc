@@ -16,7 +16,7 @@
   // One cron: daily alerts at 08:00 Dubai (04:00 UTC).
   "triggers": { "crons": ["0 4 * * *"] },
   "vars": {
-    "FIREBASE_PROJECT_ID": "demo-vamar",
+    "FIREBASE_PROJECT_ID": "vamar-owner-portal-c55c2",
     // Comma-separated ISO country codes whose phone numbers may sign in as owners.
     "ALLOWED_PHONE_COUNTRIES": "AE",
     "APP_ENV": "development",
