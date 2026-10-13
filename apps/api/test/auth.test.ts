@@ -193,7 +193,7 @@ describe('staff auth', () => {
     expect(ex.body.preAuthToken).toBeUndefined();
     expect(ex.body.user?.email).toBe('entry@vamar.test');
     const me = await w.json<{ items: unknown[] }>('/api/staff/buildings', {
-      token: ex.body.accessToken,
+      token: ex.body.accessToken ?? '',
     });
     expect(me.status).toBe(200);
     await w.db
