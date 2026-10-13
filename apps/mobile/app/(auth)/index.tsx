@@ -21,7 +21,8 @@ export default function PhoneScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const e164 = normalise(local);
-  const valid = phoneE164Schema.safeParse(e164).success;
+  // UAE mobiles: 9 digits after +971, starting with 5 (a leading 0 is dropped by normalise).
+  const valid = phoneE164Schema.safeParse(e164).success && /^+9715d{8}$/.test(e164);
 
   async function submit() {
     if (!valid) {
@@ -34,7 +35,7 @@ export default function PhoneScreen() {
       await auth.sendCode(e164);
       router.push({ pathname: '/(auth)/otp', params: { phone: e164 } });
     } catch {
-      setError(tr('error_generic'));
+      setError(tr('phone_sendFailed'));
     } finally {
       setBusy(false);
     }
