@@ -101,7 +101,24 @@ export function StaffPage() {
                       </Select>
                     </td>
                     <td className="px-4 py-3 text-ink-soft">
-                      {s.totpEnabled ? t('staff_totp_on') : t('staff_totp_off')}
+                      <span className="block">
+                        {s.totpEnabled ? t('staff_totp_on') : t('staff_totp_off')}
+                      </span>
+                      <label className="mt-1 flex items-center gap-2 text-[13px]">
+                        <input
+                          type="checkbox"
+                          checked={s.totpRequired}
+                          disabled={self}
+                          onChange={(e) => {
+                            m.update.mutate({
+                              id: s.id,
+                              patch: { totpRequired: e.target.checked },
+                            });
+                          }}
+                        />
+                        {t('staff_totpRequired')}:{' '}
+                        {s.totpRequired ? t('staff_totpRequired_on') : t('staff_totpRequired_off')}
+                      </label>
                     </td>
                     <td className="px-4 py-3">
                       <span className={s.active ? 'text-status-cleared' : 'text-ink-soft'}>

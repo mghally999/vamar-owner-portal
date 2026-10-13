@@ -237,6 +237,15 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Playwright runs with one worker and a global setup** that clears rate-limit rows and resets
   the demo staff's authenticator in the local database, so the first login of every run enrols
   TOTP and the helper reads the secret from the screen. The setup refuses non-local hosts.
+- **2-step login (TOTP) is mandatory but can be switched off per staff account** (`staff_users.totp_required`,
+  admin checkbox on Staff users, or `pnpm staff:reset-totp <email> --live --off`). **Trial decision
+  (14 Oct 2026):** switched off for the two demo accounts `admin@vamar.test` and `entry@vamar.test`
+  while Vamar tries the live dashboard, so Mr Abdallah signs in with email and password only. It
+  stays on by default for every real staff account; switch the demo accounts back on with `--on`
+  after the trial. A wrong code returns 403 `totp_invalid` (never 401, which the dashboard reserves
+  for an expired session and answers with a redirect to `/login?reason=expired`). A separate
+  account `tester@vamar.test` (role editor, 2-step on) exists in the live Firebase Auth and
+  database for Playwright checks of the TOTP flow; it is kept deactivated between runs.
 - **Neon runtime role created by SQL, never from the console/CLI**, so that it is a plain role
   without `neon_superuser` and the append-only audit grants hold (see "Setup I must do").
 - **Android SDK via command-line tools, not Android Studio**, so no admin install is needed and

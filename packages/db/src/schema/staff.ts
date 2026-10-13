@@ -13,6 +13,9 @@ export const staffUsers = pgTable(
     /** TOTP secret encrypted with AES-GCM using a Worker secret; null until enrolled. */
     totpSecretEnc: text(),
     totpEnabled: boolean().notNull().default(false),
+    /** 2-step login (TOTP) is mandatory for real staff; an admin can switch it off per account,
+     *  which is used only for demo accounts during a client trial. */
+    totpRequired: boolean().notNull().default(true),
     /** Consecutive TOTP failures; reset on success. Locked for 15 minutes after 5. */
     totpFailures: integer().notNull().default(0),
     totpLockedUntil: instant(),

@@ -16,6 +16,7 @@ export async function listStaff(db: Dbx) {
       name: staffUsers.name,
       role: staffUsers.role,
       totpEnabled: staffUsers.totpEnabled,
+      totpRequired: staffUsers.totpRequired,
       active: staffUsers.active,
       createdAt: staffUsers.createdAt,
     })
@@ -59,7 +60,12 @@ export async function updateStaff(
   db: Dbx,
   actor: AuditActor,
   id: string,
-  patch: { name?: string | undefined; role?: StaffRole | undefined; active?: boolean | undefined },
+  patch: {
+    name?: string | undefined;
+    role?: StaffRole | undefined;
+    active?: boolean | undefined;
+    totpRequired?: boolean | undefined;
+  },
 ) {
   const before = await db.query.staffUsers.findFirst({ where: eq(staffUsers.id, id) });
   if (!before) throw notFound('Staff user');

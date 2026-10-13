@@ -54,7 +54,11 @@ function Credentials() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).get('reason') === 'expired'
+      ? t('session_expired')
+      : null,
+  );
 
   async function submit(e: SyntheticEvent) {
     e.preventDefault();
@@ -142,6 +146,7 @@ function TotpVerify({ onBack }: { onBack?: () => void }) {
         <h1 className="text-heading font-semibold">{t('totp_title')}</h1>
         <p className="mt-1 text-[15px] text-ink-soft">{t('totp_subtitle')}</p>
       </div>
+      <p className="text-[13px] text-ink-soft">{t('totp_help')}</p>
       <Field label={t('totp_code')} required>
         <Input
           inputMode="numeric"
@@ -165,6 +170,10 @@ function TotpVerify({ onBack }: { onBack?: () => void }) {
       <Button type="submit" loading={busy} disabled={code.length !== 6} className="w-full">
         {t('totp_verify')}
       </Button>
+      <details className="text-[13px] text-ink-soft">
+        <summary className="cursor-pointer text-primary">{t('totp_noCode')}</summary>
+        <p className="mt-1">{t('totp_noCode_body')}</p>
+      </details>
       <Button
         variant="ghost"
         onClick={() => {

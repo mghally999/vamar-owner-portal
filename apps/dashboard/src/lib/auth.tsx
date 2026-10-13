@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.clear();
       // Route guards only run on navigation, so send the browser to the login page explicitly.
       if (!window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login');
+        window.location.assign('/login?reason=expired');
       }
     });
   }, [queryClient]);
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(null);
           setStage('anonymous');
           queryClient.clear();
-          window.location.assign('/login');
+          window.location.assign('/login?reason=expired');
         }
       });
     }, 12 * 60_000);
@@ -86,15 +86,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const idToken = await firebaseEmailLogin(email, password);
-    const res = await request<{
-      preAuthToken: string;
-      totpEnrolled: boolean;
-      name: string;
-      role: StaffUser['role'];
-    }>('/api/auth/staff/exchange', {
+    const res = await request<
+      | { preAuthToken: string; totpEnrolled: boolean; name: string; role: StaffUser['role'] }
+      | { accessToken: string; user: StaffUser }
+    >('/api/auth/staff/exchange', {
       method: 'POST',
       body: JSON.stringify({ firebaseIdToken: idToken }),
     });
+    if ('accessToken' in res) {
+      // 2-step login switched off for this account (demo accounts during the trial).
+      setAccessToken(res.accessToken);
+      setCachedUser(res.user);
+      setUser(res.user);
+      setPreToken(null);
+      setStage('authenticated');
+      return;
+    }
     setPreToken(res.preAuthToken);
     setAccessToken(res.preAuthToken);
     setTotpEnrolled(res.totpEnrolled);

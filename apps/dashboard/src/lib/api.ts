@@ -78,7 +78,9 @@ const authFetch: typeof fetch = async (input, init) => {
     return fetch(input, { ...init, headers, credentials: 'include' });
   };
   let res = await run(accessToken);
-  if (res.status === 401) {
+  const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  const isAuthCall = url.includes('/api/auth/staff/');
+  if (res.status === 401 && !isAuthCall) {
     // Expired or missing access token: one cookie refresh, then replay; if the session is
     // really over (12 h cap, revoked chain) hand over to the session-lost handler.
     const next = await refreshStaffSession();

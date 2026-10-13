@@ -12,6 +12,7 @@
     "demo:android": "node tooling/dev/demo-android.mjs",
     "demo:reset": "node tooling/dev/demo-reset.mjs",
     "demo:store-shots": "node tooling/dev/store-screenshots.mjs",
+    "staff:reset-totp": "node tooling/dev/staff-reset-totp.mjs",
     "infra:up": "node tooling/dev/start.mjs db firebase",
     "infra:down": "docker compose down",
     "infra:reset": "docker compose down -v && docker compose up -d --wait",

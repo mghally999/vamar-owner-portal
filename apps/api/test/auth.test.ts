@@ -173,6 +173,33 @@ describe('owner auth', () => {
 });
 
 describe('staff auth', () => {
+  it('signs a staff user in without 2-step login when totp_required is off', async () => {
+    await w.db
+      .update(schema.staffUsers)
+      .set({ totpRequired: false })
+      .where(eq(schema.staffUsers.email, 'entry@vamar.test'));
+    const fb = await w.firebaseToken({ email: 'entry@vamar.test', email_verified: true });
+    const ex = await w.json<{
+      accessToken?: string;
+      preAuthToken?: string;
+      user?: { email: string };
+    }>('/api/auth/staff/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseIdToken: fb }),
+    });
+    expect(ex.status).toBe(200);
+    expect(ex.body.preAuthToken).toBeUndefined();
+    expect(ex.body.user?.email).toBe('entry@vamar.test');
+    const me = await w.json<{ items: unknown[] }>('/api/staff/buildings', {
+      token: ex.body.accessToken,
+    });
+    expect(me.status).toBe(200);
+    await w.db
+      .update(schema.staffUsers)
+      .set({ totpRequired: true, firebaseUid: 'seed-staff-entry' })
+      .where(eq(schema.staffUsers.email, 'entry@vamar.test'));
+  });
+
   it('exchange -> totp setup -> verify -> full token with refresh cookie; viewer is blocked from writes', async () => {
     const fb = await w.firebaseToken({ email: 'entry@vamar.test', email_verified: true });
     const ex = await w.json<{ preAuthToken: string; totpEnrolled: boolean }>(
@@ -198,7 +225,7 @@ describe('staff auth', () => {
       token: ex.body.preAuthToken,
       body: JSON.stringify({ code: '000000' }),
     });
-    expect(wrong.status).toBe(401);
+    expect(wrong.status).toBe(403);
 
     const verify = await w.request('/api/auth/staff/totp/verify', {
       method: 'POST',
@@ -236,7 +263,7 @@ describe('staff auth', () => {
           body: JSON.stringify({ code: '111111' }),
         })
       ).status;
-      expect(status).toBe(401);
+      expect(status).toBe(403);
     }
     // fifth wrong code locks the account for 15 minutes
     const fifth = await w.json<{ error: { code: string } }>('/api/auth/staff/totp/verify', {

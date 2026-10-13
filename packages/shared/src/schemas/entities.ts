@@ -206,4 +206,5 @@ export const updateStaffSchema = z.object({
   name: shortText.optional(),
   role: staffRoleSchema.optional(),
   active: z.boolean().optional(),
+  totpRequired: z.boolean().optional(),
 });

@@ -1,3 +1,4 @@
+import type { Context } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
@@ -32,6 +33,32 @@ import { log, maskEmail } from '../util/log.js';
 
 const { staffUsers } = schema;
 const COOKIE = 'vamar_staff_refresh';
+
+/** Full session for a verified staff user: access token in the body, refresh token in the cookie. */
+function issueStaffSession(
+  c: Context<AppEnv>,
+  user: { id: string; name: string; email: string; role: StaffPrincipal['role'] },
+  session: Awaited<ReturnType<typeof createSession>>,
+  ip: string,
+) {
+  const principal: StaffPrincipal = {
+    type: 'staff',
+    id: user.id,
+    sessionId: session.sessionId,
+    role: user.role,
+    mfa: true,
+  };
+  return signAccessToken(c.env, principal).then((accessToken) => {
+    setRefreshCookie(c, session.refreshToken, session.expiresAt, c.env.APP_ENV === 'production');
+    log('info', 'auth.staff_login', { staffId: user.id, ip });
+    return c.json({
+      accessToken,
+      accessExpiresIn: ACCESS_TTL_SECONDS,
+      sessionExpiresAt: session.expiresAt.toISOString(),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    });
+  });
+}
 
 function setRefreshCookie(
   c: Parameters<typeof setCookie>[0],
@@ -80,6 +107,18 @@ export const authStaffRoutes = new Hono<AppEnv>()
       }
       return user;
     });
+    if (!staff.totpRequired) {
+      // 2-step login switched off for this account (demo accounts during a client trial only).
+      const session = await withTx(c, (tx) =>
+        createSession(tx, {
+          subjectType: 'staff',
+          subjectId: staff.id,
+          deviceId: null,
+          ttlMs: STAFF_SESSION_TTL_MS,
+        }),
+      );
+      return issueStaffSession(c, staff, session, ip);
+    }
     const principal: StaffPrincipal = {
       type: 'staff',
       id: staff.id,
@@ -153,8 +192,8 @@ export const authStaffRoutes = new Hono<AppEnv>()
           .where(eq(staffUsers.id, p.id));
         log('warn', 'auth.totp_failed', { staffId: p.id, failures, locked: lock, ip });
         throw new ApiError(
-          lock ? 429 : 401,
-          lock ? 'totp_locked' : 'unauthorized',
+          lock ? 429 : 403,
+          lock ? 'totp_locked' : 'totp_invalid',
           lock ? 'Too many wrong codes; locked for 15 minutes' : 'Wrong code',
         );
       }
@@ -179,22 +218,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
         });
         return { session };
       });
-      const principal: StaffPrincipal = {
-        type: 'staff',
-        id: user.id,
-        sessionId: session.sessionId,
-        role: user.role,
-        mfa: true,
-      };
-      const accessToken = await signAccessToken(c.env, principal);
-      setRefreshCookie(c, session.refreshToken, session.expiresAt, c.env.APP_ENV === 'production');
-      log('info', 'auth.staff_login', { staffId: user.id, ip });
-      return c.json({
-        accessToken,
-        accessExpiresIn: ACCESS_TTL_SECONDS,
-        sessionExpiresAt: session.expiresAt.toISOString(),
-        user: { id: user.id, name: user.name, email: user.email, role: user.role },
-      });
+      return issueStaffSession(c, user, session, ip);
     },
   )
 

@@ -34,7 +34,17 @@ const en = {
   totp_manual: 'Or type this key manually',
   totp_code: 'Code',
   totp_verify: 'Verify',
-  totp_wrong: 'Wrong code. Try again.',
+  totp_wrong:
+    'Wrong code. Use the 6-digit code shown in the Google Authenticator app on your phone (not an SMS code).',
+  totp_help:
+    'The code comes from the Google Authenticator app on your phone. It is not sent by SMS and it is not the owner app test code.',
+  totp_noCode: "Don't have the code?",
+  totp_noCode_body:
+    'Ask the Vamar admin to reset your authenticator from Staff users; your next sign-in will show a new QR code.',
+  session_expired: 'Your session expired or was signed out. Please sign in again.',
+  staff_totpRequired: '2-step login',
+  staff_totpRequired_on: 'Required',
+  staff_totpRequired_off: 'Off (trial)',
   totp_locked: 'Too many wrong codes. Try again in 15 minutes.',
   back: 'Back',
 
@@ -380,7 +390,16 @@ const ar: Record<MessageKey, string> = {
   totp_manual: 'أو أدخل هذا المفتاح يدوياً',
   totp_code: 'الرمز',
   totp_verify: 'تحقق',
-  totp_wrong: 'الرمز غير صحيح. حاول مرة أخرى.',
+  totp_wrong: 'الرمز غير صحيح. استخدم الرمز اللي بيظهر في تطبيق Google Authenticator على موبايلك.',
+  totp_help:
+    'الرمز ده بيطلع من تطبيق Google Authenticator على موبايلك. مش بييجي برسالة SMS ومش رمز تطبيق المالك التجريبي.',
+  totp_noCode: 'مش معاك الكود؟',
+  totp_noCode_body:
+    'اطلب من مدير فامار إعادة تعيين تطبيق المصادقة من صفحة مستخدمو الموظفين، وفي الدخول التالي هيظهر لك QR جديد.',
+  session_expired: 'انتهت الجلسة أو تم تسجيل الخروج. يرجى تسجيل الدخول مرة أخرى.',
+  staff_totpRequired: 'الدخول بخطوتين',
+  staff_totpRequired_on: 'مطلوب',
+  staff_totpRequired_off: 'متوقف (تجربة)',
   totp_locked: 'محاولات كثيرة خاطئة. حاول بعد 15 دقيقة.',
   back: 'رجوع',
 

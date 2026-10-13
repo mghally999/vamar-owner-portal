@@ -1,0 +1,1 @@
+ALTER TABLE "staff_users" ADD COLUMN "totp_required" boolean DEFAULT true NOT NULL;

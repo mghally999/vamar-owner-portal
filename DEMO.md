@@ -34,7 +34,12 @@ Windows Hypervisor Platform) and the dev build installed once with
 
 These accounts are recreated in the Firebase emulator every time `pnpm dev` starts.
 
-**Authenticator code (TOTP).** The first sign-in of each account shows a QR code. Scan it with
+**During the client trial (from 14 Oct 2026) the two demo accounts sign in with email and password
+only**: 2-step login is switched off for them on the live site (`pnpm staff:reset-totp <email>
+--live --on` turns it back on; `--off` switches it off; without a flag it only resets the
+authenticator so the next sign-in shows the QR again). Real staff accounts always use 2-step login.
+
+**Authenticator code (TOTP), when 2-step login is on.** The first sign-in of each account shows a QR code. Scan it with
 Google Authenticator / Microsoft Authenticator / 1Password, or type the key shown under the QR
 into any TOTP app, then enter the 6-digit code. Every later sign-in asks only for the code.
 Before a demo without the phone that enrolled: sign in as admin, open **Staff users** and

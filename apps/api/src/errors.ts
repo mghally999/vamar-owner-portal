@@ -11,6 +11,7 @@ export type ErrorCode =
   | 'owner_disabled'
   | 'totp_required'
   | 'totp_locked'
+  | 'totp_invalid'
   | 'invalid_transition'
   | 'shares_invalid'
   | 'grid_incomplete'

@@ -302,6 +302,7 @@ export interface StaffRow {
   name: string;
   role: StaffRole;
   totpEnabled: boolean;
+  totpRequired: boolean;
   active: boolean;
   createdAt: string;
 }
