@@ -69,6 +69,19 @@ export const app = new Hono<AppEnv>()
     }
   })
   .get('/privacy', (c) => c.html(privacyPage()))
+  /** Android test build, streamed from the private files bucket (uploaded with wrangler r2). */
+  .get('/download/vamar-owner-app.apk', async (c) => {
+    const obj = await c.env.FILES.get('releases/vamar-owner-app.apk');
+    if (!obj) return c.text('Not available yet', 404);
+    return new Response(obj.body, {
+      headers: {
+        'content-type': 'application/vnd.android.package-archive',
+        'content-length': String(obj.size),
+        'content-disposition': 'attachment; filename="vamar-owner-app.apk"',
+        'cache-control': 'no-store',
+      },
+    });
+  })
   .route('/api/auth/owner', authOwnerRoutes)
   .route('/api/auth/staff', authStaffRoutes)
   .route('/api/owner', ownerRoutes)
