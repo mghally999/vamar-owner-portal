@@ -22,7 +22,7 @@ export default function PhoneScreen() {
 
   const e164 = normalise(local);
   // UAE mobiles: 9 digits after +971, starting with 5 (a leading 0 is dropped by normalise).
-  const valid = phoneE164Schema.safeParse(e164).success && /^+9715d{8}$/.test(e164);
+  const valid = phoneE164Schema.safeParse(e164).success && /^\+9715\d{8}$/.test(e164);
 
   async function submit() {
     if (!valid) {
