@@ -30,7 +30,9 @@ describe('owner auth', () => {
     });
     expect(ex.status).toBe(200);
     expect(ex.body.owner.nameEn).toBe('Khalid Al Mansoori');
-    const me = await w.json<{ phoneE164: string }>('/api/owner/me', { token: ex.body.accessToken });
+    const me = await w.json<{ phoneE164: string }>('/api/owner/me', {
+      token: ex.body.accessToken ?? '',
+    });
     expect(me.status).toBe(200);
     expect(me.body.phoneE164).toBe('+971500000001');
 
