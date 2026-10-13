@@ -57,17 +57,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       setStage('anonymous');
       queryClient.clear();
+      // Route guards only run on navigation, so send the browser to the login page explicitly.
+      if (!window.location.pathname.startsWith('/login')) {
+        window.location.assign('/login');
+      }
     });
   }, [queryClient]);
 
   // Refresh the access token every 12 minutes while signed in (tokens live 15).
   useEffect(() => {
     if (stage !== 'authenticated') return;
-    const id = window.setInterval(() => void refreshStaffSession(), 12 * 60_000);
+    const id = window.setInterval(() => {
+      void refreshStaffSession().then((token) => {
+        if (!token) {
+          setAccessToken(null);
+          setCachedUser(null);
+          setUser(null);
+          setStage('anonymous');
+          queryClient.clear();
+          window.location.assign('/login');
+        }
+      });
+    }, 12 * 60_000);
     return () => {
       window.clearInterval(id);
     };
-  }, [stage]);
+  }, [stage, queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     const idToken = await firebaseEmailLogin(email, password);
