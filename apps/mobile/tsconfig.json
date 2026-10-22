@@ -3,11 +3,13 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2023"],
-    "types": ["react", "react-native"],
+    "types": ["react", "react-native", "jest"],
     "baseUrl": ".",
-    "paths": { "@/*": ["src/*"] },
+    "paths": {
+      "@/*": ["src/*"]
+    },
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["app", "src", "app.config.ts", "eas.json"],
+  "include": ["app", "src", "app.config.ts", "eas.json", "vitest.config.ts"],
   "exclude": ["node_modules", "android", "ios", ".expo"]
 }

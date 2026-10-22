@@ -10,9 +10,9 @@
     "ios": "expo run:ios",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run && jest",
     "prebuild": "expo prebuild --clean",
-    "coverage": "vitest run"
+    "coverage": "vitest run && jest --coverage"
   },
   "dependencies": {
     "@expo/metro-runtime": "~57.0.17",
@@ -59,8 +59,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.26.0",
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.2.0",
     "babel-preset-expo": "~57.0.0",
+    "jest": "^30.5.2",
+    "jest-expo": "~57.0.6",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3"
   }
