@@ -4,7 +4,7 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { todayInDubai, UNIT_TYPES, validateShares } from '@vamar/shared';
+import { sharePct, todayInDubai, UNIT_TYPES, validateShares } from '@vamar/shared';
 import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
@@ -130,7 +130,7 @@ export function BuildingDetailPage() {
                             >
                               {pick(o.nameAr, o.nameEn)}
                               {u.owners.length > 1 ? (
-                                <span className="tnum text-ink-soft"> {o.shareBp / 100}%</span>
+                                <span className="tnum text-ink-soft"> {sharePct(o.shareBp)}%</span>
                               ) : null}
                             </Link>
                           ))}
@@ -327,7 +327,7 @@ function SharesDialog({
 
   const [rows, setRows] = useState<ShareRow[]>(
     unit.owners.length
-      ? unit.owners.map((o) => ({ ownerId: o.ownerId, percent: String(o.shareBp / 100) }))
+      ? unit.owners.map((o) => ({ ownerId: o.ownerId, percent: String(sharePct(o.shareBp)) }))
       : [{ ownerId: '', percent: '100' }],
   );
   const [fromDate, setFromDate] = useState(todayInDubai());

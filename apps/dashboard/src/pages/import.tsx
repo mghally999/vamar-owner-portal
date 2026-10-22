@@ -112,6 +112,7 @@ export function ImportPage() {
     rowsOk: number;
     rowsFailed: number;
     results: { row: number; ok: boolean; errors?: string[] }[];
+    alreadyDone?: boolean;
   } | null>(null);
   const [busy, setBusy] = useState(false);
   const [key] = useState(() => crypto.randomUUID());
@@ -315,6 +316,7 @@ export function ImportPage() {
           </SectionTitle>
           {result ? (
             <Toast kind={result.rowsFailed ? 'info' : 'success'}>
+              {result.alreadyDone ? `${t('import_alreadyDone')} ` : ''}
               {t('import_done', { ok: result.rowsOk, failed: result.rowsFailed })}
             </Toast>
           ) : null}

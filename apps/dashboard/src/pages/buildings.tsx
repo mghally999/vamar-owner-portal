@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
-import { createBuildingSchema, type CreateBuildingInput } from '@vamar/shared';
+import { createBuildingSchema, occupancyPct, type CreateBuildingInput } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { prefetchBuilding, useBuildings, useCreateBuilding } from '@/lib/queries';
@@ -89,7 +89,7 @@ export function BuildingsPage() {
                 <span
                   className="block h-full bg-primary"
                   style={{
-                    width: `${b.unitCount ? Math.round((b.occupiedCount / b.unitCount) * 100) : 0}%`,
+                    width: `${occupancyPct(b.occupiedCount, b.unitCount)}%`,
                   }}
                 />
               </span>

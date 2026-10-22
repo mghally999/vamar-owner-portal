@@ -18,12 +18,8 @@ const queryClient = new QueryClient({
       retry: (failureCount, error) => {
         if (failureCount >= 5) return false;
         if (error instanceof ApiRequestError) {
-          return (
-            error.status === 0 ||
-            error.status === 408 ||
-            error.status === 429 ||
-            error.status >= 500
-          );
+          // 429 is the API asking us to stop, not a transient failure.
+          return error.status === 0 || error.status === 408 || error.status >= 500;
         }
         return true; // network error / fetch failed
       },

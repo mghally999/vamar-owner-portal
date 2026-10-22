@@ -8,6 +8,7 @@ import type { z } from 'zod';
 import { createOwnerSchema, type CreateOwnerInput } from '@vamar/shared';
 import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
 import { prefetchOwner, useCreateOwner, useOwners } from '@/lib/queries';
 import type { MessageKey } from '@/lib/messages';
@@ -34,7 +35,8 @@ export function OwnersPage() {
   const [status, setStatus] = useState('');
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const q = useOwners({ search: search || undefined, status: status || undefined });
+  const searchTerm = useDebounced(search.trim(), 300);
+  const q = useOwners({ search: searchTerm || undefined, status: status || undefined });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (

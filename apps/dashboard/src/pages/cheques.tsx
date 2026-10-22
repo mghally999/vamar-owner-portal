@@ -1,7 +1,8 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { useMemo, useRef, useState } from 'react';
 import {
   addMonthsClamped,
   CHEQUE_STATUSES,
@@ -12,14 +13,9 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import {
-  prefetchCheque,
-  useBuildings,
-  useBulkChequeStatus,
-  useCheques,
-  useOwners,
-} from '@/lib/queries';
+import { prefetchCheque, useBuildings, useBulkChequeStatus, useCheques } from '@/lib/queries';
 import type { ChequeRow } from '@/lib/types';
+import { OwnerPicker } from '@/ui/owner-picker';
 import { StatusDialog } from '@/ui/status-dialog';
 import { Dialog } from '@/ui/dialog';
 import {
@@ -57,8 +53,6 @@ export function ChequesPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const buildings = useBuildings();
-  const owners = useOwners({});
-  const ownerList = owners.data?.pages.flatMap((p) => p.items) ?? [];
   const month = monthDate ? monthDate.slice(0, 7) : undefined;
   const q = useCheques({
     month,
@@ -67,6 +61,17 @@ export function ChequesPage() {
     status: status || undefined,
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
+  // Only the rows in view are in the DOM; a long month stays light however far staff scroll.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 52,
+    overscan: 12,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  const padTop = virtualRows[0]?.start ?? 0;
+  const padBottom = virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1]?.end ?? 0);
 
   const toggle = (id: string) => {
     setSelected((s) => {
@@ -172,23 +177,13 @@ export function ChequesPage() {
             </option>
           ))}
         </Select>
-        <Select
+        <OwnerPicker
           value={ownerId}
-          onChange={(e) => {
-            setOwnerId(e.target.value);
+          onChange={(id) => {
+            setOwnerId(id);
           }}
-          className="w-52"
-          aria-label={t('cheque_filter_owner')}
-        >
-          <option value="">
-            {t('owner')}: {t('all')}
-          </option>
-          {ownerList.map((o) => (
-            <option key={o.id} value={o.id}>
-              {pick(o.nameAr, o.nameEn)}
-            </option>
-          ))}
-        </Select>
+          className="w-64"
+        />
       </div>
 
       {q.isPending ? (
@@ -198,93 +193,111 @@ export function ChequesPage() {
       ) : rows.length === 0 ? (
         <EmptyState title={t('cheques_empty')} />
       ) : (
-        <Card className="overflow-x-auto">
-          <table className="w-full min-w-[900px] text-[15px]">
-            <thead>
-              <tr className="row-line text-[13px] text-ink-soft">
-                {auth.hasRole('editor') ? (
-                  <th className="w-12 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      className="size-5 accent-primary"
-                      checked={allSelected}
-                      onChange={() => {
-                        setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
-                      }}
-                      aria-label={t('all')}
-                    />
-                  </th>
-                ) : null}
-                <th className="px-4 py-2 text-start font-medium">{t('dueDate')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('unit')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('tenant')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('cheque_no')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('cheque_bank')}</th>
-                <th className="px-4 py-2 text-end font-medium">{t('amount')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
-                {auth.hasRole('editor') ? <th className="px-2 py-2" /> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((c) => (
-                <tr
-                  key={c.id}
-                  className="row-line hover:bg-sunken last:border-b-0"
-                  onMouseEnter={() => {
-                    prefetchCheque(qc, c.id);
-                  }}
-                >
+        <Card className="overflow-hidden">
+          <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
+            <table className="w-full min-w-[900px] text-[15px]">
+              <thead>
+                <tr className="row-line text-[13px] text-ink-soft">
                   {auth.hasRole('editor') ? (
-                    <td className="px-3 py-3">
+                    <th className="w-12 px-3 py-2">
                       <input
                         type="checkbox"
                         className="size-5 accent-primary"
-                        checked={selected.has(c.id)}
+                        checked={allSelected}
                         onChange={() => {
-                          toggle(c.id);
+                          setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
                         }}
-                        aria-label={c.chequeNo ?? c.id}
+                        aria-label={t('all')}
                       />
-                    </td>
+                    </th>
                   ) : null}
-                  <td className="px-4 py-3">
-                    <Link
-                      to="/cheques/$chequeId"
-                      params={{ chequeId: c.id }}
-                      className="font-medium hover:underline"
-                    >
-                      <DateText date={c.dueDate} />
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    {pick(c.buildingNameAr, c.buildingNameEn)} · {c.unitNo}
-                  </td>
-                  <td className="px-4 py-3 text-ink-soft">{c.tenantName}</td>
-                  <td className="px-4 py-3 tnum">{c.chequeNo ?? '—'}</td>
-                  <td className="px-4 py-3 text-ink-soft">{c.bankName ?? '—'}</td>
-                  <td className="px-4 py-3 text-end">
-                    <Money fils={c.amountFils} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <ChequeStatusChip status={c.status} />
-                  </td>
-                  {auth.hasRole('editor') ? (
-                    <td className="px-2 py-3 text-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setStatusFor(c);
-                        }}
-                      >
-                        {t('cheque_changeStatus')}
-                      </Button>
-                    </td>
-                  ) : null}
+                  <th className="px-4 py-2 text-start font-medium">{t('dueDate')}</th>
+                  <th className="px-4 py-2 text-start font-medium">{t('unit')}</th>
+                  <th className="px-4 py-2 text-start font-medium">{t('tenant')}</th>
+                  <th className="px-4 py-2 text-start font-medium">{t('cheque_no')}</th>
+                  <th className="px-4 py-2 text-start font-medium">{t('cheque_bank')}</th>
+                  <th className="px-4 py-2 text-end font-medium">{t('amount')}</th>
+                  <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                  {auth.hasRole('editor') ? <th className="px-2 py-2" /> : null}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {padTop > 0 ? (
+                  <tr aria-hidden>
+                    <td colSpan={9} style={{ height: padTop, padding: 0, border: 0 }} />
+                  </tr>
+                ) : null}
+                {virtualRows.map((v) => {
+                  const c = rows[v.index];
+                  if (!c) return null;
+                  return (
+                    <tr
+                      key={c.id}
+                      data-index={v.index}
+                      ref={virtualizer.measureElement}
+                      className="row-line hover:bg-sunken last:border-b-0"
+                      onMouseEnter={() => {
+                        prefetchCheque(qc, c.id);
+                      }}
+                    >
+                      {auth.hasRole('editor') ? (
+                        <td className="px-3 py-3">
+                          <input
+                            type="checkbox"
+                            className="size-5 accent-primary"
+                            checked={selected.has(c.id)}
+                            onChange={() => {
+                              toggle(c.id);
+                            }}
+                            aria-label={c.chequeNo ?? c.id}
+                          />
+                        </td>
+                      ) : null}
+                      <td className="px-4 py-3">
+                        <Link
+                          to="/cheques/$chequeId"
+                          params={{ chequeId: c.id }}
+                          className="font-medium hover:underline"
+                        >
+                          <DateText date={c.dueDate} />
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        {pick(c.buildingNameAr, c.buildingNameEn)} · {c.unitNo}
+                      </td>
+                      <td className="px-4 py-3 text-ink-soft">{c.tenantName}</td>
+                      <td className="px-4 py-3 tnum">{c.chequeNo ?? '—'}</td>
+                      <td className="px-4 py-3 text-ink-soft">{c.bankName ?? '—'}</td>
+                      <td className="px-4 py-3 text-end">
+                        <Money fils={c.amountFils} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <ChequeStatusChip status={c.status} />
+                      </td>
+                      {auth.hasRole('editor') ? (
+                        <td className="px-2 py-3 text-end">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setStatusFor(c);
+                            }}
+                          >
+                            {t('cheque_changeStatus')}
+                          </Button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  );
+                })}
+                {padBottom > 0 ? (
+                  <tr aria-hidden>
+                    <td colSpan={9} style={{ height: padBottom, padding: 0, border: 0 }} />
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
           {q.hasNextPage ? (
             <div className="border-t border-line p-3">
               <Button

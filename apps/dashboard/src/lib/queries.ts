@@ -11,6 +11,7 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import type {
+  ChangeOwnerPhoneInput,
   ChequeStatus,
   ContractStatus,
   CreateContractInput,
@@ -99,13 +100,14 @@ export function useCreateOwner() {
   });
 }
 
-export function useUpdateOwner(id: string) {
+/** Admin only: the phone is the owner's sign-in identity, so the API asks for a reason. */
+export function useChangeOwnerPhone(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (patch: Partial<CreateOwnerInput>) =>
-      request<OwnerRow>(`/api/staff/owners/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
+    mutationFn: (input: ChangeOwnerPhoneInput) =>
+      request<OwnerRow>(`/api/staff/owners/${id}/phone`, {
+        method: 'POST',
+        body: JSON.stringify(input),
       }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: keys.owner(id) });

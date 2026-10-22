@@ -67,7 +67,9 @@ function Credentials() {
     try {
       await auth.login(email.trim(), password);
     } catch (err) {
-      if (err instanceof ApiRequestError && err.status === 403) setError(t('login_not_staff'));
+      if (err instanceof ApiRequestError && err.code === 'email_unverified')
+        setError(t('login_emailUnverified'));
+      else if (err instanceof ApiRequestError && err.status === 403) setError(t('login_not_staff'));
       else if (err instanceof ApiRequestError && err.status === 429) setError(t('totp_locked'));
       else setError(t('login_failed'));
     } finally {

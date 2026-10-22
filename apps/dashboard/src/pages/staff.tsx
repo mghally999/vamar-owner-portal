@@ -108,7 +108,10 @@ export function StaffPage() {
                         <input
                           type="checkbox"
                           checked={s.totpRequired}
-                          disabled={self}
+                          disabled={self || s.role === 'admin'}
+                          title={
+                            self || s.role === 'admin' ? t('staff_totpRequired_locked') : undefined
+                          }
                           onChange={(e) => {
                             m.update.mutate({
                               id: s.id,

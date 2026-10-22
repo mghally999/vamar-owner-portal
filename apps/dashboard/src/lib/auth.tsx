@@ -8,13 +8,16 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { firebaseEmailLogin } from './firebase';
+import { firebaseEmailLogin, firebaseSendVerificationEmail } from './firebase';
 import {
+  ApiRequestError,
   getCachedUser,
+  hasSessionFlag,
   refreshStaffSession,
   request,
   setAccessToken,
   setCachedUser,
+  setSessionFlag,
   setSessionLostHandler,
   type StaffUser,
 } from './api';
@@ -35,6 +38,9 @@ export interface AuthState {
 
 const AuthContext = createContext<AuthState | null>(null);
 const RANK = { viewer: 0, editor: 1, admin: 2 } as const;
+/** Access tokens live 15 minutes; refresh with a margin. */
+const ACCESS_TOKEN_MINUTES = 15;
+const REFRESH_EVERY_MS = (ACCESS_TOKEN_MINUTES - 3) * 60_000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<AuthStage>('loading');
@@ -43,17 +49,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [preToken, setPreToken] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
-  // Resume the session from the httpOnly cookie on load.
+  // Resume the session from the httpOnly cookie on load, when one may exist.
   useEffect(() => {
-    void refreshStaffSession().then((token) => {
-      if (token) {
-        setUser(getCachedUser());
-        setStage('authenticated');
-      } else setStage('anonymous');
-    });
+    if (!hasSessionFlag()) setStage('anonymous');
+    else {
+      void refreshStaffSession().then((r) => {
+        if (r.ok) {
+          setUser(getCachedUser());
+          setStage('authenticated');
+        } else setStage('anonymous');
+      });
+    }
     setSessionLostHandler(() => {
       setAccessToken(null);
       setCachedUser(null);
+      setSessionFlag(false);
       setUser(null);
       setStage('anonymous');
       queryClient.clear();
@@ -64,12 +74,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [queryClient]);
 
-  // Refresh the access token every 12 minutes while signed in (tokens live 15).
+  // Refresh the access token before it expires while signed in. A server hiccup is retried on
+  // the next tick; only a refusal ends the session.
   useEffect(() => {
     if (stage !== 'authenticated') return;
     const id = window.setInterval(() => {
-      void refreshStaffSession().then((token) => {
-        if (!token) {
+      void refreshStaffSession().then((r) => {
+        if (!r.ok && r.reason === 'unauthenticated') {
           setAccessToken(null);
           setCachedUser(null);
           setUser(null);
@@ -78,7 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.location.assign('/login?reason=expired');
         }
       });
-    }, 12 * 60_000);
+    }, REFRESH_EVERY_MS);
     return () => {
       window.clearInterval(id);
     };
@@ -86,17 +97,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const idToken = await firebaseEmailLogin(email, password);
-    const res = await request<
+    let res:
       | { preAuthToken: string; totpEnrolled: boolean; name: string; role: StaffUser['role'] }
-      | { accessToken: string; user: StaffUser }
-    >('/api/auth/staff/exchange', {
-      method: 'POST',
-      body: JSON.stringify({ firebaseIdToken: idToken }),
-    });
+      | { accessToken: string; user: StaffUser };
+    try {
+      res = await request('/api/auth/staff/exchange', {
+        method: 'POST',
+        body: JSON.stringify({ firebaseIdToken: idToken }),
+      });
+    } catch (err) {
+      // First sign-in of an invited account: Firebase must confirm the address first.
+      if (err instanceof ApiRequestError && err.code === 'email_unverified') {
+        await firebaseSendVerificationEmail(email, password);
+      }
+      throw err;
+    }
     if ('accessToken' in res) {
       // 2-step login switched off for this account (demo accounts during the trial).
       setAccessToken(res.accessToken);
       setCachedUser(res.user);
+      setSessionFlag(true);
       setUser(res.user);
       setPreToken(null);
       setStage('authenticated');
@@ -126,6 +146,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
       setAccessToken(res.accessToken);
       setCachedUser(res.user);
+      setSessionFlag(true);
       setUser(res.user);
       setPreToken(null);
       setStage('authenticated');
@@ -141,6 +162,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setAccessToken(null);
     setCachedUser(null);
+    setSessionFlag(false);
     setUser(null);
     setStage('anonymous');
     queryClient.clear();

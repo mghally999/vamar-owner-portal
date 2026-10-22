@@ -26,6 +26,8 @@ const en = {
   signingIn: 'Signing in…',
   login_failed: 'Wrong email or password.',
   login_not_staff: 'This email is not a Vamar staff account.',
+  login_emailUnverified:
+    'Your e-mail address is not confirmed yet. We sent you a verification link; open it, then sign in again.',
   totp_title: 'Authenticator code',
   totp_subtitle: 'Enter the 6-digit code from your authenticator app.',
   totp_setup_title: 'Set up your authenticator',
@@ -45,6 +47,7 @@ const en = {
   staff_totpRequired: '2-step login',
   staff_totpRequired_on: 'Required',
   staff_totpRequired_off: 'Off (trial)',
+  staff_totpRequired_locked: 'Always required for admins and for your own account.',
   totp_locked: 'Too many wrong codes. Try again in 15 minutes.',
   back: 'Back',
 
@@ -139,6 +142,10 @@ const en = {
     'The owner will be signed out of every device and cannot sign in again until re-enabled.',
   owner_created: 'Owner created. They can now sign in to the app with their phone number.',
   owner_phone_exists: 'An owner with this phone number already exists.',
+  owner_changePhone: 'Change phone number',
+  owner_changePhone_hint:
+    'The owner signs in with this number. All their devices are signed out and the change is recorded with your reason.',
+  owner_changePhone_reason: 'Reason',
   owner_holdings_empty: 'This owner holds no units yet. Assign units from the building page.',
   owner_lastSeen: 'Last seen',
   owner_pushEnabled: 'Notifications on',
@@ -312,6 +319,7 @@ const en = {
   import_rowsFailed: '{n} rows with errors',
   import_commit: 'Import {n} rows',
   import_done: 'Imported {ok} rows. {failed} failed.',
+  import_alreadyDone: 'This sheet was already imported; showing the earlier result.',
   import_ignore: 'Ignore',
   import_row: 'Row',
   import_errors: 'Errors',
@@ -382,6 +390,8 @@ const ar: Record<MessageKey, string> = {
   signingIn: 'جارٍ الدخول…',
   login_failed: 'البريد الإلكتروني أو كلمة المرور غير صحيحة.',
   login_not_staff: 'هذا البريد ليس حساب موظف في فامار.',
+  login_emailUnverified:
+    'بريدك الإلكتروني غير مؤكد بعد. أرسلنا لك رابط تأكيد، افتحه ثم سجّل الدخول مرة أخرى.',
   totp_title: 'رمز المصادقة',
   totp_subtitle: 'أدخل الرمز المكوّن من 6 أرقام من تطبيق المصادقة.',
   totp_setup_title: 'إعداد تطبيق المصادقة',
@@ -400,6 +410,7 @@ const ar: Record<MessageKey, string> = {
   staff_totpRequired: 'الدخول بخطوتين',
   staff_totpRequired_on: 'مطلوب',
   staff_totpRequired_off: 'متوقف (تجربة)',
+  staff_totpRequired_locked: 'مطلوب دائماً للمديرين ولحسابك أنت.',
   totp_locked: 'محاولات كثيرة خاطئة. حاول بعد 15 دقيقة.',
   back: 'رجوع',
 
@@ -489,6 +500,10 @@ const ar: Record<MessageKey, string> = {
   owner_disable_confirm: 'سيتم إخراج المالك من جميع الأجهزة ولن يستطيع الدخول حتى يُعاد تفعيله.',
   owner_created: 'تم إنشاء المالك. يمكنه الآن الدخول إلى التطبيق برقم هاتفه.',
   owner_phone_exists: 'يوجد مالك بهذا الرقم بالفعل.',
+  owner_changePhone: 'تغيير رقم الهاتف',
+  owner_changePhone_hint:
+    'يسجّل المالك الدخول بهذا الرقم. سيتم تسجيل الخروج من كل أجهزته وتسجيل التغيير مع السبب.',
+  owner_changePhone_reason: 'السبب',
   owner_holdings_empty: 'لا يملك هذا المالك وحدات بعد. عيّن الوحدات من صفحة المبنى.',
   owner_lastSeen: 'آخر ظهور',
   owner_pushEnabled: 'الإشعارات مفعّلة',
@@ -653,6 +668,7 @@ const ar: Record<MessageKey, string> = {
   import_rowsFailed: '{n} صفوف بها أخطاء',
   import_commit: 'استيراد {n} صفوف',
   import_done: 'تم استيراد {ok} صفاً. فشل {failed}.',
+  import_alreadyDone: 'هذا الملف مستورد من قبل؛ هذه نتيجة الاستيراد السابق.',
   import_ignore: 'تجاهل',
   import_row: 'الصف',
   import_errors: 'الأخطاء',
