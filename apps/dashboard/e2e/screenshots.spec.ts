@@ -39,7 +39,10 @@ for (const lang of ['ar', 'en'] as const) {
         await page.goto(p.path);
         await page.waitForLoadState('networkidle');
         await page.waitForTimeout(400);
-        await page.screenshot({ path: `${OUT}/${p.name}-${lang}-${width}${SUFFIX}.png`, fullPage: true });
+        await page.screenshot({
+          path: `${OUT}/${p.name}-${lang}-${width}${SUFFIX}.png`,
+          fullPage: true,
+        });
       }
       // Detail pages: first building, first contract, first cheque, first owner
       await page.goto('/buildings');
@@ -59,11 +62,17 @@ for (const lang of ['ar', 'en'] as const) {
       await page.goto('/cheques');
       await page.locator('a[href^="/cheques/"]').first().click();
       await page.waitForLoadState('networkidle');
-      await page.screenshot({ path: `${OUT}/cheque-detail-${lang}-${width}${SUFFIX}.png`, fullPage: true });
+      await page.screenshot({
+        path: `${OUT}/cheque-detail-${lang}-${width}${SUFFIX}.png`,
+        fullPage: true,
+      });
       await page.goto('/owners');
       await page.locator('a[href^="/owners/"]').first().click();
       await page.waitForLoadState('networkidle');
-      await page.screenshot({ path: `${OUT}/owner-detail-${lang}-${width}${SUFFIX}.png`, fullPage: true });
+      await page.screenshot({
+        path: `${OUT}/owner-detail-${lang}-${width}${SUFFIX}.png`,
+        fullPage: true,
+      });
       await page.goto('/disputes');
       await page.locator('a[href^="/disputes/"]').first().click();
       await page.waitForLoadState('networkidle');
