@@ -20,8 +20,23 @@ import type { Bindings } from './env.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const apiDir = resolve(here, '..');
 
+const VAR_NAMES = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'TOTP_ENC_KEY',
+  'FIREBASE_PROJECT_ID',
+  'FIREBASE_AUTH_EMULATOR_HOST',
+  'EXPO_ACCESS_TOKEN',
+  'ALLOWED_PHONE_COUNTRIES',
+];
+
+/** `.dev.vars` first, then the process environment (containers set variables, not files). */
 function loadDevVars(): Record<string, string> {
   const out: Record<string, string> = {};
+  for (const k of VAR_NAMES) {
+    const v = process.env[k];
+    if (v) out[k] = v;
+  }
   const file = join(apiDir, '.dev.vars');
   if (!existsSync(file)) return out;
   for (const line of readFileSync(file, 'utf8').split(/\r?\n/)) {

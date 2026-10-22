@@ -15,7 +15,7 @@
     "staff:reset-totp": "node tooling/dev/staff-reset-totp.mjs",
     "infra:up": "node tooling/dev/start.mjs db firebase",
     "infra:down": "docker compose down",
-    "infra:reset": "docker compose down -v && docker compose up -d --wait",
+    "infra:reset": "docker compose down -v && docker compose up -d --wait postgres firebase",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
@@ -28,7 +28,7 @@
     "db:seed": "pnpm --filter @vamar/db seed",
     "db:reset": "pnpm --filter @vamar/db reset",
     "db:studio": "pnpm --filter @vamar/db studio",
-    "dev:docker": "docker compose up -d --wait && turbo run dev",
+    "dev:docker": "docker compose up -d --wait postgres firebase && turbo run dev",
     "coverage": "turbo run coverage",
     "budget": "node tooling/ci/bundle-budget.mjs"
   },

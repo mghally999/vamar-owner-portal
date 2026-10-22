@@ -292,6 +292,66 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Fixed Arabic/English month names** instead of `Intl.DateTimeFormat` so dates render
   identically on every phone and browser.
 
+## Operations
+
+### Environments
+
+| Environment | URL                                                      | Database              | Files                    | Deployed by                               |
+| ----------- | -------------------------------------------------------- | --------------------- | ------------------------ | ----------------------------------------- |
+| Production  | https://vamar-owner-portal.vamar-api.workers.dev         | Neon branch `main`    | R2 `vamar-files`         | tag `v*` (Deploy workflow, after staging) |
+| Staging     | https://vamar-owner-portal-staging.vamar-api.workers.dev | Neon branch `staging` | R2 `vamar-files-staging` | every green CI run on `main`              |
+| Local       | http://localhost:5173 (dashboard), :8787 (API)           | Postgres 17 on 5433   | `apps/api/.dev-files`    | `pnpm dev`                                |
+| Docker      | http://localhost:8787                                    | compose `postgres`    | container folder         | `docker compose up --wait`                |
+
+Staging has its own Worker secrets (`JWT_SECRET`, `TOTP_ENC_KEY`, `DATABASE_URL` for
+`vamar_app` on the staging branch), so a token or authenticator from one environment never works
+in the other. It uses the same Firebase project (test phone numbers, demo staff accounts) and has
+no cron; run the daily jobs there with `POST /api/staff/jobs/daily` as an admin. Connection
+strings live in `.local/neon-staging.env` on the dev machine and in the GitHub secrets
+`STAGING_DATABASE_URL_OWNER` and `PROD_DATABASE_URL_OWNER` (owner roles, migrations only).
+
+Release: merge to `main`, wait for CI and the staging deploy, check staging, then
+`git tag v1.x.y && git push origin v1.x.y`. The production job migrates Neon `main`, deploys and
+runs `tooling/ci/smoke.mjs`; the Worker reports the tag as its release.
+
+### Health, logs, errors
+
+- `/healthz` is liveness (no database); `/readyz` runs `select 1` and returns 503 when the database
+  does not answer. Uptime checks point at `/readyz` (BLOCKED.md item 3).
+- Every response has `x-request-id` (the Cloudflare ray id). Every API call writes one JSON line
+  `{"event":"http","requestId","method","route","status","ms","release"}`; route is the pattern,
+  never the query string. Read them with `npx wrangler tail [--env staging] --format json` or in
+  the Cloudflare dashboard (Workers > Logs, observability is on).
+- Unexpected errors and cron failures go through `apps/api/src/util/report.ts`: always a JSON
+  log line, and a Sentry event when the `SENTRY_DSN` Worker secret is set
+  (`npx wrangler secret put SENTRY_DSN [--env staging]`). Phone numbers and e-mail addresses are
+  masked; no body, header or query string is sent. A 500 response shows the request id so a
+  support call can be matched to the log line.
+
+### Backups and restore
+
+Nightly at 00:30 UTC, `.github/workflows/backup.yml` dumps Neon `main`, compresses it, encrypts
+it with `age` to the public key in `BACKUP_AGE_RECIPIENT` and uploads it to R2 `vamar-backups`,
+keeping 30 days. Neon also keeps 24 hours of point-in-time history on the free plan.
+
+**Restore drill, 22 Oct 2026** (`node tooling/ops/restore-drill.mjs <url> .local/backup-age-key.txt`,
+the same pg_dump/gzip/age commands as the workflow, against the staging branch): 127 KB of SQL,
+21 KB encrypted; decrypt 3 s, restore into an empty database 6 s, 0 errors; all 19 tables match
+the source row for row. The workflow itself has not run yet (R2 key, BLOCKED.md item 1).
+
+To restore production from a nightly file:
+
+1. Download it: R2 > `vamar-backups` > `postgres/` > the file, or `aws s3 cp` with the R2 key.
+2. `age --decrypt --identity backup-age-key.txt vamar-<stamp>.sql.gz.age | gunzip > restore.sql`.
+3. Create a new Neon branch (console: Branches > New branch, from an empty point or `main`),
+   load the file with `psql "<owner url of the new branch>" -f restore.sql`, check it with the
+   drill script's row counts.
+4. Point the Worker at it: `npx wrangler secret put DATABASE_URL` with the `vamar_app` URL of the
+   new branch, then `node tooling/ci/smoke.mjs https://vamar-owner-portal.vamar-api.workers.dev production`.
+
+For a mistake within the last 24 hours, Neon's point-in-time restore (console: Restore) is
+faster than a file.
+
 ## Setup I must do
 
 Nothing here blocks local development; all of it is for deployed environments or for pushing.
