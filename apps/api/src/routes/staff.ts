@@ -1,5 +1,7 @@
 import { zValidator } from '../util/validator.js';
+import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { schema } from '@vamar/db';
 import { z } from 'zod';
 import {
   activateContractSchema,
@@ -42,6 +44,7 @@ import {
   getAttachmentForStaff,
   listAttachments,
   storeUpload,
+  removeObject,
   streamObject,
 } from '../services/attachments.js';
 import {
@@ -67,7 +70,7 @@ import {
   listDisputes,
   updateDispute,
 } from '../services/disputes.js';
-import { queueBounceAlert } from '../services/notifications.js';
+import { queueBounceAlerts } from '../services/notifications.js';
 import { overview } from '../services/overview.js';
 import {
   createOwner,
@@ -383,7 +386,7 @@ export const staffRoutes = new Hono<AppEnv>()
       const result = await withTx(c, (tx) =>
         changeChequeStatus(tx, actorFromContext(c, p), p.role === 'admin', id, c.req.valid('json')),
       );
-      if (result.notifyOwners) c.executionCtx.waitUntil(queueBounceAlert(c.env, id));
+      if (result.notifyOwners) c.executionCtx.waitUntil(queueBounceAlerts(c.env, [id]));
       return c.json(result);
     },
   )
@@ -397,8 +400,7 @@ export const staffRoutes = new Hono<AppEnv>()
       const result = await withTx(c, (tx) =>
         bulkChangeChequeStatus(tx, actorFromContext(c, p), body.chequeIds, body.to, body.note),
       );
-      for (const id of result.notifyChequeIds)
-        c.executionCtx.waitUntil(queueBounceAlert(c.env, id));
+      c.executionCtx.waitUntil(queueBounceAlerts(c.env, result.notifyChequeIds));
       return c.json(result);
     },
   )
@@ -408,19 +410,20 @@ export const staffRoutes = new Hono<AppEnv>()
     const form = await c.req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) throw new ApiError(422, 'validation', 'file is required');
-    const row = await withTx(c, async (tx) => {
+    const { att, previousKey } = await withTx(c, async (tx) => {
       const cheque = await getChequeDetail(tx, id);
       const att = await storeUpload(tx, c.env.FILES, actorFromContext(c, p), {
         entityType: 'cheque',
         entityId: cheque.id,
         file,
       });
-      const { schema } = await import('@vamar/db');
-      const { eq } = await import('drizzle-orm');
       await tx.update(schema.cheques).set({ imageKey: att.r2Key }).where(eq(schema.cheques.id, id));
-      return att;
+      return { att, previousKey: cheque.imageKey };
     });
-    return c.json(row, 201);
+    // The replaced image is removed only after the new one is committed.
+    if (previousKey && previousKey !== att.r2Key)
+      c.executionCtx.waitUntil(removeObject(c.env.FILES, previousKey));
+    return c.json(att, 201);
   })
   .get('/cheques/:id/image', viewer, idParam, async (c) => {
     const cheque = await getChequeDetail(readDb(c), c.req.valid('param').id);
@@ -523,9 +526,10 @@ export const staffRoutes = new Hono<AppEnv>()
     return streamObject(c.env.FILES, att.r2Key, c, att);
   })
   .delete('/attachments/:id', editor, idParam, async (c) => {
-    await withTx(c, (tx) =>
-      deleteAttachment(tx, c.env.FILES, actorFromContext(c, staffOf(c)), c.req.valid('param').id),
+    const { r2Key } = await withTx(c, (tx) =>
+      deleteAttachment(tx, actorFromContext(c, staffOf(c)), c.req.valid('param').id),
     );
+    c.executionCtx.waitUntil(removeObject(c.env.FILES, r2Key));
     return c.json({ ok: true });
   })
 

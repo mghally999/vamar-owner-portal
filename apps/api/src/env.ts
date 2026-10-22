@@ -16,6 +16,8 @@ export interface Bindings {
   TEST_DB?: Db;
   /** Tests can pin the business date. */
   TEST_TODAY?: string;
+  /** Tests choose the push transport outcome instead of calling Expo. */
+  TEST_PUSH?: 'ok' | 'fail';
 }
 
 export interface OwnerPrincipal {

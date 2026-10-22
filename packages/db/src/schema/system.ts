@@ -41,6 +41,8 @@ export const imports = pgTable('imports', {
   status: importStatus().notNull().default('validating'),
   /** Client-supplied idempotency key so a retried commit never duplicates rows. */
   idempotencyKey: text().unique(),
+  /** Per-row report, returned again when the same key is committed twice. */
+  results: jsonb(),
   createdBy: uuid().references(() => staffUsers.id),
   createdAt: createdAt(),
 });

@@ -1,5 +1,5 @@
 import { zValidator } from '../util/validator.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { schema } from '@vamar/db';
@@ -44,9 +44,14 @@ export const ownerRoutes = new Hono<AppEnv>()
   .patch('/me', zValidator('json', z.object({ preferredLang: langSchema })), async (c) => {
     const p = ownerOf(c);
     const { preferredLang } = c.req.valid('json');
-    await withTx(c, (tx) =>
-      tx.update(schema.owners).set({ preferredLang }).where(eq(schema.owners.id, p.id)),
+    const updated = await withTx(c, (tx) =>
+      tx
+        .update(schema.owners)
+        .set({ preferredLang })
+        .where(eq(schema.owners.id, p.id))
+        .returning({ id: schema.owners.id }),
     );
+    if (updated.length === 0) throw notFound('Owner');
     return c.json({ ok: true });
   })
 
@@ -145,12 +150,20 @@ export const ownerRoutes = new Hono<AppEnv>()
   .post('/push-token', zValidator('json', registerPushTokenSchema), async (c) => {
     const p = ownerOf(c);
     const { deviceId, pushToken } = c.req.valid('json');
-    await withTx(c, (tx) =>
+    const updated = await withTx(c, (tx) =>
       tx
         .update(schema.devices)
         .set({ pushToken, lastSeen: new Date() })
-        .where(and(eq(schema.devices.ownerId, p.id), eq(schema.devices.deviceId, deviceId))),
+        .where(
+          and(
+            eq(schema.devices.ownerId, p.id),
+            eq(schema.devices.deviceId, deviceId),
+            isNull(schema.devices.revokedAt),
+          ),
+        )
+        .returning({ id: schema.devices.id }),
     );
+    if (updated.length === 0) throw notFound('Device');
     return c.json({ ok: true });
   })
 
@@ -160,12 +173,14 @@ export const ownerRoutes = new Hono<AppEnv>()
     async (c) => {
       const p = ownerOf(c);
       const { deviceId } = c.req.valid('json');
-      await withTx(c, (tx) =>
+      const updated = await withTx(c, (tx) =>
         tx
           .update(schema.devices)
           .set({ pushToken: null })
-          .where(and(eq(schema.devices.ownerId, p.id), eq(schema.devices.deviceId, deviceId))),
+          .where(and(eq(schema.devices.ownerId, p.id), eq(schema.devices.deviceId, deviceId)))
+          .returning({ id: schema.devices.id }),
       );
+      if (updated.length === 0) throw notFound('Device');
       return c.json({ ok: true });
     },
   )

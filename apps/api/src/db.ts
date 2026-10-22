@@ -27,6 +27,9 @@ export type Tx = PgTransaction<PgQueryResultHKT, Schema, Relations>;
 /** Either a database or an open transaction. Services accept this. */
 export type Dbx = Db | Tx;
 
+/** A Neon wake-up takes about a second; anything beyond this is reported, not waited for. */
+const NEON_CONNECT_TIMEOUT_MS = 10_000;
+
 function isLocal(url: string): boolean {
   try {
     const host = new URL(url).hostname;
@@ -52,7 +55,11 @@ export async function withTx<T>(c: Context<AppEnv>, fn: (tx: Tx) => Promise<T>):
   const env = c.env;
   if (env.TEST_DB) return env.TEST_DB.transaction((tx) => fn(tx));
   if (isLocal(env.DATABASE_URL)) return localPool(c).transaction((tx) => fn(tx));
-  const pool = new NeonPool({ connectionString: env.DATABASE_URL, max: 1 });
+  const pool = new NeonPool({
+    connectionString: env.DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: NEON_CONNECT_TIMEOUT_MS,
+  });
   const db = drizzleNeon({ client: pool, schema, casing: 'snake_case' });
   try {
     return await db.transaction((tx) => fn(tx as unknown as Tx));
@@ -88,7 +95,11 @@ export function cronDb(env: Bindings): { db: Db; close: () => Promise<void> } {
       close: () => pool.end(),
     };
   }
-  const pool = new NeonPool({ connectionString: env.DATABASE_URL, max: 1 });
+  const pool = new NeonPool({
+    connectionString: env.DATABASE_URL,
+    max: 1,
+    connectionTimeoutMillis: NEON_CONNECT_TIMEOUT_MS,
+  });
   return {
     db: drizzleNeon({ client: pool, schema, casing: 'snake_case' }),
     close: () => pool.end(),
