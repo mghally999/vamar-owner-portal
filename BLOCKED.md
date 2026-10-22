@@ -45,3 +45,17 @@ Docker Desktop is installed but was not running during the audit. Start it once 
 EAS holds the Android signing key. After the production build in Phase E, run
 `eas credentials --platform android` and choose **Download credentials**; keep the file in the
 password manager, not in the repository.
+
+## 6. Cloudflare API token for automatic deploys
+
+Staging deploys from `main` and production deploys from a `v*` tag run in GitHub Actions
+(`.github/workflows/deploy.yml`). The database and account secrets are already set; the workflow
+skips the deploy with a notice until this token exists.
+
+1. Cloudflare dashboard > My Profile > **API Tokens** > **Create Token** > template **Edit
+   Cloudflare Workers** > Account Resources: **Include** the Vamar account; Zone Resources: **All
+   zones** (no zone is used, the template needs a value) > Continue > Create Token. Copy it.
+2. GitHub > repository > Settings > Secrets and variables > Actions > **New repository secret**
+   `CLOUDFLARE_API_TOKEN`, paste, Add.
+3. Actions > **Deploy** > Run workflow (branch `main`). The staging job must end with
+   "smoke test passed".

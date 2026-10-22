@@ -1,0 +1,116 @@
+name: Deploy
+
+# main -> staging (migrate the staging Neon branch, deploy the staging Worker, smoke test).
+# tag v* -> the same for staging, then production only if staging passed.
+# Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, STAGING_DATABASE_URL_OWNER,
+# PROD_DATABASE_URL_OWNER (owner roles, used for migrations only; the Workers use their own
+# vamar_app URLs stored as Worker secrets).
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  staging:
+    name: Staging
+    if: >-
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+    steps:
+      - name: Deploy credentials present?
+        if: env.HAS_TOKEN != 'true'
+        run: echo "::notice::CLOUDFLARE_API_TOKEN is not set (BLOCKED.md item 6); skipping the staging deploy."
+      - uses: actions/checkout@v5
+        if: env.HAS_TOKEN == 'true'
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+        if: env.HAS_TOKEN == 'true'
+      - uses: actions/setup-node@v5
+        if: env.HAS_TOKEN == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: env.HAS_TOKEN == 'true'
+      - name: Migrate the staging database
+        if: env.HAS_TOKEN == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_OWNER }}
+        run: pnpm db:migrate
+      - name: Build the dashboard
+        if: env.HAS_TOKEN == 'true'
+        run: pnpm --filter @vamar/dashboard build
+      - name: Deploy the staging Worker
+        if: env.HAS_TOKEN == 'true'
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --env staging --var RELEASE:${SHA::7}
+      - name: Smoke test
+        if: env.HAS_TOKEN == 'true'
+        run: node tooling/ci/smoke.mjs https://vamar-owner-portal-staging.vamar-api.workers.dev staging
+
+  production:
+    name: Production
+    needs: staging
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    env:
+      HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+    steps:
+      - name: Deploy credentials present?
+        if: env.HAS_TOKEN != 'true'
+        run: |
+          echo "::error::CLOUDFLARE_API_TOKEN is not set (BLOCKED.md item 6); production was not deployed."
+          exit 1
+      - uses: actions/checkout@v5
+        if: env.HAS_TOKEN == 'true'
+      - uses: pnpm/action-setup@v4
+        if: env.HAS_TOKEN == 'true'
+      - uses: actions/setup-node@v5
+        if: env.HAS_TOKEN == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        if: env.HAS_TOKEN == 'true'
+      - name: Migrate the production database
+        if: env.HAS_TOKEN == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL_OWNER }}
+        run: pnpm db:migrate
+      - name: Build the dashboard
+        if: env.HAS_TOKEN == 'true'
+        run: pnpm --filter @vamar/dashboard build
+      - name: Deploy the production Worker
+        if: env.HAS_TOKEN == 'true'
+        working-directory: apps/api
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --var RELEASE:${GITHUB_REF_NAME}
+      - name: Smoke test
+        if: env.HAS_TOKEN == 'true'
+        run: node tooling/ci/smoke.mjs https://vamar-owner-portal.vamar-api.workers.dev production
