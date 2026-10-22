@@ -18,6 +18,7 @@ import {
   UNIT_TYPES,
 } from '@vamar/shared';
 import { request } from '@/lib/api';
+import { chunk, IMPORT_BATCH_SIZE } from '@/lib/batch';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { Button, Card, Field, PageHeader, SectionTitle, Select, Toast } from '@/ui/primitives';
@@ -101,6 +102,12 @@ function cellText(v: unknown): string {
   return JSON.stringify(v);
 }
 
+/** First 16 hex digits of the file's SHA-256: the same file always gets the same import key. */
+async function fileFingerprint(buf: ArrayBuffer): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
+  return Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
+}
+
 export function ImportPage() {
   const { t, lang } = useI18n();
   const [wb, setWb] = useState<WorkBook | null>(null);
@@ -115,7 +122,8 @@ export function ImportPage() {
     alreadyDone?: boolean;
   } | null>(null);
   const [busy, setBusy] = useState(false);
-  const [key] = useState(() => crypto.randomUUID());
+  const [fingerprint, setFingerprint] = useState('');
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const rows = useMemo(() => {
     if (!wb || !sheet) return [] as Record<string, unknown>[];
@@ -153,6 +161,7 @@ export function ImportPage() {
     const buf = await file.arrayBuffer();
     const { read } = await loadXlsx();
     const book = read(buf, { type: 'array' });
+    setFingerprint(await fileFingerprint(buf));
     setWb(book);
     setFileName(file.name);
     setSheet(book.SheetNames[0] ?? '');
@@ -163,6 +172,14 @@ export function ImportPage() {
   function autoMap(tg: Target, cols: string[]) {
     const m: Record<string, string> = {};
     for (const f of FIELDS[tg]) {
+      // A header that starts with the field key (as in vamar-import-template.xlsx) wins.
+      const exact = cols.find(
+        (c) => c.trim().split(/[s|(]/)[0]?.toLowerCase() === f.key.toLowerCase(),
+      );
+      if (exact) {
+        m[f.key] = exact;
+        continue;
+      }
       const hit = cols.find((c) => {
         const n = c.toLowerCase().replace(/[^a-z؀-ۿ]/g, '');
         return (
@@ -183,25 +200,52 @@ export function ImportPage() {
 
   async function commit() {
     setBusy(true);
+    const batches = chunk(okRows, IMPORT_BATCH_SIZE);
+    const total = {
+      rowsOk: 0,
+      rowsFailed: 0,
+      results: [] as NonNullable<typeof result>['results'],
+      alreadyDone: false,
+    };
     try {
-      const r = await request<typeof result>('/api/staff/import/commit', {
-        method: 'POST',
-        body: JSON.stringify({
-          target,
-          fileName,
-          idempotencyKey: `${key}:${target}:${sheet}`,
-          rows: okRows.map((x) => ({ row: x.row, data: x.data })),
-        }),
-      });
-      setResult(r);
+      for (const [i, batch] of batches.entries()) {
+        setProgress({ done: i * IMPORT_BATCH_SIZE, total: okRows.length });
+        const r = await request<NonNullable<typeof result>>('/api/staff/import/commit', {
+          method: 'POST',
+          body: JSON.stringify({
+            target,
+            fileName,
+            idempotencyKey: `${fingerprint}:${target}:${sheet}:${String(i)}`,
+            rows: batch.map((x) => ({ row: x.row, data: x.data })),
+          }),
+        });
+        total.rowsOk += r.rowsOk;
+        total.rowsFailed += r.rowsFailed;
+        total.results.push(...r.results);
+        total.alreadyDone ||= r.alreadyDone === true;
+      }
+      setResult(total);
     } finally {
+      setProgress(null);
       setBusy(false);
     }
   }
 
   return (
     <Page>
-      <PageHeader title={t('import_title')} subtitle={t('import_intro')} />
+      <PageHeader
+        title={t('import_title')}
+        subtitle={t('import_intro')}
+        actions={
+          <a
+            href="/vamar-import-template.xlsx"
+            download
+            className="inline-flex h-11 items-center rounded-md border border-line-strong px-4 text-[15px] font-medium hover:bg-sunken"
+          >
+            {t('import_template')}
+          </a>
+        }
+      />
       <Card className="grid gap-4 p-5 sm:grid-cols-3">
         <Field label={t('import_pickFile')} required>
           <div className="flex h-11 items-center gap-3">
@@ -308,7 +352,9 @@ export function ImportPage() {
                 disabled={okRows.length === 0 || result !== null}
                 loading={busy}
               >
-                {t('import_commit', { n: okRows.length })}
+                {progress
+                  ? t('import_progress', { done: progress.done, total: progress.total })
+                  : t('import_commit', { n: okRows.length })}
               </Button>
             }
           >

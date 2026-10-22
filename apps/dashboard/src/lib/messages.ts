@@ -307,6 +307,8 @@ const en = {
 
   // import
   import_title: 'Import from Excel',
+  import_template: 'Download the template',
+  import_progress: 'Importing {done} of {total} rows…',
   import_intro: 'Upload a sheet, map its columns, review the dry run, then commit.',
   import_pickFile: 'Choose an .xlsx file',
   import_chooseFile: 'Choose file',
@@ -660,6 +662,8 @@ const ar: Record<MessageKey, string> = {
   dispute_updateAdded: 'تمت إضافة التحديث.',
 
   import_title: 'استيراد من Excel',
+  import_template: 'تنزيل النموذج',
+  import_progress: 'جارٍ استيراد {done} من {total} صفاً…',
   import_intro: 'ارفع الملف، طابق الأعمدة، راجع نتيجة الفحص، ثم نفّذ الاستيراد.',
   import_pickFile: 'اختر ملف .xlsx',
   import_chooseFile: 'اختيار ملف',
