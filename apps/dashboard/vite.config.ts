@@ -17,6 +17,18 @@ export default defineConfig({
     // Unit tests only; the Playwright suite in e2e/ runs through `pnpm e2e`.
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+    coverage: {
+      provider: 'v8',
+      // Unit-tested modules; pages and flows are covered end to end by the Playwright suite.
+      include: [
+        'src/lib/batch.ts',
+        'src/lib/theme.ts',
+        'src/ui/cheque-grid.tsx',
+        'src/ui/primitives.tsx',
+      ],
+      // Floors measured on 23 Oct 2026; raised as tests are added, never lowered.
+      thresholds: { lines: 56, functions: 40, statements: 57, branches: 53 },
+    },
   },
   build: {
     target: 'es2022',
