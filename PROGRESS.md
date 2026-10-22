@@ -103,3 +103,33 @@ complexity table, the load-test and query-plan tables and the brief compliance t
 changed in this step; the fixes start in the next one and are tracked against the register.
 
 تمت مراجعة المشروع بالكامل مراجعةً مستقلة قبل البدء بأي تعديل، من ناحية الأمان والاعتمادية والأداء وجودة الشيفرة ومطابقة ما تم بناؤه لما تم الاتفاق عليه، وتم اختبار النظام على بيانات تجريبية كبيرة تعادل محفظة عقارية ضخمة وعلى أعداد كبيرة من المستخدمين في نفس الوقت، وتم توثيق كل ما ظهر من نقاط ضعف في ملف واحد مع تقدير خطورة كل نقطة وطريقة علاجها، وتم تحديد ترتيب الإصلاحات التي ستبدأ في الخطوة التالية.
+
+## Hardening, staging, redesign start and production deploy (23 Oct 2026)
+
+**Fixed** every Critical, High and Medium finding of `AUDIT.md` (configuration and secrets checks,
+staff sign-in binding and 2-step rules, revocation, cache headers, readiness probe, one error
+format, single-use authenticator codes, push notifications that retry, guarded cron with
+retention, imports that survive bad rows, safe file storage, paged lists, a parallel overview
+with new indexes, sessions that survive network hiccups in both clients, offline banner and
+cached images in the app, rules moved back into the shared package, owner phone change as an
+admin action). 86 API tests, 86 shared, 10 db, 5 app, 3 dashboard, 5 token tests and 11
+Playwright flows.
+
+**Operations**: staging at https://vamar-owner-portal-staging.vamar-api.workers.dev with its own
+database branch, bucket and secrets; request ids and JSON access logs; error reporting ready for
+Sentry; deploy workflow from GitHub (waiting for a Cloudflare token, BLOCKED.md item 6); restore
+drill passed with every table identical; CI with coverage floors, bundle budgets, secret scan and
+dependency audit.
+
+**Design**: tokens rebuilt from the Figma file, two themes (Default slate and White) chosen in
+Settings and remembered, Almarai, the app's new header, floating tab bar and Home screen 1:1 from
+the design, the dashboard's slate sidebar and hero card; 128 dashboard screenshots in
+`demo/screenshots/v2`.
+
+**Distribution**: `/download` page with the QR in `demo/download-qr.png`, version check in the
+API, app 1.1.0 prepared with over-the-air updates; the next APK is 36.7 MB instead of 114 MB.
+
+**Production** now runs this code (migrations 0003 to 0005 applied, smoke test passed); the
+installed app and the trial accounts work as before.
+
+تمت مراجعة النظام بالكامل ومعالجة كل ما ظهر في تقرير المراجعة من نقاط ضعف في الأمان والاعتمادية والأداء، وتم تجهيز نسخة تجريبية منفصلة تماماً عن النسخة الحية لاختبار أي تعديل قبل وصوله إلى المستخدمين، مع سجلات تشغيل منظمة وتجربة ناجحة لاسترجاع النسخة الاحتياطية لقاعدة البيانات. وتم البدء بتطبيق التصميم الجديد من ملف فيجما على التطبيق ولوحة التحكم بمظهرين يختار المستخدم بينهما، وتم تجهيز صفحة تنزيل واحدة ترسل للملاك وتعرض الطريقة المناسبة لهاتف كل منهم، وتم تقليص حجم تطبيق أندرويد من 114 إلى نحو 37 ميجابايت، وتم نشر هذه التحسينات على النسخة الحية بعد نجاح اختبارها على النسخة التجريبية.
