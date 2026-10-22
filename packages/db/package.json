@@ -33,7 +33,8 @@
     "seed": "tsx scripts/seed.ts",
     "reset": "tsx scripts/reset.ts",
     "studio": "drizzle-kit studio",
-    "coverage": "vitest run"
+    "coverage": "vitest run",
+    "golive:blank": "tsx scripts/golive-blank.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",

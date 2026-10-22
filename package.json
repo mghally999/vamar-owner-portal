@@ -31,7 +31,8 @@
     "dev:docker": "docker compose up -d --wait postgres firebase && turbo run dev",
     "coverage": "turbo run coverage",
     "budget": "node tooling/ci/bundle-budget.mjs",
-    "build:web": "pnpm --filter @vamar/dashboard build && node tooling/dev/build-web-app.mjs"
+    "build:web": "pnpm --filter @vamar/dashboard build && node tooling/dev/build-web-app.mjs",
+    "golive:blank": "pnpm --filter @vamar/db golive:blank"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
