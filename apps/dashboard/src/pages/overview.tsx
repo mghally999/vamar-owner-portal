@@ -76,6 +76,10 @@ export function OverviewPage() {
               </span>
               <span
                 role="progressbar"
+                aria-label={t('overview_occupancy', {
+                  occupied: d.occupancy.occupied,
+                  total: d.occupancy.total,
+                })}
                 aria-valuemin={0}
                 aria-valuemax={100}
                 aria-valuenow={occupancyPct(d.occupancy.occupied, d.occupancy.total)}
