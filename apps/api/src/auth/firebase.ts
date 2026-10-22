@@ -5,6 +5,7 @@
  * That path is never taken in production, whatever the variables say.
  */
 import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from 'jose';
+import { isDeployed } from '../config.js';
 import { unauthorized } from '../errors.js';
 import type { Bindings } from '../env.js';
 
@@ -35,7 +36,7 @@ export async function verifyFirebaseIdToken(
   const issuer = `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`;
   let claims: FirebaseClaims;
 
-  if (env.FIREBASE_AUTH_EMULATOR_HOST && env.APP_ENV !== 'production') {
+  if (env.FIREBASE_AUTH_EMULATOR_HOST && !isDeployed(env)) {
     try {
       claims = decodeJwt<FirebaseClaims>(token);
     } catch {

@@ -6,7 +6,7 @@
 import type { Bindings } from './env.js';
 import { fromBase64 } from './util/crypto.js';
 
-export const APP_ENVS = ['development', 'test', 'production'] as const;
+export const APP_ENVS = ['development', 'test', 'staging', 'production'] as const;
 
 /** Values shipped in `.dev.vars.example` and the dev server; never valid in production. */
 export const PLACEHOLDER_SECRETS: readonly string[] = [
@@ -18,6 +18,11 @@ export const MIN_JWT_SECRET_LENGTH = 32;
 
 export function isProduction(env: Pick<Bindings, 'APP_ENV'>): boolean {
   return env.APP_ENV === 'production';
+}
+
+/** Staging and production: real Firebase, real secrets, no development shortcuts. */
+export function isDeployed(env: Pick<Bindings, 'APP_ENV'>): boolean {
+  return env.APP_ENV === 'production' || env.APP_ENV === 'staging';
 }
 
 function isLocalUrl(url: string): boolean {
@@ -36,7 +41,7 @@ export function validateEnv(env: Partial<Bindings>): string[] {
   if (!appEnv || !(APP_ENVS as readonly string[]).includes(appEnv)) {
     problems.push(`APP_ENV must be one of ${APP_ENVS.join(', ')}`);
   }
-  const prod = appEnv === 'production';
+  const prod = appEnv === 'production' || appEnv === 'staging';
 
   if (!env.TEST_DB && !env.DATABASE_URL) problems.push('DATABASE_URL is missing');
   if (prod && env.DATABASE_URL && isLocalUrl(env.DATABASE_URL)) {
@@ -78,6 +83,6 @@ export function validateEnv(env: Partial<Bindings>): string[] {
  */
 export function cspConnectSrc(env: Pick<Bindings, 'APP_ENV'>): string[] {
   const list = ["'self'", 'https://*.googleapis.com', 'https://*.firebaseapp.com'];
-  if (!isProduction(env)) list.push('http://127.0.0.1:9099', 'http://localhost:9099');
+  if (!isDeployed(env)) list.push('http://127.0.0.1:9099', 'http://localhost:9099');
   return list;
 }

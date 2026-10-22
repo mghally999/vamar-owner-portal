@@ -118,6 +118,7 @@ const dist = resolve(apiDir, '..', 'dashboard', 'dist');
 const root = new Hono();
 root.all('/api/*', (c) => app.fetch(c.req.raw, env, ctx));
 root.get('/healthz', (c) => app.fetch(c.req.raw, env, ctx));
+root.get('/readyz', (c) => app.fetch(c.req.raw, env, ctx));
 root.get('/privacy', (c) => app.fetch(c.req.raw, env, ctx));
 root.post('/__cron', async (c) => c.json(await runDailyJobs(env)));
 if (existsSync(dist)) {
@@ -132,7 +133,8 @@ if (existsSync(dist)) {
 }
 
 const port = Number(process.env['PORT'] ?? 8787);
-serve({ fetch: root.fetch, port, hostname: '127.0.0.1' }, () => {
+const hostname = process.env['HOST'] ?? '127.0.0.1';
+serve({ fetch: root.fetch, port, hostname }, () => {
   console.info(
     `API (Node dev server) on http://127.0.0.1:${port}  db=${env.DATABASE_URL.replace(/:[^:@/]+@/, ':***@')}  dashboard=${existsSync(dist) ? dist : 'not built'}`,
   );

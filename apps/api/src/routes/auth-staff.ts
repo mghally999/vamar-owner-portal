@@ -5,7 +5,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { schema } from '@vamar/db';
 import { staffExchangeSchema, totpCodeSchema } from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
-import { isProduction } from '../config.js';
+import { isDeployed } from '../config.js';
 import { requireStaff, staffOf } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
 import {
@@ -99,7 +99,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
         // production (local emulator).
         const pending =
           user.firebaseUid.startsWith('invite:') ||
-          (!isProduction(c.env) && user.firebaseUid.startsWith('seed-'));
+          (!isDeployed(c.env) && user.firebaseUid.startsWith('seed-'));
         if (pending) {
           if (!identity.emailVerified) {
             log('warn', 'auth.staff_email_unverified', { staffId: user.id, ip });

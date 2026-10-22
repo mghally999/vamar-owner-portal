@@ -2,8 +2,9 @@ import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { createMiddleware } from 'hono/factory';
+import { routePath } from 'hono/route';
 import { secureHeaders } from 'hono/secure-headers';
-import { cspConnectSrc, isProduction } from './config.js';
+import { cspConnectSrc, isDeployed } from './config.js';
 import type { AppEnv } from './env.js';
 import { ApiError } from './errors.js';
 import { authOwnerRoutes } from './routes/auth-owner.js';
@@ -13,16 +14,35 @@ import { staffRoutes } from './routes/staff.js';
 import { privacyPage } from './privacy.js';
 import { readDb } from './db.js';
 import { log } from './util/log.js';
+import { reportError } from './util/report.js';
 
 /**
  * The Hono app. `/api/*` is the JSON API; everything else falls through to the dashboard's
  * static assets (configured in wrangler.jsonc) plus the privacy policy page.
  */
 export const app = new Hono<AppEnv>()
-  .use('*', async (c, next) => {
-    c.set('requestId', c.req.header('cf-ray') ?? crypto.randomUUID().slice(0, 8));
-    await next();
-  })
+  // Request id on every response and one JSON access-log line per API call (no query string, no
+  // body, no headers: nothing personal).
+  .use(
+    '*',
+    createMiddleware<AppEnv>(async (c, next) => {
+      const requestId = c.req.header('cf-ray') ?? crypto.randomUUID().slice(0, 8);
+      c.set('requestId', requestId);
+      const started = Date.now();
+      await next();
+      c.header('x-request-id', requestId);
+      if (c.req.path.startsWith('/api/') || c.res.status >= 500) {
+        log(c.res.status >= 500 ? 'error' : 'info', 'http', {
+          requestId,
+          method: c.req.method,
+          route: routePath(c),
+          status: c.res.status,
+          ms: Date.now() - started,
+          release: c.env.RELEASE,
+        });
+      }
+    }),
+  )
   .use(
     '*',
     createMiddleware<AppEnv>((c, next) =>
@@ -72,7 +92,7 @@ export const app = new Hono<AppEnv>()
         causeCode: err.cause?.code,
       });
       return c.json(
-        isProduction(c.env)
+        isDeployed(c.env)
           ? { ok: false, db: false }
           : { ok: false, db: false, error: err.message.slice(0, 200), causeCode: err.cause?.code },
         503,
@@ -111,14 +131,22 @@ export const app = new Hono<AppEnv>()
         err.status,
       );
     }
-    log('error', 'unhandled', {
+    const report = reportError(c.env, err, {
+      source: 'request',
       requestId: c.var.requestId,
-      path: c.req.path,
-      error: err instanceof Error ? err.message : String(err),
-      cause: err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined,
-      stack: err instanceof Error ? err.stack?.slice(0, 800) : undefined,
+      route: routePath(c),
+      method: c.req.method,
     });
-    return c.json({ error: { code: 'internal', message: 'Something went wrong' } }, 500);
+    try {
+      c.executionCtx.waitUntil(report);
+    } catch {
+      // No execution context (unit tests calling app.request directly): the log line is written.
+      void report;
+    }
+    return c.json(
+      { error: { code: 'internal', message: 'Something went wrong', requestId: c.var.requestId } },
+      500,
+    );
   });
 
 export type AppType = typeof app;

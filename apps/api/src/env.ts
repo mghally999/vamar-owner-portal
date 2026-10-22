@@ -11,7 +11,11 @@ export interface Bindings {
   FIREBASE_AUTH_EMULATOR_HOST?: string;
   EXPO_ACCESS_TOKEN?: string;
   ALLOWED_PHONE_COUNTRIES: string;
-  APP_ENV: 'development' | 'test' | 'production';
+  APP_ENV: 'development' | 'test' | 'staging' | 'production';
+  /** Error reporting (optional): events go to Sentry when set. */
+  SENTRY_DSN?: string;
+  /** Git commit of the deployed build, set by the deploy workflow (`--var RELEASE:<sha>`). */
+  RELEASE?: string;
   /** Tests inject a ready database instead of a connection string. */
   TEST_DB?: Db;
   /** Tests can pin the business date. */

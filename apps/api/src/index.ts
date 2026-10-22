@@ -3,6 +3,7 @@ import { validateEnv } from './config.js';
 import { runDailyJobs } from './cron.js';
 import type { Bindings } from './env.js';
 import { log } from './util/log.js';
+import { reportError } from './util/report.js';
 
 const misconfigured = (problems: string[]): Response => {
   log('error', 'config.invalid', { problems });
@@ -25,13 +26,10 @@ export default {
       return;
     }
     ctx.waitUntil(
-      runDailyJobs(env).catch((e: unknown) => {
-        log('error', 'cron.failed', {
-          cron: controller.cron,
-          error: e instanceof Error ? e.message : String(e),
-          stack: e instanceof Error ? e.stack?.slice(0, 800) : undefined,
-        });
-      }),
+      runDailyJobs(env).then(
+        () => undefined,
+        (e: unknown) => reportError(env, e, { source: 'cron', extra: { cron: controller.cron } }),
+      ),
     );
   },
 } satisfies ExportedHandler<Bindings>;

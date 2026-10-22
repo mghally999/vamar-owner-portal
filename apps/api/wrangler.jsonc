@@ -24,6 +24,20 @@
     "APP_ENV": "production",
   },
   "dev": { "port": 8787 },
+  // Staging: same code, its own Worker, Neon branch and bucket; deployed from main by CI.
+  // No cron (the account allows five; run the daily jobs with POST /api/staff/jobs/daily).
+  "env": {
+    "staging": {
+      "name": "vamar-owner-portal-staging",
+      "r2_buckets": [{ "binding": "FILES", "bucket_name": "vamar-files-staging" }],
+      "triggers": { "crons": [] },
+      "vars": {
+        "FIREBASE_PROJECT_ID": "vamar-owner-portal-c55c2",
+        "ALLOWED_PHONE_COUNTRIES": "AE",
+        "APP_ENV": "staging",
+      },
+    },
+  },
   // Secrets (set with `wrangler secret put`, locally in .dev.vars): DATABASE_URL, JWT_SECRET,
   // TOTP_ENC_KEY, EXPO_ACCESS_TOKEN, FIREBASE_AUTH_EMULATOR_HOST (dev only)
 }
