@@ -14,10 +14,11 @@ export function encodeCursor(cursor: Cursor): string {
   return base64url(new TextEncoder().encode(JSON.stringify([cursor.key, cursor.id])));
 }
 
-const KEY_RE = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z)?$/;
+/** Dates, ISO instants, or a short name (building lists sort by name); never SQL-shaped text. */
+const KEY_RE = /^(\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z)?|[^'";\\]{1,120})$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Keys are plain dates or ISO instants and ids are uuids, so a forged cursor never reaches SQL. */
+/** Keys are dates, instants or plain names and ids are uuids; everything is still bound as a parameter. */
 export function decodeCursor(raw: string | undefined): Cursor | null {
   if (!raw) return null;
   let parsed: unknown;

@@ -2,7 +2,7 @@
  * Everything the owner app reads. Every query is scoped through owner-scope.ts and amounts are
  * the owner's share (gross, no commission). The home screen is one SQL round trip.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import { monthRange, ownerShareAmount, type ChequeStatus, type PlainDate } from '@vamar/shared';
 import { unitNoOrder, type Dbx } from '../db.js';
@@ -11,7 +11,6 @@ import {
   chequeInOwnerScope,
   contractInOwnerScope,
   disputeInOwnerScope,
-  ownerUnitsSubquery,
   unitInOwnerScope,
 } from './owner-scope.js';
 import { decodeCursor, page } from '../util/pagination.js';
@@ -314,18 +313,22 @@ export async function ownerBuildings(db: Dbx, ownerId: string, todayDate: PlainD
   return rows;
 }
 
+/** Units per response; owners with more use the building filter (the app groups by building). */
+export const OWNER_UNITS_LIMIT = 200;
+
 export async function ownerUnits(
   db: Dbx,
   ownerId: string,
   todayDate: PlainDate,
-  buildingId?: string,
+  filter: { buildingId?: string | undefined; unitId?: string | undefined } = {},
 ) {
   const conditions: SQL[] = [
     unitInOwnerScope(db, ownerId),
     eq(unitOwnerships.ownerId, ownerId),
     isNull(unitOwnerships.toDate),
   ];
-  if (buildingId) conditions.push(eq(units.buildingId, buildingId));
+  if (filter.buildingId) conditions.push(eq(units.buildingId, filter.buildingId));
+  if (filter.unitId) conditions.push(eq(units.id, filter.unitId));
   const rows = await db
     .select({
       id: units.id,
@@ -358,13 +361,15 @@ export async function ownerUnits(
     )
     .leftJoin(tenants, eq(tenants.id, contracts.tenantId))
     .where(and(...conditions))
-    .orderBy(asc(buildings.nameEn), ...unitNoOrder(units.unitNo));
-  return rows.map((r) => ({
+    .orderBy(asc(buildings.nameEn), ...unitNoOrder(units.unitNo))
+    .limit(OWNER_UNITS_LIMIT + 1);
+  const items = rows.slice(0, OWNER_UNITS_LIMIT).map((r) => ({
     ...r,
     occupied: r.contractId !== null,
     annualRentFils:
       r.annualRentFils === null ? null : ownerShareAmount(r.annualRentFils, r.shareBp),
   }));
+  return { items, truncated: rows.length > OWNER_UNITS_LIMIT };
 }
 
 export async function ownerUnitDetail(
@@ -373,9 +378,7 @@ export async function ownerUnitDetail(
   unitId: string,
   todayDate: PlainDate,
 ) {
-  const [unit] = await ownerUnits(db, ownerId, todayDate).then((rows) =>
-    rows.filter((u) => u.id === unitId),
-  );
+  const [unit] = (await ownerUnits(db, ownerId, todayDate, { unitId })).items;
   if (!unit) throw notFound('Unit');
   const unitContracts = await db
     .select({
@@ -405,37 +408,60 @@ export async function ownerUnitDetail(
       annualRentFils: ownerShareAmount(c.annualRentFils, unit.shareBp),
     })),
     cheques: unitCheques.items,
+    chequesNextCursor: unitCheques.nextCursor,
   };
 }
 
-export async function ownerDisputes(db: Dbx, ownerId: string) {
-  return db
-    .select({
-      id: disputes.id,
-      caseNo: disputes.caseNo,
-      type: disputes.type,
-      status: disputes.status,
-      amountClaimedFils: disputes.amountClaimedFils,
-      nextHearingDate: disputes.nextHearingDate,
-      openedAt: disputes.openedAt,
-      closedAt: disputes.closedAt,
-      unitId: units.id,
-      unitNo: units.unitNo,
-      buildingNameAr: buildings.nameAr,
-      buildingNameEn: buildings.nameEn,
-      tenantName: tenants.name,
-    })
+const ownerDisputeSelect = {
+  id: disputes.id,
+  caseNo: disputes.caseNo,
+  type: disputes.type,
+  status: disputes.status,
+  amountClaimedFils: disputes.amountClaimedFils,
+  nextHearingDate: disputes.nextHearingDate,
+  openedAt: disputes.openedAt,
+  closedAt: disputes.closedAt,
+  unitId: units.id,
+  unitNo: units.unitNo,
+  buildingNameAr: buildings.nameAr,
+  buildingNameEn: buildings.nameEn,
+  tenantName: tenants.name,
+};
+
+/** Owner's disputes, newest first; keyset on (opened_at, id). */
+export async function ownerDisputes(
+  db: Dbx,
+  ownerId: string,
+  q: { cursor?: string | undefined; limit: number } = { limit: 50 },
+) {
+  const cursor = decodeCursor(q.cursor);
+  const conditions: (SQL | undefined)[] = [disputeInOwnerScope(db, ownerId)];
+  if (cursor) {
+    const key = new Date(cursor.key);
+    conditions.push(
+      or(lt(disputes.openedAt, key), and(eq(disputes.openedAt, key), lt(disputes.id, cursor.id))),
+    );
+  }
+  const rows = await db
+    .select(ownerDisputeSelect)
     .from(disputes)
     .innerJoin(units, eq(units.id, disputes.unitId))
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .leftJoin(tenants, eq(tenants.id, disputes.tenantId))
-    .where(disputeInOwnerScope(db, ownerId))
-    .orderBy(desc(disputes.openedAt));
+    .where(and(...conditions))
+    .orderBy(desc(disputes.openedAt), desc(disputes.id))
+    .limit(q.limit + 1);
+  return page(rows, q.limit, (r) => ({ key: r.openedAt.toISOString(), id: r.id }));
 }
 
 export async function ownerDisputeDetail(db: Dbx, ownerId: string, disputeId: string) {
-  const list = await ownerDisputes(db, ownerId);
-  const dispute = list.find((d) => d.id === disputeId);
+  const [dispute] = await db
+    .select(ownerDisputeSelect)
+    .from(disputes)
+    .innerJoin(units, eq(units.id, disputes.unitId))
+    .innerJoin(buildings, eq(buildings.id, units.buildingId))
+    .leftJoin(tenants, eq(tenants.id, disputes.tenantId))
+    .where(and(eq(disputes.id, disputeId), disputeInOwnerScope(db, ownerId)));
   if (!dispute) throw notFound('Dispute');
   const updates = await db
     .select({ id: disputeUpdates.id, note: disputeUpdates.note, at: disputeUpdates.at })
@@ -461,5 +487,3 @@ export async function ownerProfile(db: Dbx, ownerId: string) {
   if (!owner) throw notFound('Owner');
   return owner;
 }
-
-export { ownerUnitsSubquery };

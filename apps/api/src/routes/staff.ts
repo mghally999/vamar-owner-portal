@@ -174,8 +174,17 @@ export const staffRoutes = new Hono<AppEnv>()
   )
 
   // Buildings, units, tenants -------------------------------------------------------------------
-  .get('/buildings', viewer, async (c) =>
-    c.json({ items: await listBuildings(readDb(c), today(c.env)) }),
+  .get(
+    '/buildings',
+    viewer,
+    zValidator(
+      'query',
+      paginationQuerySchema.extend({
+        search: z.string().trim().max(80).optional(),
+        limit: z.coerce.number().int().min(1).max(500).default(200),
+      }),
+    ),
+    async (c) => c.json(await listBuildings(readDb(c), today(c.env), c.req.valid('query'))),
   )
   .post('/buildings', editor, zValidator('json', createBuildingSchema), async (c) =>
     c.json(
@@ -437,13 +446,13 @@ export const staffRoutes = new Hono<AppEnv>()
     viewer,
     zValidator(
       'query',
-      z.object({
+      paginationQuerySchema.extend({
         status: disputeStatusSchema.optional(),
         unitId: uuidSchema.optional(),
         buildingId: uuidSchema.optional(),
       }),
     ),
-    async (c) => c.json({ items: await listDisputes(readDb(c), c.req.valid('query')) }),
+    async (c) => c.json(await listDisputes(readDb(c), c.req.valid('query'))),
   )
   .post('/disputes', editor, zValidator('json', createDisputeSchema), async (c) =>
     c.json(

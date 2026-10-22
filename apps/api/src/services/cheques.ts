@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
@@ -348,7 +348,7 @@ export async function bulkChangeChequeStatus(
 }
 
 /** Cheques whose due date is within the next N days and still pending (dashboard overview). */
-export async function pendingDueSoon(db: Dbx, todayDate: PlainDate, days: number) {
+export async function pendingDueSoon(db: Dbx, todayDate: PlainDate, days: number, limit = 50) {
   return db
     .select(chequeListSelect)
     .from(cheques)
@@ -364,10 +364,10 @@ export async function pendingDueSoon(db: Dbx, todayDate: PlainDate, days: number
       ),
     )
     .orderBy(asc(cheques.dueDate))
-    .limit(50);
+    .limit(limit);
 }
 
-export async function bouncedNeedingAction(db: Dbx) {
+export async function bouncedNeedingAction(db: Dbx, limit = 50) {
   return db
     .select(chequeListSelect)
     .from(cheques)
@@ -376,8 +376,6 @@ export async function bouncedNeedingAction(db: Dbx) {
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
     .where(eq(cheques.status, 'bounced'))
-    .orderBy(desc(cheques.bouncedAt))
-    .limit(50);
+    .orderBy(desc(cheques.bouncedAt), desc(cheques.id))
+    .limit(limit);
 }
-
-export { lt };

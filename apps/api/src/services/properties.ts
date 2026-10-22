@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   validateShares,
@@ -10,12 +10,36 @@ import {
 import { unitNoOrder, type Dbx } from '../db.js';
 import type { Patch } from '../util/types.js';
 import { ApiError, conflict, notFound } from '../errors.js';
+import { decodeCursor, page } from '../util/pagination.js';
 import { audit, type AuditActor } from './audit.js';
 
 const { buildings, units, unitOwnerships, owners, contracts, tenants } = schema;
 
-export async function listBuildings(db: Dbx, todayDate: PlainDate) {
-  return db
+export interface BuildingListQuery {
+  search?: string | undefined;
+  cursor?: string | undefined;
+  limit: number;
+}
+
+/** Buildings with unit and occupancy counts; keyset on (name_en, id). */
+export async function listBuildings(db: Dbx, todayDate: PlainDate, q: BuildingListQuery) {
+  const cursor = decodeCursor(q.cursor);
+  const conditions = [];
+  if (q.search) {
+    const like = `%${q.search}%`;
+    conditions.push(
+      or(sql`${buildings.nameEn} ilike ${like}`, sql`${buildings.nameAr} ilike ${like}`),
+    );
+  }
+  if (cursor) {
+    conditions.push(
+      or(
+        gt(buildings.nameEn, cursor.key),
+        and(eq(buildings.nameEn, cursor.key), gt(buildings.id, cursor.id)),
+      ),
+    );
+  }
+  const rows = await db
     .select({
       id: buildings.id,
       nameAr: buildings.nameAr,
@@ -27,7 +51,10 @@ export async function listBuildings(db: Dbx, todayDate: PlainDate) {
         where u.building_id = buildings.id and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate})`,
     })
     .from(buildings)
-    .orderBy(asc(buildings.nameEn));
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(asc(buildings.nameEn), asc(buildings.id))
+    .limit(q.limit + 1);
+  return page(rows, q.limit, (r) => ({ key: r.nameEn, id: r.id }));
 }
 
 export async function createBuilding(db: Dbx, actor: AuditActor, input: CreateBuildingInput) {

@@ -75,16 +75,14 @@ export async function listContracts(db: Dbx, q: ContractListQuery, todayDate: Pl
 export async function getContractDetail(db: Dbx, id: string) {
   const contract = await db.query.contracts.findFirst({ where: eq(contracts.id, id) });
   if (!contract) throw notFound('Contract');
-  const unit = await db.query.units.findFirst({ where: eq(units.id, contract.unitId) });
+  const [unit, tenant, grid] = await Promise.all([
+    db.query.units.findFirst({ where: eq(units.id, contract.unitId) }),
+    db.query.tenants.findFirst({ where: eq(tenants.id, contract.tenantId) }),
+    db.select().from(cheques).where(eq(cheques.contractId, id)).orderBy(asc(cheques.seq)),
+  ]);
   const building = unit
     ? await db.query.buildings.findFirst({ where: eq(buildings.id, unit.buildingId) })
     : null;
-  const tenant = await db.query.tenants.findFirst({ where: eq(tenants.id, contract.tenantId) });
-  const grid = await db
-    .select()
-    .from(cheques)
-    .where(eq(cheques.contractId, id))
-    .orderBy(asc(cheques.seq));
   const gridValidation = validateChequeGrid(
     grid.map((c) => ({
       seq: c.seq,

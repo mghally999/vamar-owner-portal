@@ -97,21 +97,20 @@ export const ownerRoutes = new Hono<AppEnv>()
   )
 
   .get('/units', zValidator('query', z.object({ buildingId: uuidSchema.optional() })), async (c) =>
-    c.json({
-      items: await ownerUnits(
-        readDb(c),
-        ownerOf(c).id,
-        today(c.env),
-        c.req.valid('query').buildingId,
-      ),
-    }),
+    c.json(
+      await ownerUnits(readDb(c), ownerOf(c).id, today(c.env), {
+        buildingId: c.req.valid('query').buildingId,
+      }),
+    ),
   )
 
   .get('/units/:id', zValidator('param', z.object({ id: uuidSchema })), async (c) =>
     c.json(await ownerUnitDetail(readDb(c), ownerOf(c).id, c.req.valid('param').id, today(c.env))),
   )
 
-  .get('/disputes', async (c) => c.json({ items: await ownerDisputes(readDb(c), ownerOf(c).id) }))
+  .get('/disputes', zValidator('query', paginationQuerySchema), async (c) =>
+    c.json(await ownerDisputes(readDb(c), ownerOf(c).id, c.req.valid('query'))),
+  )
 
   .get('/disputes/:id', zValidator('param', z.object({ id: uuidSchema })), async (c) =>
     c.json(await ownerDisputeDetail(readDb(c), ownerOf(c).id, c.req.valid('param').id)),
