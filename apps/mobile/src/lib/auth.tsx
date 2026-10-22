@@ -142,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           firebaseIdToken: idToken,
           device: {
             deviceId: await deviceId(),
-            platform: Platform.OS === 'ios' ? 'ios' : 'android',
+            platform: Platform.OS === 'ios' ? 'ios' : Platform.OS === 'web' ? 'web' : 'android',
             model: Device.modelName ?? '',
             pushToken: null,
           },

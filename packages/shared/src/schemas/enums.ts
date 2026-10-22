@@ -49,7 +49,8 @@ export const SUBJECT_TYPES = ['owner', 'staff'] as const;
 export const subjectTypeSchema = z.enum(SUBJECT_TYPES);
 export type SubjectType = (typeof SUBJECT_TYPES)[number];
 
-export const DEVICE_PLATFORMS = ['ios', 'android'] as const;
+/** 'web' is the owner web app at /app (iPhone home-screen app). */
+export const DEVICE_PLATFORMS = ['ios', 'android', 'web'] as const;
 export const devicePlatformSchema = z.enum(DEVICE_PLATFORMS);
 export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
 

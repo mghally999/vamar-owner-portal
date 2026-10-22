@@ -141,7 +141,7 @@ export interface DisputeDetail extends DisputeItem {
 export interface DeviceItem {
   id: string;
   deviceId: string;
-  platform: 'ios' | 'android';
+  platform: 'ios' | 'android' | 'web';
   model: string;
   firstSeen: string;
   lastSeen: string;

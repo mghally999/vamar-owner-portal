@@ -323,7 +323,9 @@ export async function queueNewDeviceAlert(
   const { db, close } = cronDb(env);
   try {
     const date = env.TEST_TODAY ? (env.TEST_TODAY as PlainDate) : todayInDubai();
-    const label = device.model || (device.platform === 'ios' ? 'iPhone' : 'Android');
+    const label =
+      device.model ||
+      (device.platform === 'ios' ? 'iPhone' : device.platform === 'web' ? 'Web' : 'Android');
     await deliver(env, db, [
       {
         ownerId,

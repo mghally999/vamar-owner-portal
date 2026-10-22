@@ -148,7 +148,9 @@ export function OwnerDetailPage() {
                 className="row-line flex flex-wrap items-center gap-x-6 gap-y-1 px-4 py-3 last:border-b-0"
               >
                 <span className="min-w-48 flex-1 font-medium">{d.model || d.platform}</span>
-                <span className="text-ink-soft">{d.platform === 'ios' ? 'iOS' : 'Android'}</span>
+                <span className="text-ink-soft">
+                  {d.platform === 'ios' ? 'iOS' : d.platform === 'web' ? 'Web' : 'Android'}
+                </span>
                 <span className="tnum text-ink-soft">
                   {t('owner_lastSeen')} {dateTime(d.lastSeen)}
                 </span>

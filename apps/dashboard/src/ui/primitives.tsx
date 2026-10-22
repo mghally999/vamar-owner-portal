@@ -411,7 +411,7 @@ export function Amount({
   const { num, lang } = useI18n();
   if (fils === null || fils === undefined) return <span className={className}>—</span>;
   const currency = (
-    <span className={cx('text-[0.45em] font-normal tracking-normal', currencyClassName)}>
+    <span className={cx('text-[0.66em] font-normal tracking-normal', currencyClassName)}>
       {lang === 'ar' ? 'درهم' : 'AED'}
     </span>
   );

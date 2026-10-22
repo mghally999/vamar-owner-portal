@@ -40,7 +40,7 @@ export interface OwnerDetail extends Omit<OwnerRow, 'unitCount'> {
   }[];
   devices: {
     id: string;
-    platform: 'ios' | 'android';
+    platform: 'ios' | 'android' | 'web';
     model: string;
     firstSeen: string;
     lastSeen: string;

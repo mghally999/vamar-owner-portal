@@ -24,6 +24,8 @@ import {
 } from '@/ui';
 import { Icon } from '@/ui/icon';
 import { MonthSwitcher } from '@/ui/month-switcher';
+import { UpdateBanner } from '@/screens/update';
+import { useUpdateState } from '@/lib/version';
 
 /**
  * Owner home, as designed (Figma "Vamar" Page 2, frame "test"): month switcher; the month's money
@@ -38,6 +40,7 @@ export default function HomeScreen() {
     `${todayInDubai().slice(0, 7)}-01` as PlainDate,
   );
   const q = useHome(monthStart.slice(0, 7));
+  const update = useUpdateState();
   const d = q.data;
 
   return (
@@ -51,6 +54,7 @@ export default function HomeScreen() {
         />
       }
     >
+      {update.kind === 'available' ? <UpdateBanner state={update} /> : null}
       <MonthSwitcher value={monthStart} onChange={setMonthStart} />
 
       {q.isError ? (

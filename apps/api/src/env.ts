@@ -14,6 +14,9 @@ export interface Bindings {
   APP_ENV: 'development' | 'test' | 'staging' | 'production';
   /** Error reporting (optional): events go to Sentry when set. */
   SENTRY_DSN?: string;
+  /** Newest owner app version and the oldest one still allowed to sign in (semver). */
+  APP_LATEST_VERSION?: string;
+  APP_MIN_VERSION?: string;
   /** Git commit of the deployed build, set by the deploy workflow (`--var RELEASE:<sha>`). */
   RELEASE?: string;
   /** Tests inject a ready database instead of a connection string. */

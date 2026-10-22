@@ -42,7 +42,7 @@ export function OverviewPage() {
         <p className="text-[14px] font-bold text-on-hero-soft">{t('overview_expected')}</p>
         {d ? (
           <p className="mt-3 text-[35px] leading-[46px] font-extrabold tracking-[-1px]">
-            <Amount fils={d.expectedFils} />
+            <Amount fils={d.expectedFils} currencyClassName="text-[15px]" />
           </p>
         ) : (
           <div className="skeleton mt-3 h-11 w-64 opacity-30" />

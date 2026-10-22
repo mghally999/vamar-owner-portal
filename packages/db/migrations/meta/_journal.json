@@ -36,6 +36,13 @@
       "when": 1792654279359,
       "tag": "0004_import_results",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792700300804,
+      "tag": "0005_device_platform_web",
+      "breakpoints": true
     }
   ]
 }

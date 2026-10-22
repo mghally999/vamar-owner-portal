@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'vamar-owner-portal',
   owner: 'best-coder-alive',
   scheme: 'vamar',
-  version: '1.0.0',
+  version: '1.1.0',
   orientation: 'portrait',
   icon: `${brand}/app-icon-1024.png`,
   userInterfaceStyle: 'automatic',
@@ -93,6 +93,13 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   extra: {
     eas: { projectId: process.env.EAS_PROJECT_ID ?? '7e929192-4d31-4476-a3ef-49e0eeb78760' },
   },
-  updates: { enabled: false },
+  // EAS Update: JavaScript fixes reach installed apps of the same version (runtimeVersion) without
+  // a new download. Native changes still need a new APK, announced through /api/app/version.
+  updates: {
+    enabled: true,
+    url: `https://u.expo.dev/${process.env.EAS_PROJECT_ID ?? '7e929192-4d31-4476-a3ef-49e0eeb78760'}`,
+    checkAutomatically: 'ON_LOAD',
+    fallbackToCacheTimeout: 0,
+  },
   runtimeVersion: { policy: 'appVersion' },
 });

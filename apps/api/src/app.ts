@@ -11,6 +11,7 @@ import { authOwnerRoutes } from './routes/auth-owner.js';
 import { authStaffRoutes } from './routes/auth-staff.js';
 import { ownerRoutes } from './routes/owner.js';
 import { staffRoutes } from './routes/staff.js';
+import { detectDevice, downloadPage } from './download.js';
 import { privacyPage } from './privacy.js';
 import { readDb } from './db.js';
 import { log } from './util/log.js';
@@ -100,6 +101,25 @@ export const app = new Hono<AppEnv>()
     }
   })
   .get('/privacy', (c) => c.html(privacyPage()))
+  /** One link for owners: the right install option for the phone that opens it. */
+  .get('/download', (c) =>
+    c.html(
+      downloadPage(detectDevice(c.req.header('user-agent')), c.env.APP_LATEST_VERSION ?? '1.0.0'),
+    ),
+  )
+  /**
+   * Update check for the owner app. Below `minimumVersion` the app shows a blocking "update
+   * required" screen; below `latestVersion` a dismissible banner. Both link to `downloadUrl`.
+   */
+  .get('/api/app/version', (c) => {
+    const origin = new URL(c.req.url).origin;
+    return c.json({
+      latestVersion: c.env.APP_LATEST_VERSION ?? '1.0.0',
+      minimumVersion: c.env.APP_MIN_VERSION ?? '1.0.0',
+      downloadUrl: `${origin}/download`,
+      apkUrl: `${origin}/download/vamar-owner-app.apk`,
+    });
+  })
   /** Android test build, streamed from the private files bucket (uploaded with wrangler r2). */
   .get('/download/vamar-owner-app.apk', async (c) => {
     const obj = await c.env.FILES.get('releases/vamar-owner-app.apk');

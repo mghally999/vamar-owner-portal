@@ -11,6 +11,8 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
+import { UpdateRequired } from '@/screens/update';
+import { useUpdateState } from '@/lib/version';
 
 void SplashScreen.preventAutoHideAsync();
 
@@ -60,6 +62,7 @@ function Root() {
   const auth = useAuth();
   const { ready } = useI18n();
   const themeChoice = useThemeChoice();
+  const update = useUpdateState();
   const [fontsLoaded, fontError] = useFonts({
     'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
     'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
@@ -134,6 +137,7 @@ function Root() {
         </Stack.Protected>
       </Stack>
       {auth.stage === 'authenticated' && auth.locked ? <LockScreen /> : null}
+      {update.kind === 'required' ? <UpdateRequired state={update} /> : null}
     </>
   );
 }
