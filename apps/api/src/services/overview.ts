@@ -95,7 +95,7 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
     bouncedNeedingAction(db, OVERVIEW_LIST_LIMIT),
   ]);
   // The Neon HTTP driver returns { rows }, pg and PGlite return the rows array itself.
-  const occRows = (occRaw as { rows?: unknown[] }).rows ?? (occRaw as unknown as unknown[]);
+  const occRows = (occRaw as { rows?: unknown[] }).rows ?? (occRaw as unknown[]);
   const occ = occRows[0] as { total: number | string; occupied: number | string } | undefined;
 
   return {
