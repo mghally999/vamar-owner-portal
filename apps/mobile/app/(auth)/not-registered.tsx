@@ -27,7 +27,7 @@ export default function NotRegisteredScreen() {
         gap: 24,
       }}
     >
-      <Logo variant="mark" width={40} color={t.scheme === 'dark' ? '#c4c6be' : '#162842'} />
+      <Logo variant="mark" width={40} color={t.scheme === 'dark' ? '#c4c6be' : '#25323a'} />
       <View style={{ gap: 8 }}>
         <Text variant="title" weight="semibold">
           {isDisabled ? tr('disabled_title') : tr('notreg_title')}

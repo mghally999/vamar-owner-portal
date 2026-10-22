@@ -14,20 +14,23 @@ export const spacing = {
 
 export const gutter = spacing[4];
 
-/** One radius scale. Cards and buttons use `md`, chips `sm`, sheets `lg`. */
+/**
+ * Radii from the design file: tiles and small buttons 12, the month switcher and row buttons 20,
+ * cards 24, chips and the progress track fully rounded.
+ */
 export const radius = {
-  sm: 6,
-  md: 12,
-  lg: 20,
+  sm: 12,
+  md: 20,
+  lg: 24,
   full: 9999,
 } as const;
 
 /** At most one subtle shadow level. Cards sit on borders, not shadows, by default. */
 export const shadow = {
   card: {
-    css: '0 1px 2px rgba(22, 40, 66, 0.06), 0 2px 8px rgba(22, 40, 66, 0.04)',
+    css: '0 1px 2px rgba(37, 50, 58, 0.06), 0 2px 8px rgba(37, 50, 58, 0.04)',
     reactNative: {
-      shadowColor: '#162842',
+      shadowColor: '#25323a',
       shadowOpacity: 0.06,
       shadowRadius: 8,
       shadowOffset: { width: 0, height: 2 },

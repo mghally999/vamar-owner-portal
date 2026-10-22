@@ -208,7 +208,7 @@ function TotpSetup() {
           await QRCode.toDataURL(r.otpauthUri, {
             margin: 1,
             width: 220,
-            color: { dark: '#162842', light: '#ffffff' },
+            color: { dark: '#25323a', light: '#ffffff' },
           }),
         );
       })

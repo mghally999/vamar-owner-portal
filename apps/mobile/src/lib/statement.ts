@@ -15,7 +15,7 @@ let fontCache: string | null = null;
 async function fontBase64(): Promise<string> {
   if (fontCache) return fontCache;
   const asset = Asset.fromModule(
-    require('../../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.ttf'),
+    require('../../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
   );
   await asset.downloadAsync();
   const uri = asset.localUri ?? asset.uri;
@@ -56,8 +56,8 @@ export function statementHtml(input: StatementInput, font: string): string {
     .join('');
   return `<!doctype html><html lang="${lang}" dir="${dir}"><head><meta charset="utf-8">
 <style>
-@font-face{font-family:'Plex';src:url(data:font/ttf;base64,${font}) format('truetype')}
-body{font-family:'Plex',sans-serif;color:#162842;margin:28px;font-size:12px}
+@font-face{font-family:'Almarai';src:url(data:font/ttf;base64,${font}) format('truetype')}
+body{font-family:'Almarai',sans-serif;color:#25323a;margin:28px;font-size:12px}
 h1{font-size:20px;margin:0 0 4px;font-weight:600}
 .muted{color:#5f7180}
 .hero{font-size:26px;font-weight:600;margin:18px 0 2px;font-variant-numeric:tabular-nums}

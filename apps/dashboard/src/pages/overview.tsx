@@ -1,5 +1,5 @@
 import { Link, useNavigate } from '@tanstack/react-router';
-import { diffDays, todayInDubai, type PlainDate } from '@vamar/shared';
+import { diffDays, todayInDubai, type PlainDate, occupancyPct } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import { useOverview, useRenewContract } from '@/lib/queries';
 import {
@@ -13,6 +13,7 @@ import {
   PageHeader,
   SectionTitle,
   Skeleton,
+  Amount,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { useAuth } from '@/lib/auth';
@@ -35,42 +36,60 @@ export function OverviewPage() {
         subtitle={d ? month(`${d.month}-01`) : <Skeleton className="h-5 w-32" />}
       />
 
-      {/* Hero: this month's money. The number is the hero; everything else is quiet. */}
-      <Card className="px-6 py-5">
-        <p className="text-[13px] font-medium text-ink-soft">{t('overview_expected')}</p>
+      {/* The month's money, as the hero card of the design: expected total, then paid /
+          pending / bounced tiles, then the month's cheque count and occupancy. */}
+      <section className="rounded-lg border-[0.8px] border-hero-line bg-hero p-5 text-on-hero lg:p-6">
+        <p className="text-[14px] font-bold text-on-hero-soft">{t('overview_expected')}</p>
         {d ? (
-          <p className="mt-1 text-hero font-semibold text-primary tnum" dir="ltr">
-            {d.expectedFils === 0 ? '—' : <Money fils={d.expectedFils} />}
+          <p className="mt-3 text-[35px] leading-[46px] font-extrabold tracking-[-1px]">
+            <Amount fils={d.expectedFils} />
           </p>
         ) : (
-          <Skeleton className="mt-2 h-10 w-64" />
+          <div className="skeleton mt-3 h-11 w-64 opacity-30" />
         )}
+        <div className="mt-4 grid grid-cols-1 gap-1 sm:grid-cols-3">
+          {(
+            [
+              ['overview_cleared', d?.clearedFils, null],
+              ['overview_pending', d?.pendingFils, null],
+              ['overview_bounced', d?.bouncedFils, d?.bouncedCount],
+            ] as const
+          ).map(([label, fils, count]) => (
+            <div key={label} className="rounded-sm bg-hero-tile p-3">
+              <p className="text-[12px] text-on-hero-soft">
+                {t(label)}
+                {count ? <span className="tnum"> · {count}</span> : null}
+              </p>
+              <p className="mt-1 text-[17px] font-bold">{d ? <Amount fils={fils ?? 0} /> : '…'}</p>
+            </div>
+          ))}
+        </div>
         {d ? (
-          <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[15px] text-ink-soft">
-            <span>
-              {t('overview_cleared')} <Money fils={d.clearedFils} className="text-ink" />
+          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-[13px] text-on-hero-soft">
+            <span>{t('overview_cheques_count', { n: d.chequeCount })}</span>
+            <span className="flex min-w-48 flex-1 items-center gap-3">
+              <span className="whitespace-nowrap">
+                {t('overview_occupancy', {
+                  occupied: d.occupancy.occupied,
+                  total: d.occupancy.total,
+                })}
+              </span>
+              <span
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={occupancyPct(d.occupancy.occupied, d.occupancy.total)}
+                className="h-[7px] flex-1 overflow-hidden rounded-full bg-on-hero-soft/40"
+              >
+                <span
+                  className="block h-full rounded-full bg-on-hero"
+                  style={{ width: `${occupancyPct(d.occupancy.occupied, d.occupancy.total)}%` }}
+                />
+              </span>
             </span>
-            <span>
-              {t('overview_pending')} <Money fils={d.pendingFils} className="text-ink" />
-            </span>
-            <span>
-              {t('overview_bounced')}{' '}
-              <span className="tnum text-status-bounced">{d.bouncedCount}</span>
-            </span>
-            <span className="text-ink-faint">
-              {t('overview_cheques_count', { n: d.chequeCount })}
-            </span>
-            <span className="text-ink-faint">
-              {t('overview_occupancy', {
-                occupied: d.occupancy.occupied,
-                total: d.occupancy.total,
-              })}
-            </span>
-          </p>
-        ) : (
-          <Skeleton className="mt-3 h-4 w-96" />
-        )}
-      </Card>
+          </div>
+        ) : null}
+      </section>
 
       <section>
         <SectionTitle

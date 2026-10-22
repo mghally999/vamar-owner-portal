@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  Palette,
   ScrollText,
   Users,
   UserCog,
@@ -16,6 +17,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { useTheme } from '@/lib/theme';
 import type { MessageKey } from '@/lib/messages';
 import { Logo } from './logo';
 import { cx } from './primitives';
@@ -35,6 +37,7 @@ const NAV: { to: string; key: MessageKey; icon: typeof LayoutDashboard; min?: 'a
 export function AppShell() {
   const { t, lang, setLang } = useI18n();
   const auth = useAuth();
+  const [theme, setTheme] = useTheme();
   const [open, setOpen] = useState(false);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
@@ -50,10 +53,10 @@ export function AppShell() {
               setOpen(false);
             }}
             className={cx(
-              'flex h-11 items-center gap-3 rounded-md px-3 text-[15px] font-medium',
+              'flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] font-medium',
               active
-                ? 'bg-primary text-on-primary'
-                : 'text-ink-soft hover:bg-sunken hover:text-ink',
+                ? 'bg-on-header text-header'
+                : 'text-on-header-soft hover:bg-hero-tile hover:text-on-header',
             )}
           >
             <n.icon className="size-5 shrink-0" aria-hidden />
@@ -65,10 +68,10 @@ export function AppShell() {
   );
 
   const footer = (
-    <div className="mt-auto flex flex-col gap-1 border-t border-line pt-3">
+    <div className="mt-auto flex flex-col gap-1 border-t border-header-line pt-3">
       <div className="px-3 py-2">
-        <p className="truncate text-[15px] font-medium">{auth.user?.name}</p>
-        <p className="truncate text-[13px] text-ink-soft">
+        <p className="truncate text-[15px] font-medium text-on-header">{auth.user?.name}</p>
+        <p className="truncate text-[13px] text-on-header-soft">
           {auth.user ? t(`role_${auth.user.role}`) : ''}
         </p>
       </div>
@@ -77,7 +80,7 @@ export function AppShell() {
         onClick={() => {
           setLang(lang === 'ar' ? 'en' : 'ar');
         }}
-        className="flex h-11 items-center gap-3 rounded-md px-3 text-[15px] text-ink-soft hover:bg-sunken hover:text-ink"
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
       >
         <span
           className="inline-flex size-5 items-center justify-center text-[13px] font-semibold"
@@ -89,8 +92,19 @@ export function AppShell() {
       </button>
       <button
         type="button"
+        aria-pressed={theme === 'white'}
+        onClick={() => {
+          setTheme(theme === 'white' ? 'default' : 'white');
+        }}
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+      >
+        <Palette className="size-5" aria-hidden />
+        {t('theme')}: {t(theme === 'white' ? 'theme_white' : 'theme_default')}
+      </button>
+      <button
+        type="button"
         onClick={() => void auth.logout()}
-        className="flex h-11 items-center gap-3 rounded-md px-3 text-[15px] text-ink-soft hover:bg-sunken hover:text-ink"
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
       >
         <LogOut className="size-5 rtl:-scale-x-100" aria-hidden />
         {t('signOut')}
@@ -100,13 +114,13 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="hidden lg:flex lg:flex-col lg:gap-6 lg:border-e lg:border-line lg:bg-elevated lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh">
+      <aside className="hidden lg:flex lg:flex-col lg:gap-6 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh">
         <Brand />
         {nav}
         {footer}
       </aside>
 
-      <header className="flex h-14 items-center justify-between border-b border-line bg-elevated px-4 lg:hidden">
+      <header className="flex h-14 items-center justify-between rounded-b-2xl border-b border-header-line bg-header px-4 text-on-header lg:hidden">
         <Brand compact />
         <button
           type="button"
@@ -121,7 +135,7 @@ export function AppShell() {
       </header>
       {open ? (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="flex w-72 flex-col gap-6 bg-elevated px-3 py-5">
+          <div className="flex w-72 flex-col gap-6 bg-header px-3 py-5 text-on-header">
             <div className="flex items-center justify-between">
               <Brand />
               <button
@@ -140,7 +154,7 @@ export function AppShell() {
           </div>
           <button
             type="button"
-            className="flex-1 bg-[rgba(22,40,66,0.35)]"
+            className="flex-1 bg-[rgba(37,50,58,0.35)]"
             onClick={() => {
               setOpen(false);
             }}
@@ -158,7 +172,7 @@ export function AppShell() {
 
 function Brand({ compact }: { compact?: boolean }) {
   return (
-    <Link to="/" className="flex items-center gap-2.5 px-3 text-ink">
+    <Link to="/" className="flex items-center gap-2.5 px-3 text-on-header">
       <Logo variant="mark" height={compact ? 24 : 28} />
       <span
         className={cx('font-semibold tracking-[0.16em]', compact ? 'text-[15px]' : 'text-[17px]')}

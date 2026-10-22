@@ -1,6 +1,7 @@
 /**
- * Small UI kit for the owner app: one card style, one radius scale, tabular numerals on every
- * number, status chips always paired with a label, skeletons instead of spinners.
+ * Small UI kit for the owner app, following the design file: bordered cards with 24 px corners,
+ * Almarai, amounts as a large number with a small currency word, chips fully rounded, tabular
+ * numerals on every number, status chips always paired with a label, skeletons instead of spinners.
  */
 import {
   Pressable,
@@ -19,7 +20,17 @@ import { fonts, statusColors, useTheme, type Theme } from '@/lib/theme';
 type Variant = 'hero' | 'title' | 'heading' | 'body' | 'secondary' | 'caption';
 type Weight = 'regular' | 'medium' | 'semibold';
 
-export type TextColor = 'ink' | 'soft' | 'faint' | 'primary' | 'danger' | 'success' | 'onPrimary';
+export type TextColor =
+  | 'ink'
+  | 'soft'
+  | 'faint'
+  | 'primary'
+  | 'danger'
+  | 'success'
+  | 'onPrimary'
+  | 'onHero'
+  | 'onHeroSoft'
+  | 'onHeader';
 
 export function Text({
   variant = 'body',
@@ -44,6 +55,9 @@ export function Text({
     danger: t.colors.danger,
     success: t.colors.success,
     onPrimary: t.colors.onPrimary,
+    onHero: t.colors.onHero,
+    onHeroSoft: t.colors.onHeroSoft,
+    onHeader: t.colors.onHeader,
   }[color ?? 'ink'];
   return (
     <RNText
@@ -91,6 +105,50 @@ export function Money({
   );
 }
 
+/**
+ * Amount as in the design: the number large and bold, the currency word small and regular beside
+ * it (`43,791 درهم` / `AED 43,791`). Reading order follows the language.
+ */
+export function Amount({
+  fils,
+  size = 'body',
+  color = 'ink',
+  weight = 'semibold',
+  currencySize,
+}: {
+  fils: number | null | undefined;
+  size?: Variant | undefined;
+  color?: TextColor | undefined;
+  weight?: Weight | undefined;
+  currencySize?: Variant | undefined;
+}) {
+  const { num, lang } = useI18n();
+  const small = currencySize ?? (size === 'hero' || size === 'title' ? 'secondary' : 'caption');
+  if (fils === null || fils === undefined) {
+    return (
+      <Text variant={size} weight={weight} color={color}>
+        —
+      </Text>
+    );
+  }
+  return (
+    <Row style={{ gap: 4, alignItems: 'baseline' }}>
+      <Text
+        variant={size}
+        weight={weight}
+        color={color}
+        tnum
+        style={{ letterSpacing: size === 'hero' ? -1 : 0 }}
+      >
+        {num(fils)}
+      </Text>
+      <Text variant={small} color={color}>
+        {lang === 'ar' ? 'درهم' : 'AED'}
+      </Text>
+    </Row>
+  );
+}
+
 export function DateText({
   date,
   variant = 'secondary',
@@ -119,8 +177,8 @@ export function Card({ style, children, ...rest }: ViewProps) {
         {
           backgroundColor: t.colors.bgElevated,
           borderColor: t.colors.border,
-          borderWidth: 1,
-          borderRadius: t.radius.md,
+          borderWidth: 0.8,
+          borderRadius: t.radius.lg,
         },
         style,
       ]}
@@ -140,7 +198,7 @@ export function Row({ style, children, ...rest }: ViewProps) {
 
 export function Separator() {
   const t = useTheme();
-  return <View style={{ height: 1, backgroundColor: t.colors.border }} />;
+  return <View style={{ height: 0.8, backgroundColor: t.colors.border }} />;
 }
 
 export function Button({
@@ -207,15 +265,35 @@ export function StatusChip({ status }: { status: ChequeStatus }) {
     <View
       style={{
         backgroundColor: c.bg,
-        borderRadius: t.radius.sm,
-        paddingHorizontal: 8,
-        height: 24,
+        borderRadius: t.radius.full,
+        paddingHorizontal: 12,
+        height: 27,
         justifyContent: 'center',
         alignSelf: 'flex-start',
       }}
     >
       <Text variant="caption" weight="medium" style={{ color: c.fg }}>
         {tr(`status_${status}` as MessageKey)}
+      </Text>
+    </View>
+  );
+}
+
+/** Neutral label chip (no status meaning), e.g. "never rented". */
+export function Chip({ label }: { label: string }) {
+  const t = useTheme();
+  return (
+    <View
+      style={{
+        backgroundColor: t.colors.chip,
+        borderRadius: t.radius.full,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        alignSelf: 'flex-start',
+      }}
+    >
+      <Text variant="caption" style={{ color: t.colors.onChip, fontSize: 11, lineHeight: 15 }}>
+        {label}
       </Text>
     </View>
   );
@@ -274,13 +352,14 @@ export function ProgressBar({ pct }: { pct: number }) {
     <View
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: pct }}
-      style={{ height: 4, borderRadius: 2, backgroundColor: t.colors.bgSunken, overflow: 'hidden' }}
+      style={{ height: 7, borderRadius: 999, backgroundColor: t.colors.track, overflow: 'hidden' }}
     >
       <View
         style={{
           width: `${Math.max(0, Math.min(100, pct))}%`,
           height: '100%',
-          backgroundColor: t.colors.primary,
+          borderRadius: 999,
+          backgroundColor: t.colors.trackFill,
         }}
       />
     </View>
@@ -299,7 +378,7 @@ export function SectionTitle({ children, aside }: { children: string; aside?: Re
 }
 
 export const layout = StyleSheet.create({
-  screen: { paddingHorizontal: 16, paddingBottom: 32, gap: 16 },
+  screen: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 32, gap: 16 },
 });
 
 export function themedStyles(_t: Theme) {

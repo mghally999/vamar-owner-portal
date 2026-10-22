@@ -1,11 +1,14 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Pressable, View } from 'react-native';
 import { addMonthsClamped, type PlainDate } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Text } from '.';
+import { Icon } from './icon';
 
-/** Month switcher; `value` is the first day of the month. Arrows flip with RTL automatically. */
+/**
+ * Month switcher from the design: a bordered pill, the month in the middle, a 38 px chevron
+ * button at each end. `value` is the first day of the month.
+ */
 export function MonthSwitcher({
   value,
   onChange,
@@ -14,43 +17,51 @@ export function MonthSwitcher({
   onChange: (next: PlainDate) => void;
 }) {
   const t = useTheme();
-  const { month, isRTL } = useI18n();
-  const prevIcon = isRTL ? 'chevron-forward' : 'chevron-back';
-  const nextIcon = isRTL ? 'chevron-back' : 'chevron-forward';
+  const { month, isRTL, t: tr } = useI18n();
+  const button = (dir: -1 | 1) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tr(dir < 0 ? 'month_prev' : 'month_next')}
+      onPress={() => {
+        onChange(addMonthsClamped(value, dir));
+      }}
+      hitSlop={6}
+      style={({ pressed }) => ({
+        width: 38,
+        height: 38,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: pressed ? t.colors.bgSunken : 'transparent',
+      })}
+    >
+      {/* Both design chevrons point right: mirror the one that must point left. */}
+      <Icon
+        name={dir < 0 ? 'chevronPrev' : 'chevronNext'}
+        color={t.colors.ink}
+        flip={isRTL ? dir > 0 : dir < 0}
+      />
+    </Pressable>
+  );
   return (
     <View
       style={{
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        height: 48,
+        height: 52,
+        padding: 6,
+        borderRadius: t.radius.md,
+        borderWidth: 0.8,
+        borderColor: t.colors.border,
+        backgroundColor: t.colors.bgElevated,
       }}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="previous month"
-        onPress={() => {
-          onChange(addMonthsClamped(value, -1));
-        }}
-        hitSlop={8}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
-      >
-        <Ionicons name={prevIcon} size={22} color={t.colors.ink} />
-      </Pressable>
-      <Text variant="heading" weight="semibold" tnum>
+      {button(-1)}
+      <Text variant="body" weight="medium" tnum>
         {month(value)}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="next month"
-        onPress={() => {
-          onChange(addMonthsClamped(value, 1));
-        }}
-        hitSlop={8}
-        style={{ width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }}
-      >
-        <Ionicons name={nextIcon} size={22} color={t.colors.ink} />
-      </Pressable>
+      {button(1)}
     </View>
   );
 }

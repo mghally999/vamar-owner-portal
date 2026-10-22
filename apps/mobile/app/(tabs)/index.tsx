@@ -4,33 +4,35 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { todayInDubai, type PlainDate } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import type { MessageKey } from '@/lib/messages';
 import { useHome } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import {
+  Amount,
   Button,
   Card,
+  Chip,
   DateText,
   EmptyState,
   ErrorState,
-  Money,
   ProgressBar,
   Row,
-  SectionTitle,
   Separator,
   Skeleton,
-  StatusChip,
   Text,
   layout,
 } from '@/ui';
+import { Icon } from '@/ui/icon';
 import { MonthSwitcher } from '@/ui/month-switcher';
 
 /**
- * Owner home. Hierarchy: month switcher, hero (this month's expected total with cleared /
- * pending / bounced as one quiet line), next cheque, occupancy with vacant units, disputes.
+ * Owner home, as designed (Figma "Vamar" Page 2, frame "test"): month switcher; the month's money
+ * card (expected total, then paid / pending / bounced tiles, then next month); the next cheque;
+ * occupancy with the vacant units; open disputes.
  */
 export default function HomeScreen() {
   const t = useTheme();
-  const { t: tr, pick } = useI18n();
+  const { t: tr, pick, isRTL } = useI18n();
   const auth = useAuth();
   const [monthStart, setMonthStart] = useState<PlainDate>(
     `${todayInDubai().slice(0, 7)}-01` as PlainDate,
@@ -55,53 +57,63 @@ export default function HomeScreen() {
         <ErrorState onRetry={() => void q.refetch()} />
       ) : (
         <>
-          {/* Hero */}
-          <View style={{ gap: 4, paddingVertical: 8 }}>
-            <Text variant="caption" weight="medium" color="soft">
+          {/* The month's money */}
+          <View
+            style={{
+              backgroundColor: t.colors.hero,
+              borderColor: t.colors.heroBorder,
+              borderWidth: 0.8,
+              borderRadius: t.radius.lg,
+              padding: 16,
+            }}
+          >
+            <Text variant="secondary" weight="medium" color="onHeroSoft">
               {tr('home_expected')}
             </Text>
-            {d ? (
-              d.expectedFils === 0 ? (
-                <Text variant="hero" weight="semibold" color="primary">
-                  —
-                </Text>
+            <View style={{ paddingVertical: 12 }}>
+              {d ? (
+                <Amount fils={d.expectedFils} size="hero" color="onHero" />
               ) : (
-                <Money fils={d.expectedFils} variant="hero" weight="semibold" color="primary" />
-              )
-            ) : (
-              <Skeleton width={220} height={40} />
-            )}
-            {d ? (
-              <Row style={{ gap: 14, flexWrap: 'wrap' }}>
-                <Text variant="secondary" color="soft">
-                  {tr('home_cleared')}{' '}
-                  <Money fils={d.clearedFils} variant="secondary" weight="medium" />
-                </Text>
-                <Text variant="secondary" color="soft">
-                  {tr('home_pending')}{' '}
-                  <Money fils={d.pendingFils} variant="secondary" weight="medium" />
-                </Text>
-                <Text variant="secondary" color="soft">
-                  {tr('home_bounced')}{' '}
-                  <Text
-                    variant="secondary"
-                    weight="medium"
-                    tnum
-                    color={d.bouncedCount > 0 ? 'danger' : 'ink'}
-                  >
-                    {d.bouncedCount}
+                <Skeleton width={200} height={46} />
+              )}
+            </View>
+            <Row style={{ gap: 4 }}>
+              {(
+                [
+                  ['home_cleared', d?.clearedFils],
+                  ['home_pending', d?.pendingFils],
+                  ['home_bounced', d?.bouncedFils],
+                ] as [MessageKey, number | undefined][]
+              ).map(([label, fils]) => (
+                <View
+                  key={label}
+                  style={{
+                    flex: 1,
+                    backgroundColor: t.colors.heroTile,
+                    borderRadius: t.radius.sm,
+                    padding: 12,
+                    gap: 4,
+                  }}
+                >
+                  <Text variant="caption" color="onHeroSoft" numberOfLines={1}>
+                    {tr(label)}
                   </Text>
-                </Text>
-              </Row>
-            ) : (
-              <Skeleton width={280} height={16} />
-            )}
-            {d ? (
-              <Text variant="caption" color="faint" tnum>
-                {tr('home_nextMonth', { amount: '' })}
-                <Money fils={d.nextMonthFils} variant="caption" weight="regular" color="faint" />
+                  {d ? (
+                    <Amount fils={fils ?? 0} size="body" weight="medium" color="onHero" />
+                  ) : (
+                    <Skeleton width={60} height={20} />
+                  )}
+                </View>
+              ))}
+            </Row>
+            <Row style={{ justifyContent: 'space-between', paddingTop: 16, paddingHorizontal: 4 }}>
+              <Text variant="caption" color="onHeroSoft">
+                {tr('home_nextMonthLabel')}
               </Text>
-            ) : null}
+              {d ? (
+                <Amount fils={d.nextMonthFils} size="body" weight="medium" color="onHero" />
+              ) : null}
+            </Row>
           </View>
 
           {d?.expectedFils === 0 && !d.nextCheque ? (
@@ -109,84 +121,103 @@ export default function HomeScreen() {
           ) : null}
 
           {/* Next cheque */}
-          <View>
-            <SectionTitle>{tr('home_next')}</SectionTitle>
-            {!d ? (
-              <Skeleton height={96} radius={12} />
-            ) : d.nextCheque ? (
-              <Link href={{ pathname: '/cheque/[id]', params: { id: d.nextCheque.id } }} asChild>
-                <Pressable accessibilityRole="button">
-                  <Card style={{ padding: 16, gap: 8 }}>
-                    <Row style={{ justifyContent: 'space-between' }}>
-                      <DateText date={d.nextCheque.dueDate} variant="body" color="ink" />
-                      <StatusChip status={d.nextCheque.status} />
-                    </Row>
-                    <Money fils={d.nextCheque.amountFils} variant="title" weight="semibold" />
-                    <Text variant="secondary" color="soft">
-                      {pick(d.nextCheque.buildingNameAr, d.nextCheque.buildingNameEn)}{' '}
-                      {d.nextCheque.unitNo} · {d.nextCheque.tenantName}
+          {!d ? (
+            <Skeleton height={190} radius={24} />
+          ) : d.nextCheque ? (
+            <Link href={{ pathname: '/cheque/[id]', params: { id: d.nextCheque.id } }} asChild>
+              <Pressable accessibilityRole="button">
+                <Card style={{ padding: 16 }}>
+                  <Row style={{ justifyContent: 'space-between' }}>
+                    <Text weight="medium">{tr('home_next')}</Text>
+                    <Chip label={tr(`status_${d.nextCheque.status}` as MessageKey)} />
+                  </Row>
+                  <View style={{ paddingTop: 14 }}>
+                    <Amount fils={d.nextCheque.amountFils} size="title" />
+                  </View>
+                  <View style={{ marginTop: 16 }}>
+                    <Separator />
+                    <Text weight="medium" style={{ marginTop: 13 }}>
+                      {d.nextCheque.tenantName}
                     </Text>
-                  </Card>
-                </Pressable>
-              </Link>
-            ) : (
-              <EmptyState title={tr('home_next_empty')} />
-            )}
-          </View>
+                    <Row style={{ justifyContent: 'space-between', marginTop: 5 }}>
+                      <Text variant="caption" color="soft" numberOfLines={1} style={{ flex: 1 }}>
+                        {pick(d.nextCheque.buildingNameAr, d.nextCheque.buildingNameEn)}
+                        <Text variant="caption" style={{ color: t.colors.border }}>
+                          {'  |  '}
+                        </Text>
+                        {tr('unit')} {d.nextCheque.unitNo}
+                      </Text>
+                      <DateText date={d.nextCheque.dueDate} variant="caption" color="soft" />
+                    </Row>
+                  </View>
+                </Card>
+              </Pressable>
+            </Link>
+          ) : (
+            <EmptyState title={tr('home_next_empty')} />
+          )}
 
           {/* Occupancy */}
-          <View>
-            {!d ? (
-              <Skeleton height={72} radius={12} />
-            ) : (
-              <Card style={{ padding: 16, gap: 10 }}>
+          {!d ? (
+            <Skeleton height={180} radius={24} />
+          ) : (
+            <Card style={{ padding: 16 }}>
+              <Text tnum>
                 <Text weight="medium" tnum>
-                  {tr('home_occupancy', {
-                    occupied: d.occupancy.occupied,
-                    total: d.occupancy.total,
-                  })}
+                  {d.occupancy.occupied}
                 </Text>
+                <Text variant="secondary">{` ${tr('home_of')} `}</Text>
+                <Text weight="medium" tnum>
+                  {d.occupancy.total}
+                </Text>
+                <Text variant="secondary">{` ${tr('home_unitsRented')}`}</Text>
+              </Text>
+              <View style={{ paddingTop: 13 }}>
                 <ProgressBar pct={d.occupancy.pct} />
-                {d.vacantUnits.length > 0 ? (
-                  <View style={{ gap: 0, marginTop: 4 }}>
-                    <Text
-                      variant="caption"
-                      weight="medium"
-                      color="soft"
-                      style={{ marginBottom: 4 }}
+              </View>
+              {d.vacantUnits.length > 0 ? (
+                <View style={{ marginTop: 20 }}>
+                  <Separator />
+                  <Text variant="caption" weight="medium" style={{ marginTop: 8 }}>
+                    {tr('home_vacant')}
+                  </Text>
+                  {d.vacantUnits.map((u) => (
+                    <Link
+                      key={u.unitId}
+                      href={{ pathname: '/unit/[id]', params: { id: u.unitId } }}
+                      asChild
                     >
-                      {tr('home_vacant')}
-                    </Text>
-                    {d.vacantUnits.map((u, i) => (
-                      <View key={u.unitId}>
-                        {i > 0 ? <Separator /> : null}
-                        <Link href={{ pathname: '/unit/[id]', params: { id: u.unitId } }} asChild>
-                          <Pressable
-                            accessibilityRole="button"
-                            style={{ minHeight: 44, justifyContent: 'center' }}
-                          >
-                            <Row style={{ justifyContent: 'space-between' }}>
-                              <Text variant="secondary">
-                                {pick(u.buildingNameAr, u.buildingNameEn)} {u.unitNo}
-                              </Text>
-                              <Text variant="caption" color="soft" tnum>
-                                {u.vacantSince
-                                  ? tr('unit_vacantSince', { date: '' })
-                                  : tr('unit_neverRented')}
-                                {u.vacantSince ? (
-                                  <DateText date={u.vacantSince} variant="caption" />
-                                ) : null}
-                              </Text>
-                            </Row>
-                          </Pressable>
-                        </Link>
-                      </View>
-                    ))}
-                  </View>
-                ) : null}
-              </Card>
-            )}
-          </View>
+                      <Pressable
+                        accessibilityRole="button"
+                        style={{
+                          flexDirection: 'row',
+                          justifyContent: 'space-between',
+                          alignItems: 'flex-end',
+                          paddingVertical: 8,
+                          minHeight: 44,
+                        }}
+                      >
+                        <View style={{ gap: 5 }}>
+                          <Text weight="medium">{pick(u.buildingNameAr, u.buildingNameEn)}</Text>
+                          <Text variant="caption" tnum>
+                            {tr('unit')} {u.unitNo}
+                          </Text>
+                        </View>
+                        {u.vacantSince ? (
+                          <Text variant="caption" color="soft" tnum>
+                            {tr('unit_vacantSince', { date: '' })}
+                            <DateText date={u.vacantSince} variant="caption" />
+                          </Text>
+                        ) : (
+                          <Chip label={tr('unit_neverRented')} />
+                        )}
+                      </Pressable>
+                    </Link>
+                  ))}
+                </View>
+              ) : null}
+            </Card>
+          )}
 
           {/* Disputes */}
           {d ? (
@@ -195,19 +226,23 @@ export default function HomeScreen() {
                 <Card
                   style={{
                     padding: 16,
+                    borderRadius: t.radius.md,
                     flexDirection: 'row',
                     justifyContent: 'space-between',
                     alignItems: 'center',
                   }}
                 >
-                  <Text weight="medium">
-                    {d.openDisputes === 0
-                      ? tr('home_disputes_none')
-                      : d.openDisputes === 1
-                        ? tr('home_disputes_one')
-                        : tr('home_disputes', { n: d.openDisputes })}
-                  </Text>
-                  <Text color="soft">›</Text>
+                  <Row style={{ gap: 8 }}>
+                    <Icon name="scale" color={t.colors.ink} />
+                    <Text variant="secondary" weight="medium">
+                      {d.openDisputes === 0
+                        ? tr('home_disputes_none')
+                        : d.openDisputes === 1
+                          ? tr('home_disputes_one')
+                          : tr('home_disputes', { n: d.openDisputes })}
+                    </Text>
+                  </Row>
+                  <Icon name="chevronRow" color={t.colors.ink} flip={isRTL} />
                 </Card>
               </Pressable>
             </Link>

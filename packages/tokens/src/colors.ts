@@ -1,121 +1,197 @@
-// Brand colours from the official Vamar assets (packages/tokens/assets/brand/README.md):
-// navy #162842 (primary), silver #C4C6BE (logo and small accents on navy only), warm off-white
-// #F5F4EF (background). Only brand.primary is used for primary actions, the active tab and the
-// hero number; silver is never used for body text.
+// Brand colours from the Vamar design file (Figma "Vamar", Page 2 Home frame and the company
+// profile on Page 1): slate #25323A is the primary ink and the dark surfaces, #303C44 the
+// secondary slate, #B8B9B2 the mist used for borders, tracks and text on slate, #E8E8E8 the chip
+// grey and #E5E5E5 the tab bar pill, on a white background.
 
 export const brand = {
-  /** Vamar navy. Primary actions, active tab, hero number. */
-  primary: '#162842',
-  /** Hover/pressed state of primary. */
-  primaryStrong: '#0d1f33',
-  /** Lighter navy used for primary surfaces on dark backgrounds. */
-  primarySoft: '#1a3656',
-  /** Slate accent. Secondary text and icons. */
-  accent: '#5f7180',
-  /** Slate accent, dark theme variant (--accent dark). */
-  accentDark: '#8fa0ad',
-  /** Warm sand used as ink on dark surfaces. */
-  sand: '#ebe6dd',
-  /** Official logo silver. Logo and small accents on navy only, never body text. */
+  /** Slate. Primary actions, ink, the default header and hero card. */
+  primary: '#25323a',
+  /** Secondary slate. Hover/pressed state and focus ring. */
+  secondary: '#303c44',
+  /** Mist. Borders, the occupancy track, soft text on slate. Never body text on white. */
+  mist: '#b8b9b2',
+  /** Chip grey. */
+  chip: '#e8e8e8',
+  /** Tab bar pill. */
+  tabPill: '#e5e5e5',
+  /** Official logo silver (assets/brand). Logo only. */
   silver: '#c4c6be',
 } as const;
 
-/** Warm grey neutrals. Step 0 is the brand off-white background. */
+/** Neutral greys between white and slate. */
 export const neutral = {
-  0: '#f5f4ef',
-  50: '#f3efe7',
-  100: '#ebe6dd',
-  200: '#dcd7cc',
-  300: '#c4ccd3',
-  400: '#8fa0ad',
-  500: '#5f7180',
-  600: '#44525e',
-  700: '#2d3741',
-  800: '#1a2229',
-  900: '#151717',
+  0: '#ffffff',
+  50: '#f4f4f3',
+  100: '#e8e8e8',
+  200: '#d6d7d3',
+  300: '#b8b9b2',
+  400: '#8e918b',
+  500: '#5e676c',
+  600: '#4c575e',
+  700: '#303c44',
+  800: '#25323a',
+  900: '#161e23',
 } as const;
 
 /**
  * Muted status colours. Always paired with a text label in the UI, never colour alone.
- * `fg` is for text/icons, `bg` for a soft chip background, `fgOnDark`/`bgOnDark` for dark theme.
+ * `fg` is for text/icons, `bg` for a soft chip background, `fgOnDark`/`bgOnDark` for the dark palette.
  */
 export const status = {
-  upcoming: {
-    fg: '#44525e',
-    bg: '#ebe6dd',
-    fgOnDark: '#c4ccd3',
-    bgOnDark: '#1a3656',
-  },
-  deposited: {
-    fg: '#8a5a12',
-    bg: '#f6e7c9',
-    fgOnDark: '#e3b562',
-    bgOnDark: '#3a2c10',
-  },
-  cleared: {
-    fg: '#2a6b3f',
-    bg: '#dcefe0',
-    fgOnDark: '#7fc694',
-    bgOnDark: '#143221',
-  },
-  bounced: {
-    fg: '#a33a2f',
-    bg: '#f6ddd9',
-    fgOnDark: '#e78b80',
-    bgOnDark: '#3f1b17',
-  },
-  replaced: {
-    fg: '#4a5a67',
-    bg: '#e6e3dc',
-    fgOnDark: '#8fa0ad',
-    bgOnDark: '#262e35',
-  },
-  cancelled: {
-    fg: '#4a5a67',
-    bg: '#e6e3dc',
-    fgOnDark: '#8fa0ad',
-    bgOnDark: '#262e35',
-  },
+  upcoming: { fg: '#3d4a52', bg: '#e8e8e8', fgOnDark: '#d6d7d3', bgOnDark: '#303c44' },
+  deposited: { fg: '#8a5a12', bg: '#f6e7c9', fgOnDark: '#e3b562', bgOnDark: '#3a2c10' },
+  cleared: { fg: '#2a6b3f', bg: '#dcefe0', fgOnDark: '#7fc694', bgOnDark: '#143221' },
+  bounced: { fg: '#a33a2f', bg: '#f6ddd9', fgOnDark: '#e78b80', bgOnDark: '#3f1b17' },
+  replaced: { fg: '#4c575e', bg: '#ececea', fgOnDark: '#b8b9b2', bgOnDark: '#262f35' },
+  cancelled: { fg: '#4c575e', bg: '#ececea', fgOnDark: '#b8b9b2', bgOnDark: '#262f35' },
 } as const;
 
 export type StatusColorKey = keyof typeof status;
 
-/** Semantic colours for the light theme (app in light mode, dashboard always). */
-export const light = {
+/** Every role a screen paints. Both apps read these names, never raw hex values. */
+export interface SemanticColors {
+  bg: string;
+  bgElevated: string;
+  bgSunken: string;
+  border: string;
+  borderStrong: string;
+  ink: string;
+  inkSoft: string;
+  inkFaint: string;
+  primary: string;
+  primaryHover: string;
+  onPrimary: string;
+  focusRing: string;
+  danger: string;
+  success: string;
+  warning: string;
+  /** Screen header (app) and sidebar (dashboard). */
+  header: string;
+  headerBorder: string;
+  onHeader: string;
+  onHeaderSoft: string;
+  /** The month's money card and other hero surfaces. */
+  hero: string;
+  heroBorder: string;
+  onHero: string;
+  onHeroSoft: string;
+  heroTile: string;
+  /** Neutral chips (status-free labels such as "upcoming", "never rented"). */
+  chip: string;
+  onChip: string;
+  /** Progress bars (occupancy). */
+  track: string;
+  trackFill: string;
+  /** Floating tab bar. */
+  tabBar: string;
+  tabInk: string;
+  tabActive: string;
+  onTabActive: string;
+}
+
+const base = {
   bg: neutral[0],
-  bgElevated: '#ffffff',
+  bgElevated: neutral[0],
   bgSunken: neutral[50],
-  border: neutral[200],
-  borderStrong: neutral[300],
+  border: brand.mist,
+  borderStrong: neutral[400],
   ink: brand.primary,
-  inkSoft: 'rgba(22, 40, 66, 0.70)',
-  inkFaint: 'rgba(22, 40, 66, 0.66)',
+  inkSoft: neutral[600],
+  inkFaint: neutral[500],
   primary: brand.primary,
-  primaryHover: brand.primaryStrong,
+  primaryHover: brand.secondary,
   onPrimary: neutral[0],
-  focusRing: brand.accent,
+  focusRing: brand.secondary,
   danger: status.bounced.fg,
   success: status.cleared.fg,
   warning: status.deposited.fg,
+  chip: brand.chip,
+  onChip: brand.primary,
+  track: brand.mist,
+  trackFill: brand.primary,
 } as const;
 
-/** Semantic colours for the dark theme (app follows the phone). */
-export const dark = {
-  bg: '#0d1f33',
-  bgElevated: '#162842',
-  bgSunken: '#0a1829',
-  border: 'rgba(235, 230, 221, 0.14)',
-  borderStrong: 'rgba(235, 230, 221, 0.28)',
-  ink: brand.sand,
-  inkSoft: 'rgba(235, 230, 221, 0.72)',
-  inkFaint: 'rgba(235, 230, 221, 0.58)',
-  primary: brand.sand,
-  primaryHover: '#ffffff',
-  onPrimary: brand.primary,
-  focusRing: brand.accentDark,
-  danger: status.bounced.fgOnDark,
-  success: status.cleared.fgOnDark,
-  warning: status.deposited.fgOnDark,
-} as const;
+export const themes = {
+  /** "Default": the slate look from the design file. */
+  default: {
+    ...base,
+    header: brand.primary,
+    headerBorder: brand.primary,
+    onHeader: neutral[0],
+    onHeaderSoft: brand.mist,
+    hero: brand.primary,
+    heroBorder: brand.primary,
+    onHero: neutral[0],
+    onHeroSoft: brand.mist,
+    heroTile: 'rgba(255, 255, 255, 0.05)',
+    tabBar: brand.tabPill,
+    tabInk: '#1f2328',
+    tabActive: brand.primary,
+    onTabActive: neutral[0],
+  },
+  /** "White": the same layout on white surfaces, slate only for ink and accents. */
+  white: {
+    ...base,
+    header: neutral[0],
+    headerBorder: brand.chip,
+    onHeader: brand.primary,
+    onHeaderSoft: neutral[500],
+    hero: neutral[0],
+    heroBorder: brand.mist,
+    onHero: brand.primary,
+    onHeroSoft: neutral[500],
+    heroTile: neutral[50],
+    tabBar: neutral[0],
+    tabInk: brand.primary,
+    tabActive: brand.chip,
+    onTabActive: brand.primary,
+  },
+  /** The phone's dark mode (app only), whichever theme is chosen. */
+  dark: {
+    bg: neutral[900],
+    bgElevated: '#1f2a31',
+    bgSunken: '#121a1e',
+    border: 'rgba(232, 232, 232, 0.16)',
+    borderStrong: 'rgba(232, 232, 232, 0.30)',
+    ink: '#f2f2f0',
+    inkSoft: 'rgba(242, 242, 240, 0.74)',
+    inkFaint: 'rgba(242, 242, 240, 0.62)',
+    primary: brand.chip,
+    primaryHover: neutral[0],
+    onPrimary: brand.primary,
+    focusRing: brand.mist,
+    danger: status.bounced.fgOnDark,
+    success: status.cleared.fgOnDark,
+    warning: status.deposited.fgOnDark,
+    header: brand.primary,
+    headerBorder: brand.primary,
+    onHeader: neutral[0],
+    onHeaderSoft: brand.mist,
+    hero: brand.primary,
+    heroBorder: brand.secondary,
+    onHero: neutral[0],
+    onHeroSoft: brand.mist,
+    heroTile: 'rgba(255, 255, 255, 0.06)',
+    chip: brand.secondary,
+    onChip: brand.chip,
+    track: brand.secondary,
+    trackFill: brand.chip,
+    tabBar: '#1f2a31',
+    tabInk: brand.chip,
+    tabActive: brand.chip,
+    onTabActive: brand.primary,
+  },
+} as const satisfies Record<string, SemanticColors>;
 
-export type SemanticColors = typeof light;
+/** Themes a person can choose. The dark palette follows the phone; it is not a choice. */
+export const THEME_NAMES = ['default', 'white'] as const;
+export type ThemeName = (typeof THEME_NAMES)[number];
+export const DEFAULT_THEME: ThemeName = 'default';
+
+export function isThemeName(value: unknown): value is ThemeName {
+  return typeof value === 'string' && (THEME_NAMES as readonly string[]).includes(value);
+}
+
+/** Kept for code written before the theme switch: the default palette and the dark palette. */
+export const light: SemanticColors = themes.default;
+export const dark: SemanticColors = themes.dark;

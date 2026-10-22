@@ -1,24 +1,25 @@
 @import 'tailwindcss';
 @import '@vamar/tokens/tokens.css';
 
-/* IBM Plex Sans Arabic, self-hosted, 400 / 500 / 600 only */
+/* Almarai (SIL OFL), self-hosted. 400 regular; 500-700 map to Bold and 800+ to ExtraBold, so
+   Tailwind's medium/semibold/bold all get the design's heading weight. */
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  font-weight: 400;
+  font-family: 'Almarai';
+  font-weight: 100 400;
   font-display: swap;
-  src: url('/fonts/IBMPlexSansArabic-Regular.woff2') format('woff2');
+  src: url('/fonts/Almarai-Regular.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  font-weight: 500;
+  font-family: 'Almarai';
+  font-weight: 500 700;
   font-display: swap;
-  src: url('/fonts/IBMPlexSansArabic-Medium.woff2') format('woff2');
+  src: url('/fonts/Almarai-Bold.woff2') format('woff2');
 }
 @font-face {
-  font-family: 'IBM Plex Sans Arabic';
-  font-weight: 600;
+  font-family: 'Almarai';
+  font-weight: 800 900;
   font-display: swap;
-  src: url('/fonts/IBMPlexSansArabic-SemiBold.woff2') format('woff2');
+  src: url('/fonts/Almarai-ExtraBold.woff2') format('woff2');
 }
 
 @theme {
@@ -38,6 +39,19 @@
   --color-danger: var(--color-danger);
   --color-success: var(--color-success);
   --color-warning: var(--color-warning);
+  --color-header: var(--color-header);
+  --color-header-line: var(--color-header-border);
+  --color-on-header: var(--color-on-header);
+  --color-on-header-soft: var(--color-on-header-soft);
+  --color-hero: var(--color-hero);
+  --color-hero-line: var(--color-hero-border);
+  --color-on-hero: var(--color-on-hero);
+  --color-on-hero-soft: var(--color-on-hero-soft);
+  --color-hero-tile: var(--color-hero-tile);
+  --color-chip: var(--color-chip);
+  --color-on-chip: var(--color-on-chip);
+  --color-track: var(--color-track);
+  --color-track-fill: var(--color-track-fill);
   --color-status-upcoming: var(--color-status-upcoming);
   --color-status-upcoming-bg: var(--color-status-upcoming-bg);
   --color-status-deposited: var(--color-status-deposited);
@@ -97,7 +111,7 @@
     color: inherit;
   }
   ::selection {
-    background: #c4ccd3;
+    background: var(--color-chip);
   }
 }
 
@@ -112,8 +126,8 @@
 
 @utility card {
   background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 0.8px solid var(--color-border);
+  border-radius: var(--radius-lg);
 }
 
 @keyframes shimmer {

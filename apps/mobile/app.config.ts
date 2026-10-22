@@ -51,9 +51,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'expo-font',
       {
         fonts: [
-          '../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.ttf',
-          '../../packages/tokens/assets/fonts/IBMPlexSansArabic-Medium.ttf',
-          '../../packages/tokens/assets/fonts/IBMPlexSansArabic-SemiBold.ttf',
+          '../../packages/tokens/assets/fonts/Almarai-Light.ttf',
+          '../../packages/tokens/assets/fonts/Almarai-Regular.ttf',
+          '../../packages/tokens/assets/fonts/Almarai-Bold.ttf',
+          '../../packages/tokens/assets/fonts/Almarai-ExtraBold.ttf',
         ],
       },
     ],

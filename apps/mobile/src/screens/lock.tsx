@@ -21,7 +21,7 @@ export function LockScreen() {
       style={{
         position: 'absolute',
         inset: 0,
-        backgroundColor: '#162842',
+        backgroundColor: '#25323a',
         alignItems: 'center',
         justifyContent: 'center',
         paddingTop: insets.top,

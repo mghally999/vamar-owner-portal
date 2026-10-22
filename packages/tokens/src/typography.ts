@@ -1,30 +1,38 @@
-/** IBM Plex Sans Arabic covers Arabic and Latin. Only 400 / 500 / 600 are shipped. */
+/**
+ * Almarai (SIL Open Font License, assets/fonts/Almarai-OFL.txt) covers Arabic and Latin and is the
+ * typeface of the design file. It ships in 300 / 400 / 700 / 800; the app's "medium" weight maps to
+ * Bold and "semibold" to ExtraBold, as headings and amounts do in the design.
+ */
 export const fontFamily = {
-  sans: 'IBM Plex Sans Arabic',
+  sans: 'Almarai',
   /** Font file base names as loaded with expo-font / @font-face. */
   files: {
-    400: 'IBMPlexSansArabic-Regular',
-    500: 'IBMPlexSansArabic-Medium',
-    600: 'IBMPlexSansArabic-SemiBold',
+    300: 'Almarai-Light',
+    400: 'Almarai-Regular',
+    700: 'Almarai-Bold',
+    800: 'Almarai-ExtraBold',
   },
   /** CSS fallback stack used by the dashboard. */
-  fallback: "'IBM Plex Sans Arabic', 'Segoe UI', system-ui, -apple-system, Tahoma, sans-serif",
+  fallback: "'Almarai', 'Segoe UI', system-ui, -apple-system, Tahoma, sans-serif",
 } as const;
 
 export const fontWeight = {
   regular: 400,
-  medium: 500,
-  semibold: 600,
+  medium: 700,
+  semibold: 800,
 } as const;
 
-/** Type scale in px: 32 / 24 / 20 / 17 / 15 / 13. Line heights tuned for Arabic ascenders. */
+/**
+ * Type scale in px, from the design file: hero amount 35, screen title 22, card heading 17,
+ * body 15, secondary 13, caption 12. Line heights are 1.3 to 1.5 for Arabic ascenders.
+ */
 export const fontSize = {
-  hero: { size: 32, lineHeight: 40 },
-  title: { size: 24, lineHeight: 32 },
-  heading: { size: 20, lineHeight: 28 },
-  body: { size: 17, lineHeight: 26 },
-  secondary: { size: 15, lineHeight: 22 },
-  caption: { size: 13, lineHeight: 18 },
+  hero: { size: 35, lineHeight: 46 },
+  title: { size: 22, lineHeight: 33 },
+  heading: { size: 17, lineHeight: 25 },
+  body: { size: 15, lineHeight: 23 },
+  secondary: { size: 13, lineHeight: 20 },
+  caption: { size: 12, lineHeight: 18 },
 } as const;
 
 export type FontSizeKey = keyof typeof fontSize;

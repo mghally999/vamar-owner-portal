@@ -53,7 +53,7 @@ export default function PhoneScreen() {
       }}
     >
       <View style={{ alignItems: 'flex-start', gap: 16 }}>
-        <Logo variant="full" width={140} color={t.scheme === 'dark' ? '#c4c6be' : '#162842'} />
+        <Logo variant="full" width={140} color={t.scheme === 'dark' ? '#c4c6be' : '#25323a'} />
         <View style={{ gap: 4 }}>
           <Text variant="title" weight="semibold">
             {tr('phone_title')}

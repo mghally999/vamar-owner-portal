@@ -18,11 +18,11 @@ const sources = {
 export function Logo({
   variant = 'mark',
   width = 40,
-  color = '#162842',
+  color = '#25323a',
 }: {
   variant?: 'full' | 'mark';
   width?: number;
-  color?: '#162842' | '#c4c6be' | '#ffffff';
+  color?: '#25323a' | '#c4c6be' | '#ffffff';
 }) {
   const tone = color === '#c4c6be' ? 'silver' : color === '#ffffff' ? 'white' : 'navy';
   const ratio = variant === 'full' ? logoAspect.logo : logoAspect.mark;

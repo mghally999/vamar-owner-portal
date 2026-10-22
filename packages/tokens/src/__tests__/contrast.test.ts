@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dark, light, status } from '../colors.js';
+import { status, THEME_NAMES, themes, type SemanticColors } from '../colors.js';
 
 function luminance(hex: string): number {
   const h = hex.replace('#', '');
@@ -21,37 +21,58 @@ function flatten(color: string, bgHex: string): string {
   return '#' + out.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
-function contrast(a: string, b: string): number {
-  const la = luminance(a);
-  const lb = luminance(b);
+function contrast(fg: string, bg: string): number {
+  const la = luminance(flatten(fg, bg));
+  const lb = luminance(bg);
   const hi = Math.max(la, lb);
   const lo = Math.min(la, lb);
   return (hi + 0.05) / (lo + 0.05);
 }
 
-describe('colour tokens meet WCAG AA (4.5:1 for text)', () => {
-  it('body ink on backgrounds (light)', () => {
-    expect(contrast(light.ink, light.bg)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(light.ink, light.bgElevated)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(light.onPrimary, light.primary)).toBeGreaterThanOrEqual(4.5);
-    // Secondary text (soft and faint ink) is still body text and must pass AA on both surfaces.
-    for (const surface of [light.bg, light.bgElevated]) {
-      expect(contrast(flatten(light.inkSoft, surface), surface)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(flatten(light.inkFaint, surface), surface)).toBeGreaterThanOrEqual(4.5);
+/** Text that a theme paints, with the surface it sits on. */
+function textPairs(c: SemanticColors): [string, string, string][] {
+  const tile = flatten(c.heroTile, c.hero);
+  return [
+    ['ink on bg', c.ink, c.bg],
+    ['ink on elevated', c.ink, c.bgElevated],
+    ['ink on sunken', c.ink, c.bgSunken],
+    ['soft ink on bg', c.inkSoft, c.bg],
+    ['soft ink on elevated', c.inkSoft, c.bgElevated],
+    ['faint ink on bg', c.inkFaint, c.bg],
+    ['faint ink on elevated', c.inkFaint, c.bgElevated],
+    ['on primary', c.onPrimary, c.primary],
+    ['header title', c.onHeader, c.header],
+    ['header soft text', c.onHeaderSoft, c.header],
+    ['hero amount', c.onHero, c.hero],
+    ['hero label', c.onHeroSoft, c.hero],
+    ['hero tile amount', c.onHero, tile],
+    ['hero tile label', c.onHeroSoft, tile],
+    ['chip label', c.onChip, c.chip],
+    ['tab label', c.tabInk, c.tabBar],
+    ['active tab label', c.onTabActive, c.tabActive],
+    ['danger text', c.danger, c.bgElevated],
+    ['success text', c.success, c.bgElevated],
+    ['warning text', c.warning, c.bgElevated],
+  ];
+}
+
+describe('every theme meets WCAG AA for text (4.5:1)', () => {
+  for (const name of [...THEME_NAMES, 'dark'] as const) {
+    it(`${name} theme`, () => {
+      for (const [label, fg, bg] of textPairs(themes[name])) {
+        expect(contrast(fg, bg), `${name}: ${label}`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+
+  it('the progress fill stands out from its track (3:1, non-text)', () => {
+    for (const name of [...THEME_NAMES, 'dark'] as const) {
+      const c = themes[name];
+      expect(contrast(c.trackFill, c.track), name).toBeGreaterThanOrEqual(3);
     }
   });
 
-  it('body ink on backgrounds (dark)', () => {
-    expect(contrast(dark.ink, dark.bg)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(dark.ink, dark.bgElevated)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(dark.onPrimary, dark.primary)).toBeGreaterThanOrEqual(4.5);
-    for (const surface of [dark.bg, dark.bgElevated]) {
-      expect(contrast(flatten(dark.inkSoft, surface), surface)).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(flatten(dark.inkFaint, surface), surface)).toBeGreaterThanOrEqual(4.5);
-    }
-  });
-
-  it('status text on its chip background, both themes', () => {
+  it('status text on its chip background, both palettes', () => {
     for (const [name, s] of Object.entries(status)) {
       expect(contrast(s.fg, s.bg), `${name} light`).toBeGreaterThanOrEqual(4.5);
       expect(contrast(s.fgOnDark, s.bgOnDark), `${name} dark`).toBeGreaterThanOrEqual(4.5);

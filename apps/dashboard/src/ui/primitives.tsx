@@ -398,6 +398,32 @@ export function Money({
   );
 }
 
+/** Amount as in the design: a bold number with a small regular currency word beside it. */
+export function Amount({
+  fils,
+  className,
+  currencyClassName,
+}: {
+  fils: number | null | undefined;
+  className?: string;
+  currencyClassName?: string;
+}) {
+  const { num, lang } = useI18n();
+  if (fils === null || fils === undefined) return <span className={className}>—</span>;
+  const currency = (
+    <span className={cx('text-[0.45em] font-normal tracking-normal', currencyClassName)}>
+      {lang === 'ar' ? 'درهم' : 'AED'}
+    </span>
+  );
+  return (
+    <span className={cx('inline-flex items-baseline gap-1.5 whitespace-nowrap', className)}>
+      {lang === 'en' ? currency : null}
+      <span className="tnum">{num(fils)}</span>
+      {lang === 'ar' ? currency : null}
+    </span>
+  );
+}
+
 export function DateText({
   date,
   className,

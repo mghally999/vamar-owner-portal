@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider } from '@/lib/i18n';
 import { router } from '@/router';
+import { applyTheme } from '@/lib/theme';
 import './styles.css';
 
 const queryClient = new QueryClient({
@@ -33,6 +34,8 @@ function App() {
   const auth = useAuth();
   return <RouterProvider router={router} context={{ auth, queryClient }} />;
 }
+
+applyTheme();
 
 const rootEl = document.getElementById('root');
 if (!rootEl) throw new Error('#root missing');

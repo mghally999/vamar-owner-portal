@@ -8,12 +8,14 @@ import { useI18n } from '@/lib/i18n';
 import { lastPushState, notificationsEnabled, setNotifications, type PushState } from '@/lib/push';
 import { useDevices, useRequestDeletion, useRevokeOtherDevices, useSetLang } from '@/lib/queries';
 import { periodLabel, shareStatement } from '@/lib/statement';
-import { useTheme } from '@/lib/theme';
+import { THEME_NAMES } from '@vamar/tokens';
+import { useTheme, useThemeChoice } from '@/lib/theme';
 import type { ChequeItem, Page } from '@/lib/types';
 import { Button, Card, Row, SectionTitle, Separator, Text, layout } from '@/ui';
 
 export default function SettingsScreen() {
   const t = useTheme();
+  const themeChoice = useThemeChoice();
   const { t: tr, lang, switchLang, date } = useI18n();
   const auth = useAuth();
   const devices = useDevices();
@@ -74,6 +76,24 @@ export default function SettingsScreen() {
                   if (lang === l) return;
                   setLang.mutate(l);
                   void switchLang(l);
+                }}
+                style={{ minHeight: 40, paddingHorizontal: 12 }}
+              />
+            ))}
+          </Row>
+        </Row>
+        <Separator />
+        <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
+          <Text>{tr('settings_theme')}</Text>
+          <Row style={{ gap: 8 }}>
+            {THEME_NAMES.map((name) => (
+              <Button
+                key={name}
+                title={tr(name === 'default' ? 'theme_default' : 'theme_white')}
+                variant={themeChoice.name === name ? 'primary' : 'secondary'}
+                accessibilityState={{ selected: themeChoice.name === name }}
+                onPress={() => {
+                  void themeChoice.setName(name);
                 }}
                 style={{ minHeight: 40, paddingHorizontal: 12 }}
               />

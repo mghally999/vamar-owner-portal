@@ -9,7 +9,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
-import { useTheme } from '@/lib/theme';
+import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
 
 void SplashScreen.preventAutoHideAsync();
@@ -42,11 +42,13 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <LangProvider>
-          <QueryClientProvider client={queryClient}>
-            <AuthProvider>
-              <Root />
-            </AuthProvider>
-          </QueryClientProvider>
+          <ThemeProvider>
+            <QueryClientProvider client={queryClient}>
+              <AuthProvider>
+                <Root />
+              </AuthProvider>
+            </QueryClientProvider>
+          </ThemeProvider>
         </LangProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
@@ -57,12 +59,15 @@ function Root() {
   const t = useTheme();
   const auth = useAuth();
   const { ready } = useI18n();
+  const themeChoice = useThemeChoice();
   const [fontsLoaded, fontError] = useFonts({
-    'IBMPlexSansArabic-Regular': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Regular.ttf'),
-    'IBMPlexSansArabic-Medium': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-Medium.ttf'),
-    'IBMPlexSansArabic-SemiBold': require('../../../packages/tokens/assets/fonts/IBMPlexSansArabic-SemiBold.ttf'),
+    'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
+    'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
+    'Almarai-Bold': require('../../../packages/tokens/assets/fonts/Almarai-Bold.ttf'),
+    'Almarai-ExtraBold': require('../../../packages/tokens/assets/fonts/Almarai-ExtraBold.ttf'),
   });
-  const booted = (fontsLoaded || fontError !== null) && ready && auth.stage !== 'loading';
+  const booted =
+    (fontsLoaded || fontError !== null) && ready && themeChoice.ready && auth.stage !== 'loading';
 
   useEffect(() => {
     if (__DEV__ && !booted) {
