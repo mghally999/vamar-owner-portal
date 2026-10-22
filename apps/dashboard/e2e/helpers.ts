@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resetLoginCounters } from './db';
 
 // Secrets enrolled during a run are kept in a gitignored file so a replacement worker (Playwright
 // starts a new one after a failure) can still sign in without re-enrolling.
@@ -69,6 +70,7 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
   await page.addInitScript((l) => {
     localStorage.setItem('vamar.lang', l);
   }, lang);
+  await resetLoginCounters(STAFF[who].email);
   await page.goto('/login');
   await page.getByLabel(/البريد الإلكتروني|Email/).fill(STAFF[who].email);
   await page.getByLabel(/كلمة المرور|Password/).fill(STAFF[who].password);

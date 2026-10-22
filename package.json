@@ -28,7 +28,9 @@
     "db:seed": "pnpm --filter @vamar/db seed",
     "db:reset": "pnpm --filter @vamar/db reset",
     "db:studio": "pnpm --filter @vamar/db studio",
-    "dev:docker": "docker compose up -d --wait && turbo run dev"
+    "dev:docker": "docker compose up -d --wait && turbo run dev",
+    "coverage": "turbo run coverage",
+    "budget": "node tooling/ci/bundle-budget.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

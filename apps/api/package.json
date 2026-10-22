@@ -19,7 +19,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "cf-typegen": "wrangler types",
-    "dev:wrangler": "wrangler dev --port 8787"
+    "dev:wrangler": "wrangler dev --port 8787",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",
@@ -36,12 +37,13 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20261007.1",
     "@electric-sql/pglite": "^0.5.8",
+    "@hono/node-server": "^1.19.0",
     "@types/node": "^24.19.1",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.0.3",
+    "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vitest": "^5.0.3",
-    "wrangler": "^4.148.0",
-    "@hono/node-server": "^1.19.0",
-    "tsx": "^4.23.15"
+    "wrangler": "^4.148.0"
   }
 }

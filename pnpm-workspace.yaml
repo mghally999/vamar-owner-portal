@@ -28,3 +28,11 @@ nodeLinker: hoisted
 overrides:
   '@grpc/grpc-js@<1.13.6': '>=1.13.6'
   'decode-uri-component@<0.5.0': '>=0.5.0'
+
+# Advisories accepted for now (AUDIT.md section 7, FUTURE.md): all three live only in the Expo
+# build toolchain and have no fixed version that works with Expo SDK 57.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-vfj7-8cjw-p6xm # braces: stack exhaustion through deeply nested patterns (react-native cli plugin)
+    - GHSA-86w9-cpqp-85rv # node-forge: PKCS#1 v1.5 signature verification (expo cli)
+    - GHSA-w5hq-g745-h8pq # uuid: buffer bounds in v3/v5/v6 (expo config plugins)

@@ -29,6 +29,9 @@
     },
     "seed": {
       "cache": false
+    },
+    "coverage": {
+      "outputs": ["coverage/**"]
     }
   }
 }

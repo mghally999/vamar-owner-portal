@@ -3,20 +3,93 @@ name: CI
 on:
   push:
     branches: ['**']
+    tags: ['v*']
   pull_request:
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    name: Typecheck, lint, test
+    name: Typecheck, lint, format, unit and integration tests, coverage
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Lint
+        run: pnpm lint
+      - name: Format check
+        run: pnpm format:check
+      - name: Tests with coverage thresholds (PGlite in-process; no database service needed)
+        run: pnpm coverage
+
+  build:
+    name: Build dashboard, bundle budget, Worker dry run, app bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build dashboard (production config)
+        run: pnpm --filter @vamar/dashboard build
+      - name: Bundle budget
+        run: node tooling/ci/bundle-budget.mjs
+      - name: Worker bundles (no deploy)
+        working-directory: apps/api
+        run: npx wrangler deploy --dry-run --outdir dist
+      - name: Owner app bundle compiles
+        working-directory: apps/mobile
+        env:
+          CI: '1'
+        run: npx expo export --platform android --output-dir /tmp/expo-export
+
+  security:
+    name: Secrets scan and dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Gitleaks (full history)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Dependency audit (production dependencies, high and above; accepted toolchain advisories are listed in pnpm-workspace.yaml)
+        run: pnpm audit --prod --audit-level high
+
+  e2e:
+    name: Dashboard end-to-end (Playwright) and accessibility (axe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       DATABASE_URL: postgres://vamar:vamar@localhost:5432/vamar
-      DATABASE_URL_TEST: postgres://vamar:vamar@localhost:5432/vamar_test
     services:
       postgres:
         image: postgres:17-alpine
@@ -33,33 +106,44 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v4
-
       - uses: pnpm/action-setup@v4
-        # version is read from the packageManager field in package.json
-
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
           cache: pnpm
-
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      - name: Prepare test database roles
+      - name: Playwright browsers
+        run: pnpm --filter @vamar/dashboard exec playwright install --with-deps chromium
+      - name: Database roles, migrations, seed
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tooling/postgres/init/01-roles.sql
-
-      - name: Migrate
-        run: pnpm db:migrate
-
-      - name: Typecheck
-        run: pnpm typecheck
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Format check
-        run: pnpm format:check
-
-      - name: Test
-        run: pnpm test
+          pnpm db:migrate
+          pnpm db:seed
+      - name: Start the Auth emulator, the API and the dashboard
+        run: |
+          (cd tooling/firebase && npx --yes firebase-tools@14 emulators:start --only auth --project demo-vamar > /tmp/firebase.log 2>&1 &)
+          (cd apps/api && DATABASE_URL="$DATABASE_URL" FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 npx tsx src/dev-server.ts > /tmp/api.log 2>&1 &)
+          (cd apps/dashboard && pnpm dev > /tmp/vite.log 2>&1 &)
+          for i in $(seq 1 90); do
+            if curl -sf http://127.0.0.1:9099/ >/dev/null && curl -sf http://127.0.0.1:8787/healthz >/dev/null && curl -sf http://localhost:5173/ >/dev/null; then exit 0; fi
+            sleep 2
+          done
+          echo "stack did not come up"; tail -50 /tmp/firebase.log /tmp/api.log /tmp/vite.log; exit 1
+      - name: Playwright (global setup creates the demo staff accounts in the emulator)
+        env:
+          CI: '1'
+          PW_CHANNEL: chromium
+        run: pnpm --filter @vamar/dashboard e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            apps/dashboard/test-results
+            /tmp/*.log
+          retention-days: 7

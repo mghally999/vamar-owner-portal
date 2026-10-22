@@ -49,6 +49,7 @@ const en = {
   staff_totpRequired_off: 'Off (trial)',
   staff_totpRequired_locked: 'Always required for admins and for your own account.',
   totp_locked: 'Too many wrong codes. Try again in 15 minutes.',
+  login_rateLimited: 'Too many sign-in attempts. Wait a few minutes and try again.',
   back: 'Back',
 
   // common
@@ -412,6 +413,7 @@ const ar: Record<MessageKey, string> = {
   staff_totpRequired_off: 'متوقف (تجربة)',
   staff_totpRequired_locked: 'مطلوب دائماً للمديرين ولحسابك أنت.',
   totp_locked: 'محاولات كثيرة خاطئة. حاول بعد 15 دقيقة.',
+  login_rateLimited: 'محاولات دخول كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.',
   back: 'رجوع',
 
   search: 'بحث',

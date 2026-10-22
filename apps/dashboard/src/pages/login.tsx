@@ -70,7 +70,8 @@ function Credentials() {
       if (err instanceof ApiRequestError && err.code === 'email_unverified')
         setError(t('login_emailUnverified'));
       else if (err instanceof ApiRequestError && err.status === 403) setError(t('login_not_staff'));
-      else if (err instanceof ApiRequestError && err.status === 429) setError(t('totp_locked'));
+      else if (err instanceof ApiRequestError && err.status === 429)
+        setError(t('login_rateLimited'));
       else setError(t('login_failed'));
     } finally {
       setBusy(false);

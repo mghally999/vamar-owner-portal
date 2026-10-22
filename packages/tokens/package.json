@@ -15,7 +15,8 @@
     "build": "tsx scripts/build-css.ts",
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "coverage": "vitest run"
   },
   "devDependencies": {
     "tsx": "^4.23.15",

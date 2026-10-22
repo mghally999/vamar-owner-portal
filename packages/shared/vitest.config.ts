@@ -7,7 +7,8 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/schemas/index.ts'],
-      thresholds: { lines: 90, functions: 90, branches: 85 },
+      // Floors measured on 22 Oct 2026; raised as tests are added, never lowered.
+      thresholds: { lines: 96, functions: 94, statements: 96, branches: 94 },
     },
   },
 });

@@ -11,7 +11,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "lint": "eslint .",
     "test": "vitest run",
-    "prebuild": "expo prebuild --clean"
+    "prebuild": "expo prebuild --clean",
+    "coverage": "vitest run"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
