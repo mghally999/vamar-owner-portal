@@ -276,9 +276,6 @@ importers:
       '@tanstack/react-virtual':
         specifier: ^3.14.21
         version: 3.14.21(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
-      '@vamar/api':
-        specifier: workspace:*
-        version: link:../api
       '@vamar/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -288,9 +285,6 @@ importers:
       firebase:
         specifier: ^12.19.0
         version: 12.19.0
-      hono:
-        specifier: ^4.13.13
-        version: 4.13.13
       lucide-react:
         specifier: ^1.52.0
         version: 1.52.0(@types/react@19.3.0)(react@19.3.0)

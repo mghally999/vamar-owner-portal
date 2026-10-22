@@ -8,17 +8,18 @@ the data and update cheque statuses by hand. No bank, Ejari or government integr
 
 ```
 apps/
-  api/          Hono Worker; also serves the built dashboard as static assets   (Phase 1)
-  dashboard/    React + Vite SPA, TanStack Router/Query/Table, Tailwind v4     (Phase 1)
-  mobile/       Expo app, Expo Router, EAS dev builds                           (Phase 1)
+  api/          Hono Worker; also serves the built dashboard as static assets
+  dashboard/    React + Vite SPA, TanStack Router/Query/Virtual, Tailwind v4
+  mobile/       Expo app, Expo Router, EAS builds
 packages/
   shared/       Pure business rules: dates, money, cheque schedule, state machine, shares,
                 occupancy, alerts, i18n labels, zod schemas. Fully unit tested.
   db/           Drizzle schema, SQL migrations, seed script, Node/Neon clients.
   tokens/       Design tokens (colours, type scale, spacing, radii, logo) + generated CSS.
 tooling/
-  postgres/     init SQL for the local Docker database (roles, test database)
-  firebase/     Firebase Auth emulator image and config
+  postgres/     init SQL for the optional Docker database (roles)
+  firebase/     Firebase Auth emulator config (used natively by tooling/dev/start.mjs and by Docker)
+  dev/          start.mjs (one-command local stack), demo and staff helper scripts
 .github/workflows/ci.yml   typecheck, lint, format check, tests on every push
 ```
 
@@ -42,17 +43,18 @@ On this machine the EDB installer's service occupies port 5432, so a user-level 
 ```
 cp .env.example .env
 pnpm install
-pnpm infra:up          # Postgres 17 + Firebase Auth emulator in Docker
+pnpm infra:up          # local Postgres 17 cluster + native Firebase Auth emulator (Docker: pnpm dev:docker)
 pnpm db:migrate        # apply SQL migrations
 pnpm db:seed           # realistic demo data (see "Demo accounts")
 pnpm check             # typecheck + lint + tests for every package
-pnpm dev               # infra + every app in watch mode (apps arrive in Phase 1)
+pnpm dev               # infra + API + dashboard in watch mode (pnpm demo:android adds the emulator)
 ```
 
-- Postgres: `postgres://vamar:vamar@localhost:5433/vamar` (5432 with Docker) (logs every statement, so N+1s are
-  visible in `docker compose logs postgres`). Integration tests use the `vamar_test` database.
+- Postgres: `postgres://vamar:vamar@localhost:5433/vamar` (5432 with Docker). The local cluster logs
+  every statement (`C:\dev\pgdata\*.log`), so N+1s are visible. API integration tests and the db
+  package tests run on PGlite in-process; no database service is needed for `pnpm test`.
 - Firebase Auth emulator: http://localhost:9099, UI at http://localhost:4000, project `demo-vamar`.
-  OTP codes are printed in the UI and in `docker compose logs firebase`; no SMS is ever sent.
+  OTP codes are printed in the emulator UI; no SMS is ever sent.
 - `pnpm db:reset` drops, migrates and reseeds the local database (refuses non-local hosts).
 - `pnpm db:generate` writes a new migration after a schema change; review the SQL before committing.
 - `pnpm db:studio` opens Drizzle Studio.
@@ -95,8 +97,9 @@ The seed and migration test in `packages/db` runs against PGlite (in-process Pos
 ## Demo accounts
 
 Owners sign in with phone + SMS code. These numbers must be registered as Firebase **test phone
-numbers** (Authentication > Sign-in method > Phone > Phone numbers for testing) so no SMS is sent;
-in the emulator any number works and the code is shown in the UI.
+numbers** (Authentication > Sign-in method > Phone > Phone numbers for testing) so no SMS is sent.
+In the emulator the code is shown in the UI, but only these seeded UAE numbers can sign in: the API
+refuses numbers outside `ALLOWED_PHONE_COUNTRIES` and numbers that are not in `owners`.
 
 | Owner              | Phone         | Code   | Language | Notes                                    |
 | ------------------ | ------------- | ------ | -------- | ---------------------------------------- |
@@ -111,7 +114,11 @@ Use **+971500000001** as the App Store reviewer demo account.
 Staff (dashboard, Firebase email + password, then TOTP): `admin@vamar.test` (Admin) and
 `entry@vamar.test` (Data entry). The client has two dashboard users, so the UI shows only these two
 roles; the read-only `viewer` role stays in the API and tests. Emulator passwords are in `DEMO.md`;
-real passwords are set in the Firebase console, never in this repo.
+real passwords are set in the Firebase console, never in this repo. During the client trial the two
+demo accounts have 2-step login switched off (`totp_required = false`, see "Decisions"); the API
+refuses to switch it off for admins through the dashboard, so the live admin demo account keeps its
+trial setting only because it was set with `pnpm staff:reset-totp --live --off` from the dev
+machine. TOTP codes are single use: a code that signed in once is refused until the next 30 s step.
 
 ## Data model notes
 
@@ -182,18 +189,22 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 ## Free-tier constraints designed for
 
 - Workers Free: 10 ms CPU per request. Handlers are I/O bound: no hashing (Firebase does it),
-  no PDF (expo-print on the phone), no Excel parsing (SheetJS in the browser). CPU timings per
-  handler will be recorded here from `wrangler dev` in Phase 1+.
+  no PDF (expo-print on the phone), no Excel parsing (SheetJS in the browser). Measured CPU on the
+  live Worker (AUDIT.md section 6.2): 1 ms for `/healthz`, 8 ms for the database probe; the wall
+  clock is dominated by Neon round trips (~100 ms each from the edge), which is why the overview
+  runs its queries together and every list is paged.
 - Neon Free suspends after ~5 min idle; first request ~1 s. Every screen shows skeletons.
 - Exactly one cron trigger (daily alerts at 04:00 UTC = 08:00 Dubai).
-- Reads use the Neon HTTP driver; multi-statement writes open a per-request `Pool` closed with
-  `ctx.waitUntil(pool.end())`.
+- Reads use the Neon HTTP driver; multi-statement writes open a per-request `Pool` (10 s connect
+  deadline) closed with `ctx.waitUntil(pool.end())`. Outbound calls (Expo push, R2) go through
+  `util/outbound.ts` with deadlines and jittered retries.
 
 ## Security notes
 
 - Owner isolation: owner id comes only from the verified session; every owner query is scoped
-  through `unit_ownerships` by one helper (Phase 1), with an integration suite proving owner A
-  gets 404 on owner B's data.
+  through `unit_ownerships` by one helper, with an integration suite proving owner A gets 404 on
+  owner B's data. Access tokens are also checked against the session row (60 s per-isolate cache),
+  so "sign out other devices", "disable owner" and "deactivate staff" bite within a minute.
 - Firebase project must have **SMS region policy restricted to the UAE** and a **billing budget
   alert**, to limit SMS abuse. Use test phone numbers for development and the reviewer account.
 - TOTP lockout: 5 failures lock for 15 minutes (`staff_users.totp_failures`, `totp_locked_until`).
@@ -268,11 +279,12 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Money as `number` fils in code, `bigint` in Postgres.** Safe to 2^53 fils; avoids BigInt JSON
   pain in two apps. Share maths uses BigInt to avoid intermediate overflow.
 - **UUID v7 generated in code**, not in the database (no native `uuidv7()` on Postgres 17).
-- **PGlite for the db package tests** so migrations and the seed are verified without Docker.
-  API integration tests (Phase 1) run on Docker Postgres locally and the Postgres service in CI.
+- **PGlite for the db package tests and the API integration tests** so migrations, the seed and
+  every endpoint are verified in-process, without Docker or a database service in CI.
 - **Node `pg` driver locally, Neon drivers in the Worker.** Same Drizzle schema and types; the
   service layer never sees the driver.
-- **Firebase emulator runs in Docker** (it needs Java) so the only local prerequisite is Docker.
+- **Firebase emulator runs natively** (`firebase-tools` + a JDK) from `tooling/dev/start.mjs`;
+  the Docker compose file remains for machines that prefer it.
 - **Dispute case numbers** `D-YYYY-NNNN` from a per-year counter table, assigned in the service.
 - **Attachments** also carry `file_name` (not in the brief) so downloads keep their original name.
 - **`rate_limits` and `dispute_counters` tables** added beyond the brief's list; both are needed
@@ -293,15 +305,20 @@ Nothing here blocks local development; all of it is for deployed environments or
    append-only grants on `audit_log` and `cheque_events` (verified: the console role could delete
    audit rows, the SQL role gets "permission denied"). Connection strings live only in
    `.local/neon.env` on the dev machine and in the Worker secret `DATABASE_URL`.
-3. **Firebase**: create the project, enable Phone and Email/Password sign-in, add the test phone
-   numbers from "Demo accounts", restrict the SMS region policy to the UAE, set a billing budget
-   alert. Download the iOS/Android config files for the app (Phase 1).
+3. **Firebase**: done (project `vamar-owner-portal-c55c2`): Phone and Email/Password sign-in,
+   the test phone numbers from "Demo accounts" with code 123456, SMS region policy restricted to
+   the UAE, self sign-up disabled, the Android app and the web app registered. Still to do in the
+   console (BLOCKED.md): restrict the web API key to the Worker host and add that host to the
+   authorised domains before the owner web app at `/app` ships. The Android config file is an EAS
+   secret (`GOOGLE_SERVICES_JSON`); a demo copy serves the emulator build.
 4. **Cloudflare**: done on 9 Oct 2026. Worker `vamar-owner-portal` (account
    `d79f7d201117913b244dfa7dad50ba26`) serves the dashboard and the API at
    https://vamar-owner-portal.vamar-api.workers.dev with the daily cron; R2 buckets `vamar-files`
    (attachments) and `vamar-backups` (nightly dumps). Secrets set: `DATABASE_URL` (the
    `vamar_app` Neon URL), `JWT_SECRET`, `TOTP_ENC_KEY`. Deploy with
-   `pnpm --filter @vamar/dashboard build && cd apps/api && npx wrangler deploy --var APP_ENV:production`.
+   `pnpm --filter @vamar/dashboard build && cd apps/api && npx wrangler deploy` (`APP_ENV` is
+   `production` in `wrangler.jsonc`; the Worker refuses to serve when a secret is missing or a
+   development placeholder is set).
    Static files get their security headers from `apps/dashboard/public/_headers` (the asset layer
    does not run the Worker). Still to set: `FIREBASE_PROJECT_ID` once the real Firebase project
    exists (`--var` or wrangler.jsonc).

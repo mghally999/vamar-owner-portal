@@ -1,9 +1,8 @@
 /**
- * Typed API client. `hc<AppType>` gives end-to-end types from the Hono routes. The access
- * token lives in memory only; on a 401 we try one cookie refresh and replay the request.
+ * API client. The access token lives in memory only; on a 401 we try one cookie refresh and
+ * replay the request. Response shapes are typed in `./types`; the dashboard does not import the
+ * API package.
  */
-import { hc } from 'hono/client';
-import type { AppType } from '@vamar/api';
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: unknown };
@@ -123,10 +122,8 @@ const authFetch: typeof fetch = async (input, init) => {
   return res;
 };
 
-export const api = hc<AppType>(BASE, { fetch: authFetch });
-
-/** Unwrap a Hono client response: JSON on success, ApiRequestError otherwise. */
-export async function unwrap<T>(res: Response): Promise<T> {
+/** JSON on success, ApiRequestError otherwise. */
+async function unwrap<T>(res: Response): Promise<T> {
   if (res.ok) return await res.json();
   let body: ApiErrorBody | null = null;
   try {

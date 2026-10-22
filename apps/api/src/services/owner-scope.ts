@@ -44,20 +44,3 @@ export function chequeInOwnerScope(db: Dbx, ownerId: string) {
 export function disputeInOwnerScope(db: Dbx, ownerId: string) {
   return inArray(disputes.unitId, ownerUnitsSubquery(db, ownerId));
 }
-
-/** Current share (bp) of this owner in a unit, or null when they hold none. */
-export async function ownerShareInUnit(
-  db: Dbx,
-  ownerId: string,
-  unitId: string,
-): Promise<number | null> {
-  const row = await db.query.unitOwnerships.findFirst({
-    where: and(
-      eq(unitOwnerships.ownerId, ownerId),
-      eq(unitOwnerships.unitId, unitId),
-      isNull(unitOwnerships.toDate),
-    ),
-    columns: { shareBp: true },
-  });
-  return row?.shareBp ?? null;
-}

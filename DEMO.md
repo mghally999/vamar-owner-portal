@@ -63,8 +63,9 @@ registered, contact Vamar" screen.
 
 ## 5-minute click-through
 
-1. **Dashboard sign-in** as `admin@vamar.test`: password, then the authenticator code. Point out
-   the two steps, nothing stored in the browser, the session ends after 12 hours.
+1. **Dashboard sign-in** as `admin@vamar.test`: password, then the authenticator code (the two
+   demo accounts skip the code during the trial, see above). Point out the two steps, nothing
+   stored in the browser, the session ends after 12 hours.
 2. **Overview**: the hero number is this month's expected rent, with cleared / pending / bounced
    under it. Below: bounced cheques needing action, cheques due in 7 days, contracts ending
    within 60 days with a one-click **Renew**.
