@@ -10,7 +10,16 @@
     "directory": "../dashboard/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/privacy", "/healthz", "/readyz", "/download", "/download/*"],
+    "run_worker_first": [
+      "/api/*",
+      "/privacy",
+      "/healthz",
+      "/readyz",
+      "/download",
+      "/download/*",
+      "/app",
+      "/app/*",
+    ],
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "vamar-files" }],
   // One cron: daily alerts at 08:00 Dubai (04:00 UTC).

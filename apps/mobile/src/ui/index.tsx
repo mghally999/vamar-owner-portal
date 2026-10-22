@@ -4,6 +4,7 @@
  * numerals on every number, status chips always paired with a label, skeletons instead of spinners.
  */
 import {
+  Platform,
   Pressable,
   StyleSheet,
   Text as RNText,
@@ -70,13 +71,14 @@ export function Text({
           fontSize: size.size,
           lineHeight: size.lineHeight,
           color: colorValue,
-          textAlign: 'left',
           writingDirection: 'auto',
           // Android measures shaped Arabic a few pixels narrower than it draws it and clips the
           // last glyphs; no font padding plus a 2 px end padding keeps the last word intact.
           includeFontPadding: false,
           paddingEnd: 2,
         },
+        // Native: 'left' is the reading start under I18nManager. Web: CSS direction decides.
+        Platform.OS === 'web' ? null : { textAlign: 'left' as const },
         tnum ? { fontVariant: ['tabular-nums'] } : null,
         style,
       ]}

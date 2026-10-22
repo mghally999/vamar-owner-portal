@@ -4,6 +4,7 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import * as Application from 'expo-application';
+import { Platform } from 'react-native';
 import { API_BASE } from './api';
 import { updateStateFor, type UpdateState, type VersionInfo } from './semver';
 
@@ -17,6 +18,8 @@ export function installedVersion(): string {
 export function useUpdateState(): UpdateState {
   const q = useQuery({
     queryKey: ['app-version'],
+    // The web app is always the deployed version; only installed apps can be out of date.
+    enabled: Platform.OS !== 'web',
     queryFn: async () => {
       const res = await fetch(`${API_BASE}/api/app/version`);
       if (!res.ok) throw new Error(`version check ${res.status}`);

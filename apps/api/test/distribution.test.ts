@@ -59,3 +59,37 @@ describe('app version', () => {
     expect(r.body.apkUrl).toBe('http://test/download/vamar-owner-app.apk');
   });
 });
+
+describe('owner web app at /app', () => {
+  it('serves files as they are and the app shell for in-app routes, with a reCAPTCHA-only CSP', async () => {
+    const seen: string[] = [];
+    const assets = {
+      fetch: (input: Request | string) => {
+        const url = new URL(typeof input === 'string' ? input : input.url);
+        seen.push(url.pathname);
+        return Promise.resolve(new Response(`asset ${url.pathname}`, { status: 200 }));
+      },
+    } as unknown as Fetcher;
+    const env = { ...w.env, ASSETS: assets };
+    const { app } = await import('../src/app.js');
+
+    const redirect = await app.request('http://test/app', {}, env, w.ctx);
+    expect(redirect.status).toBe(301);
+    expect(redirect.headers.get('location')).toBe('/app/');
+
+    const route = await app.request('http://test/app/cheque/123', {}, env, w.ctx);
+    expect(await route.text()).toBe('asset /app/index.html');
+    expect(route.headers.get('cache-control')).toBe('no-cache');
+    const csp = route.headers.get('content-security-policy') ?? '';
+    expect(csp).toContain('https://www.google.com/recaptcha/');
+    expect(csp).toContain("frame-ancestors 'none'");
+
+    const file = await app.request('http://test/app/manifest.json', {}, env, w.ctx);
+    expect(await file.text()).toBe('asset /app/manifest.json');
+    expect(seen).toEqual(['/app/index.html', '/app/manifest.json']);
+
+    // The dashboard keeps the strict policy without third-party scripts.
+    const api = await w.request('/api/owner/me');
+    expect(api.headers.get('content-security-policy')).not.toContain('recaptcha');
+  });
+});

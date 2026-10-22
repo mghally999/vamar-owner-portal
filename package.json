@@ -30,7 +30,8 @@
     "db:studio": "pnpm --filter @vamar/db studio",
     "dev:docker": "docker compose up -d --wait postgres firebase && turbo run dev",
     "coverage": "turbo run coverage",
-    "budget": "node tooling/ci/bundle-budget.mjs"
+    "budget": "node tooling/ci/bundle-budget.mjs",
+    "build:web": "pnpm --filter @vamar/dashboard build && node tooling/dev/build-web-app.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

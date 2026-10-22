@@ -9,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { I18nManager } from 'react-native';
+import { I18nManager, Platform } from 'react-native';
 import {
   formatAmount,
   formatDate,
@@ -42,6 +42,18 @@ function deviceDefault(): Lang {
   return first?.languageCode === 'en' ? 'en' : 'ar';
 }
 
+/**
+ * On the web the layout direction is the page's `dir` attribute (CSS), not React Native's RTL
+ * flag, which never changes there; reloading to flip it would loop.
+ */
+function applyWebDirection(l: Lang): void {
+  const el = (globalThis as { document?: { documentElement: { dir: string; lang: string } } })
+    .document?.documentElement;
+  if (!el) return;
+  el.dir = l === 'ar' ? 'rtl' : 'ltr';
+  el.lang = l;
+}
+
 export function LangProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<Lang>('ar');
   const [ready, setReady] = useState(false);
@@ -52,7 +64,9 @@ export function LangProvider({ children }: { children: ReactNode }) {
       const l: Lang = saved === 'en' || saved === 'ar' ? saved : deviceDefault();
       setLang(l);
       const rtl = l === 'ar';
-      if (I18nManager.isRTL !== rtl) {
+      if (Platform.OS === 'web') {
+        applyWebDirection(l);
+      } else if (I18nManager.isRTL !== rtl) {
         // React Native applies the layout direction on the next launch, so the very first
         // start in Arabic flips the flag and reloads once instead of showing an LTR screen.
         I18nManager.allowRTL(rtl);
@@ -70,6 +84,11 @@ export function LangProvider({ children }: { children: ReactNode }) {
 
   const switchLang = useCallback(async (l: Lang) => {
     await setItem('lang', l);
+    if (Platform.OS === 'web') {
+      applyWebDirection(l);
+      setLang(l);
+      return;
+    }
     const rtl = l === 'ar';
     I18nManager.allowRTL(rtl);
     I18nManager.forceRTL(rtl);

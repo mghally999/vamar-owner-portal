@@ -4,7 +4,7 @@ import { HTTPException } from 'hono/http-exception';
 import { createMiddleware } from 'hono/factory';
 import { routePath } from 'hono/route';
 import { secureHeaders } from 'hono/secure-headers';
-import { cspConnectSrc, isDeployed } from './config.js';
+import { cspConnectSrc, isDeployed, RECAPTCHA_FRAME_SRC, RECAPTCHA_SCRIPT_SRC } from './config.js';
 import type { AppEnv } from './env.js';
 import { ApiError } from './errors.js';
 import { authOwnerRoutes } from './routes/auth-owner.js';
@@ -53,18 +53,34 @@ export const app = new Hono<AppEnv>()
         referrerPolicy: 'strict-origin-when-cross-origin',
         xContentTypeOptions: 'nosniff',
         permissionsPolicy: { camera: [], microphone: [], geolocation: [] },
-        contentSecurityPolicy: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'blob:'],
-          fontSrc: ["'self'", 'data:'],
-          connectSrc: cspConnectSrc(c.env),
-          frameAncestors: ["'none'"],
-          baseUri: ["'self'"],
-          formAction: ["'self'"],
-          objectSrc: ["'none'"],
-        },
+        contentSecurityPolicy: c.req.path.startsWith('/app')
+          ? {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'", ...RECAPTCHA_SCRIPT_SRC],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'blob:', 'https://www.gstatic.com'],
+              fontSrc: ["'self'", 'data:'],
+              connectSrc: [...cspConnectSrc(c.env), 'https://www.google.com'],
+              frameSrc: RECAPTCHA_FRAME_SRC,
+              workerSrc: ["'self'"],
+              manifestSrc: ["'self'"],
+              frameAncestors: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              objectSrc: ["'none'"],
+            }
+          : {
+              defaultSrc: ["'self'"],
+              scriptSrc: ["'self'"],
+              styleSrc: ["'self'", "'unsafe-inline'"],
+              imgSrc: ["'self'", 'data:', 'blob:'],
+              fontSrc: ["'self'", 'data:'],
+              connectSrc: cspConnectSrc(c.env),
+              frameAncestors: ["'none'"],
+              baseUri: ["'self'"],
+              formAction: ["'self'"],
+              objectSrc: ["'none'"],
+            },
       })(c, next),
     ),
   )
@@ -101,6 +117,35 @@ export const app = new Hono<AppEnv>()
     }
   })
   .get('/privacy', (c) => c.html(privacyPage()))
+  /**
+   * The owner web app, exported by Expo into the dashboard's dist/app. Files are served as they
+   * are; any other /app path is an in-app route and gets the app's own index.html.
+   */
+  .get('/app', (c) => c.redirect('/app/', 301))
+  .get('/app/*', async (c) => {
+    if (!c.env.ASSETS) return c.notFound();
+    const url = new URL(c.req.url);
+    const isFile = /\.[a-z0-9]+$/i.test(url.pathname);
+    const res = await c.env.ASSETS.fetch(
+      isFile
+        ? c.req.raw
+        : new Request(new URL('/app/index.html', url).toString(), {
+            method: 'GET',
+            headers: c.req.raw.headers,
+          }),
+    );
+    // The asset layer answers a missing file with the dashboard's index.html; a missing app file
+    // (an old bundle after a deploy) must be a 404, never HTML served as a script.
+    if (
+      isFile &&
+      !url.pathname.endsWith('.html') &&
+      res.headers.get('content-type')?.startsWith('text/html')
+    )
+      return c.text('Not found', 404);
+    const out = new Response(res.body, res);
+    if (!isFile) out.headers.set('cache-control', 'no-cache');
+    return out;
+  })
   /** One link for owners: the right install option for the phone that opens it. */
   .get('/download', (c) =>
     c.html(

@@ -81,6 +81,21 @@ export function validateEnv(env: Partial<Bindings>): string[] {
  * Content-Security-Policy `connect-src` for the Worker's own responses. The emulator hosts are
  * only ever needed outside production.
  */
+/**
+ * The owner web app (/app) signs in with Firebase phone auth, which needs Google's invisible
+ * reCAPTCHA (a script and an iframe). Everything else stays as strict as the dashboard.
+ */
+export const RECAPTCHA_SCRIPT_SRC = [
+  'https://www.google.com/recaptcha/',
+  'https://www.gstatic.com/recaptcha/',
+  'https://apis.google.com',
+];
+export const RECAPTCHA_FRAME_SRC = [
+  'https://www.google.com/recaptcha/',
+  'https://recaptcha.google.com/recaptcha/',
+  'https://*.firebaseapp.com',
+];
+
 export function cspConnectSrc(env: Pick<Bindings, 'APP_ENV'>): string[] {
   const list = ["'self'", 'https://*.googleapis.com', 'https://*.firebaseapp.com'];
   if (!isDeployed(env)) list.push('http://127.0.0.1:9099', 'http://localhost:9099');

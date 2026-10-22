@@ -2,6 +2,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import { Platform, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
@@ -60,7 +61,7 @@ export default function RootLayout() {
 function Root() {
   const t = useTheme();
   const auth = useAuth();
-  const { ready } = useI18n();
+  const { ready, isRTL } = useI18n();
   const themeChoice = useThemeChoice();
   const update = useUpdateState();
   const [fontsLoaded, fontError] = useFonts({
@@ -90,7 +91,10 @@ function Root() {
   if (!booted) return null;
 
   return (
-    <>
+    // On the web, direction is a CSS property inherited down the tree; native uses I18nManager.
+    <View
+      style={[{ flex: 1 }, Platform.OS === 'web' ? { direction: isRTL ? 'rtl' : 'ltr' } : null]}
+    >
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colors.bg } }}>
         <Stack.Protected guard={auth.stage === 'authenticated'}>
@@ -138,6 +142,6 @@ function Root() {
       </Stack>
       {auth.stage === 'authenticated' && auth.locked ? <LockScreen /> : null}
       {update.kind === 'required' ? <UpdateRequired state={update} /> : null}
-    </>
+    </View>
   );
 }

@@ -16,7 +16,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   orientation: 'portrait',
   icon: `${brand}/app-icon-1024.png`,
   userInterfaceStyle: 'automatic',
-  primaryColor: '#162842',
+  primaryColor: '#25323a',
   ios: {
     bundleIdentifier: 'ae.vamar.owner',
     supportsTablet: false,
@@ -27,6 +27,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       CFBundleAllowMixedLocalizations: true,
     },
   },
+  // The owner web app served at /app (iPhone: Safari > Share > Add to Home Screen).
+  web: {
+    bundler: 'metro',
+    output: 'single',
+    favicon: `${brand}/favicon-512.png`,
+    name: 'فامار للملاك',
+    shortName: 'فامار',
+    lang: 'ar',
+    themeColor: '#25323a',
+    backgroundColor: '#ffffff',
+  },
+  experiments: { baseUrl: '/app' },
   android: {
     package: 'ae.vamar.owner',
     googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './firebase/google-services.json',

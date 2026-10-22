@@ -1,0 +1,23 @@
+{
+  "name": "فامار للملاك · Vamar Owners",
+  "short_name": "فامار",
+  "description": "شيكاتك ووحداتك ومنازعاتك مع فامار للعقارات",
+  "lang": "ar",
+  "dir": "rtl",
+  "start_url": "/app/",
+  "scope": "/app/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#25323a",
+  "icons": [
+    { "src": "/app/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    {
+      "src": "/app/icons/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    { "src": "/app/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}
