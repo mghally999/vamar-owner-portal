@@ -19,7 +19,7 @@
     "FIREBASE_PROJECT_ID": "vamar-owner-portal-c55c2",
     // Comma-separated ISO country codes whose phone numbers may sign in as owners.
     "ALLOWED_PHONE_COUNTRIES": "AE",
-    "APP_LATEST_VERSION": "1.1.0",
+    "APP_LATEST_VERSION": "1.0.0",
     "APP_MIN_VERSION": "1.0.0",
     // The deployed Worker is production; the dev server (apps/api/src/dev-server.ts) sets its own
     // bindings and the test harness uses "test". index.ts refuses to serve when secrets are missing.
@@ -36,7 +36,7 @@
       "vars": {
         "FIREBASE_PROJECT_ID": "vamar-owner-portal-c55c2",
         "ALLOWED_PHONE_COUNTRIES": "AE",
-        "APP_LATEST_VERSION": "1.1.0",
+        "APP_LATEST_VERSION": "1.0.0",
         "APP_MIN_VERSION": "1.0.0",
         "APP_ENV": "staging",
       },
