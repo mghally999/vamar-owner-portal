@@ -13,6 +13,7 @@ const KEYS = {
   lang: 'vamar.lang',
   biometrics: 'vamar.biometrics',
   notifications: 'vamar.notifications',
+  pushState: 'vamar.pushState',
   owner: 'vamar.owner',
 } as const;
 

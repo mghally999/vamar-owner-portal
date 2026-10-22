@@ -7,19 +7,38 @@ import { fileURLToPath } from 'node:url';
 // Secrets enrolled during a run are kept in a gitignored file so a replacement worker (Playwright
 // starts a new one after a failure) can still sign in without re-enrolling.
 const SECRETS_FILE = join(dirname(fileURLToPath(import.meta.url)), '.totp-secrets.json');
-function readSecrets(): Record<string, string> {
+const STEPS_FILE = join(dirname(fileURLToPath(import.meta.url)), '.totp-steps.json');
+const TOTP_PERIOD_MS = 30_000;
+function readJson(file: string): Record<string, string | number> {
   try {
-    return existsSync(SECRETS_FILE)
-      ? (JSON.parse(readFileSync(SECRETS_FILE, 'utf8')) as Record<string, string>)
+    return existsSync(file)
+      ? (JSON.parse(readFileSync(file, 'utf8')) as Record<string, string | number>)
       : {};
   } catch {
     return {};
   }
 }
+function readSecrets(): Record<string, string> {
+  return readJson(SECRETS_FILE) as Record<string, string>;
+}
 function saveSecret(who: string, secret: string) {
   const all = { ...readSecrets(), [who]: secret };
   mkdirSync(dirname(SECRETS_FILE), { recursive: true });
   writeFileSync(SECRETS_FILE, JSON.stringify(all));
+}
+/**
+ * The API accepts each TOTP code once. Tests sign the same user in several times a minute, so the
+ * step of the last code used is remembered and the next sign-in waits for a fresh step.
+ */
+async function nextUnusedStep(who: string): Promise<void> {
+  const used = Number(readJson(STEPS_FILE)[who] ?? -1);
+  const step = Math.floor(Date.now() / TOTP_PERIOD_MS);
+  if (step <= used) {
+    const wait = (used + 1) * TOTP_PERIOD_MS - Date.now() + 500;
+    await new Promise((r) => setTimeout(r, wait));
+  }
+  const all = { ...readJson(STEPS_FILE), [who]: Math.floor(Date.now() / TOTP_PERIOD_MS) };
+  writeFileSync(STEPS_FILE, JSON.stringify(all));
 }
 
 export const STAFF = {
@@ -76,6 +95,7 @@ export async function login(page: Page, who: keyof typeof STAFF, lang: 'ar' | 'e
     throw new Error(
       `No TOTP secret for ${who}; reset the authenticator for this user and run again`,
     );
+  await nextUnusedStep(who);
   await codeInput.fill(codeFromSecret(secret));
   await page.getByRole('button', { name: /تحقق|Verify/ }).click();
   await page.waitForURL((u) => !u.pathname.startsWith('/login'), { timeout: 15_000 });

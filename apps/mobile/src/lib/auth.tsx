@@ -83,12 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : false;
         setBiometricsAvailable(hasHw && enrolled);
         setBiometricsEnabled(bio === '1');
-        const token = await withTimeout(refreshSession(), null);
-        if (token) {
+        const r = await withTimeout(refreshSession(), null);
+        // A refused refresh ends the session; no connection keeps the owner signed in with what
+        // was shown last (the offline banner explains), and the next request refreshes again.
+        const keep =
+          r?.ok === true || (r?.ok === false && r.reason === 'transient' && !!savedOwner);
+        if (keep) {
           if (savedOwner) setOwner(JSON.parse(savedOwner) as AuthState['owner']);
           setStage('authenticated');
           setLocked(bio === '1');
-          void registerForPush();
+          if (r.ok) void registerForPush();
         } else setStage('anonymous');
       } catch (e) {
         if (__DEV__) console.warn('[auth] bootstrap failed', e);

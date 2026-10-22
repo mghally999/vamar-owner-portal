@@ -19,7 +19,8 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev"
+        "EXPO_PUBLIC_API_BASE": "https://vamar-owner-portal.vamar-api.workers.dev",
+        "ORG_GRADLE_PROJECT_reactNativeArchitectures": "arm64-v8a"
       },
       "android": {
         "buildType": "apk"

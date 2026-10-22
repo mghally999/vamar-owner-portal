@@ -64,7 +64,9 @@ export function useUnits(buildingId?: string) {
   return useQuery({
     queryKey: ['units', buildingId ?? ''],
     queryFn: () =>
-      request<{ items: UnitItem[] }>(`/api/owner/units${qs({ buildingId })}`).then((r) => r.items),
+      request<{ items: UnitItem[]; truncated?: boolean }>(
+        `/api/owner/units${qs({ buildingId })}`,
+      ).then((r) => ({ items: r.items, truncated: r.truncated === true })),
   });
 }
 
@@ -76,9 +78,12 @@ export function useUnit(id: string) {
 }
 
 export function useDisputes() {
-  return useQuery({
+  return useInfiniteQuery({
     queryKey: ['disputes'],
-    queryFn: () => request<{ items: DisputeItem[] }>('/api/owner/disputes').then((r) => r.items),
+    queryFn: ({ pageParam }) =>
+      request<Page<DisputeItem>>(`/api/owner/disputes${qs({ cursor: pageParam, limit: 50 })}`),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 }
 

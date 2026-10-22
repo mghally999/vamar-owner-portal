@@ -71,7 +71,18 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     ],
     '@react-native-firebase/app',
     '@react-native-firebase/auth',
-    ['expo-build-properties', { ios: { useFrameworks: 'static' }, android: { minSdkVersion: 24 } }],
+    [
+      'expo-build-properties',
+      {
+        ios: { useFrameworks: 'static' },
+        android: {
+          minSdkVersion: 24,
+          // Release builds strip unused code and resources (the direct-download APK was 114 MB).
+          enableProguardInReleaseBuilds: true,
+          enableShrinkResourcesInReleaseBuilds: true,
+        },
+      },
+    ],
     './plugins/withAndroidLocales.js',
   ],
   locales: {

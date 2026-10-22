@@ -1,5 +1,6 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
+import { sharePct } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useUnit } from '@/lib/queries';
@@ -39,7 +40,7 @@ export default function UnitDetailScreen() {
                 : u.vacantSince
                   ? tr('unit_vacantSince', { date: date(u.vacantSince) })
                   : tr('unit_neverRented')}
-              {u.shareBp < 10_000 ? ` · ${tr('unit_share', { pct: u.shareBp / 100 })}` : ''}
+              {u.shareBp < 10_000 ? ` · ${tr('unit_share', { pct: sharePct(u.shareBp) })}` : ''}
             </Text>
             {u.occupied ? (
               <Row style={{ gap: 12, marginTop: 8 }}>

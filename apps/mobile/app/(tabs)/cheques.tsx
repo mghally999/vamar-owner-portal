@@ -2,7 +2,13 @@ import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { CHEQUE_STATUSES, todayInDubai, type ChequeStatus, type PlainDate } from '@vamar/shared';
+import {
+  CHEQUE_STATUSES,
+  todayInDubai,
+  type ChequeStatus,
+  type PlainDate,
+  sharePct,
+} from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useBuildings, useCheques } from '@/lib/queries';
@@ -169,7 +175,7 @@ export default function ChequesScreen() {
                       </Text>
                       {item.cheque.shared ? (
                         <Text variant="caption" color="faint" tnum>
-                          {tr('cheque_yourShare', { pct: item.cheque.shareBp / 100 })}
+                          {tr('cheque_yourShare', { pct: sharePct(item.cheque.shareBp) })}
                         </Text>
                       ) : null}
                     </Row>

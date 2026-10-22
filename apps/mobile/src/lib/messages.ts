@@ -88,6 +88,13 @@ const en = {
 
   settings_language: 'Language',
   settings_notifications: 'Notifications',
+  settings_push_off: 'Switched off.',
+  settings_push_denied: 'Allow notifications for Vamar in the phone settings to receive alerts.',
+  settings_push_unsupported: 'Not available on this device.',
+  settings_push_failed:
+    'Could not register this phone yet. It will be retried on the next sign-in.',
+  offline_banner: 'No connection. Showing the last data received.',
+  props_truncated: 'Showing the first 200 units. Open a building to see the rest.',
   settings_biometrics: 'Face ID / fingerprint lock',
   settings_devices: 'Signed-in devices',
   settings_devices_body: 'Sign out of every other device.',
@@ -206,6 +213,12 @@ const ar: Record<MessageKey, string> = {
 
   settings_language: 'اللغة',
   settings_notifications: 'الإشعارات',
+  settings_push_off: 'متوقفة.',
+  settings_push_denied: 'اسمح بالإشعارات لتطبيق فامار من إعدادات الهاتف لتصلك التنبيهات.',
+  settings_push_unsupported: 'غير متاحة على هذا الجهاز.',
+  settings_push_failed: 'لم نتمكن من تسجيل هذا الهاتف بعد. ستتم المحاولة عند الدخول التالي.',
+  offline_banner: 'لا يوجد اتصال. تظهر آخر بيانات تم استلامها.',
+  props_truncated: 'تظهر أول 200 وحدة. افتح المبنى لرؤية الباقي.',
   settings_biometrics: 'قفل بالوجه أو البصمة',
   settings_devices: 'الأجهزة المسجّلة',
   settings_devices_body: 'تسجيل الخروج من كل الأجهزة الأخرى.',

@@ -1,4 +1,5 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
+import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -13,8 +14,27 @@ import { LockScreen } from '@/screens/lock';
 
 void SplashScreen.preventAutoHideAsync();
 
+// Queries pause while the phone is offline and resume on reconnect; what was fetched last stays
+// on screen in the meantime (see OfflineBanner).
+onlineManager.setEventListener((setOnline) =>
+  NetInfo.addEventListener((state) => {
+    setOnline(state.isConnected !== false);
+  }),
+);
+
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, gcTime: 10 * 60_000, retry: 1 } },
+  defaultOptions: {
+    queries: {
+      staleTime: 30_000,
+      gcTime: 24 * 60 * 60_000,
+      retry: (failureCount, error) => {
+        if (failureCount >= 2) return false;
+        const status = (error as { status?: number }).status ?? 0;
+        return status === 0 || status >= 500;
+      },
+      networkMode: 'offlineFirst',
+    },
+  },
 });
 
 export default function RootLayout() {

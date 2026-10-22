@@ -1,6 +1,8 @@
 /**
  * API client for the owner app. Access token in memory, refresh token in SecureStore, one
- * refresh attempt on 401 then sign-out. Base URL from EXPO_PUBLIC_API_BASE.
+ * refresh attempt on 401. Only a refused refresh (401/403: revoked device, disabled owner) signs
+ * the owner out; a server error or a dead connection keeps the session and the caller retries.
+ * Base URL from EXPO_PUBLIC_API_BASE.
  */
 import { Platform } from 'react-native';
 import { deviceId, getItem, setItem } from './storage';
@@ -22,8 +24,12 @@ export class ApiRequestError extends Error {
 }
 
 let accessToken: string | null = null;
-let refreshing: Promise<string | null> | null = null;
+let refreshing: Promise<RefreshOutcome> | null = null;
 let onSessionLost: (() => void) | null = null;
+
+export type RefreshOutcome =
+  | { ok: true; token: string }
+  | { ok: false; reason: 'no_session' | 'unauthenticated' | 'transient' };
 
 export function setAccessToken(t: string | null) {
   accessToken = t;
@@ -41,26 +47,27 @@ export interface TokenPair {
   refreshExpiresAt: string;
 }
 
-export async function refreshSession(): Promise<string | null> {
-  refreshing ??= (async () => {
+export async function refreshSession(): Promise<RefreshOutcome> {
+  refreshing ??= (async (): Promise<RefreshOutcome> => {
     try {
       const refreshToken = await getItem('refreshToken');
-      if (!refreshToken) return null;
+      if (!refreshToken) return { ok: false, reason: 'no_session' };
       const res = await fetch(`${API_BASE}/api/auth/owner/refresh`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ refreshToken, deviceId: await deviceId() }),
       });
-      if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
         await setItem('refreshToken', null);
-        return null;
+        return { ok: false, reason: 'unauthenticated' };
       }
+      if (!res.ok) return { ok: false, reason: 'transient' };
       const body = (await res.json()) as TokenPair;
       accessToken = body.accessToken;
       await setItem('refreshToken', body.refreshToken);
-      return body.accessToken;
+      return { ok: true, token: body.accessToken };
     } catch {
-      return null;
+      return { ok: false, reason: 'transient' };
     } finally {
       refreshing = null;
     }
@@ -79,8 +86,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
   let res = await run(accessToken);
   if (res.status === 401 && accessToken) {
     const next = await refreshSession();
-    if (next) res = await run(next);
-    else onSessionLost?.();
+    if (next.ok) res = await run(next.token);
+    else if (next.reason !== 'transient') onSessionLost?.();
   }
   if (res.ok) return (await res.json()) as T;
   let code = 'http_error';
@@ -109,21 +116,7 @@ export function qs(params: Record<string, string | number | boolean | undefined 
   return s ? `?${s}` : '';
 }
 
-/** Authenticated binary fetch (cheque images, attachments) as a data URL for <Image>. */
-export async function fetchImageDataUrl(path: string): Promise<string | null> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { authorization: `Bearer ${accessToken ?? ''}` },
-  });
-  if (!res.ok) return null;
-  const blob = await res.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      resolve(typeof reader.result === 'string' ? reader.result : null);
-    };
-    reader.onerror = () => {
-      resolve(null);
-    };
-    reader.readAsDataURL(blob);
-  });
+/** Headers for authenticated images rendered by expo-image (cached on disk by URL). */
+export function authHeaders(): Record<string, string> {
+  return accessToken ? { authorization: `Bearer ${accessToken}` } : {};
 }

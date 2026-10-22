@@ -1,7 +1,8 @@
 import { useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Image, ScrollView, View } from 'react-native';
-import { fetchImageDataUrl } from '@/lib/api';
+import { Image } from 'expo-image';
+import { ScrollView, View } from 'react-native';
+import { sharePct } from '@vamar/shared';
+import { API_BASE, authHeaders } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useCheque } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -25,11 +26,6 @@ export default function ChequeDetailScreen() {
   const { t: tr, pick, date } = useI18n();
   const q = useCheque(id);
   const c = q.data;
-  const [image, setImage] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (c?.hasImage) void fetchImageDataUrl(`/api/owner/cheques/${c.id}/image`).then(setImage);
-  }, [c?.hasImage, c?.id]);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
 
@@ -37,7 +33,7 @@ export default function ChequeDetailScreen() {
     <ScrollView contentContainerStyle={layout.screen}>
       <View style={{ gap: 6, paddingVertical: 8 }}>
         <Text variant="caption" weight="medium" color="soft">
-          {c?.shared ? tr('cheque_yourShare', { pct: c.shareBp / 100 }) : tr('cheque_detail')}
+          {c?.shared ? tr('cheque_yourShare', { pct: sharePct(c.shareBp) }) : tr('cheque_detail')}
         </Text>
         {c ? (
           <Money fils={c.amountFils} variant="hero" weight="semibold" color="primary" />
@@ -127,16 +123,15 @@ export default function ChequeDetailScreen() {
       {c?.hasImage ? (
         <View>
           <SectionTitle>{tr('cheque_image')}</SectionTitle>
-          {image ? (
-            <Image
-              source={{ uri: image }}
-              accessibilityLabel={tr('cheque_image')}
-              style={{ width: '100%', aspectRatio: 2.2, borderRadius: t.radius.md }}
-              resizeMode="contain"
-            />
-          ) : (
-            <Skeleton height={160} radius={12} />
-          )}
+          <Image
+            source={{ uri: `${API_BASE}/api/owner/cheques/${c.id}/image`, headers: authHeaders() }}
+            cachePolicy="memory-disk"
+            accessibilityLabel={tr('cheque_image')}
+            style={{ width: '100%', aspectRatio: 2.2, borderRadius: t.radius.md }}
+            contentFit="contain"
+            placeholder={null}
+            transition={150}
+          />
         </View>
       ) : null}
       <DateText date={null} style={{ display: 'none' }} />

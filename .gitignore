@@ -54,3 +54,4 @@ apps/api/.dev-files/
 # local session notes (never committed)
 .local/
 apps/dashboard/e2e/.totp-secrets.json
+apps/dashboard/e2e/.totp-steps.json

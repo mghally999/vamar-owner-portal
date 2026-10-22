@@ -5,7 +5,7 @@ import { todayInDubai } from '@vamar/shared';
 import { API_BASE, request } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
-import { notificationsEnabled, setNotifications } from '@/lib/push';
+import { lastPushState, notificationsEnabled, setNotifications, type PushState } from '@/lib/push';
 import { useDevices, useRequestDeletion, useRevokeOtherDevices, useSetLang } from '@/lib/queries';
 import { periodLabel, shareStatement } from '@/lib/statement';
 import { useTheme } from '@/lib/theme';
@@ -22,10 +22,12 @@ export default function SettingsScreen() {
   const setLang = useSetLang();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notify, setNotify] = useState(true);
+  const [pushState, setPushState] = useState<PushState | null>(null);
   const [busyStatement, setBusyStatement] = useState<'month' | 'year' | null>(null);
 
   useEffect(() => {
     void notificationsEnabled().then(setNotify);
+    void lastPushState().then(setPushState);
   }, []);
 
   async function statement(kind: 'month' | 'year') {
@@ -80,12 +82,19 @@ export default function SettingsScreen() {
         </Row>
         <Separator />
         <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
-          <Text>{tr('settings_notifications')}</Text>
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text>{tr('settings_notifications')}</Text>
+            {notify && pushState && pushState !== 'registered' ? (
+              <Text variant="caption" color="soft">
+                {tr(`settings_push_${pushState}`)}
+              </Text>
+            ) : null}
+          </View>
           <Switch
             value={notify}
             onValueChange={(v) => {
               setNotify(v);
-              void setNotifications(v);
+              void setNotifications(v).then(setPushState);
             }}
             trackColor={{ true: t.colors.primary, false: t.colors.borderStrong }}
             thumbColor={t.colors.bgElevated}
