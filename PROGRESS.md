@@ -89,3 +89,17 @@ alerts, money and date formatting) with 82 unit tests; design tokens.
 sign-in, the real push notifications and the APK sign-in test are switched on by script.
 
 تم تشغيل تطبيق المالك على محاكي أندرويد ومراجعته شاشةً شاشة باللغتين العربية والإنجليزية وبالوضعين الفاتح والداكن، من تسجيل الدخول برقم الجوال ورسالة الرقم غير المسجل، إلى الشاشة الرئيسية والشيكات بفلاترها وتفاصيل الشيك والعقارات والوحدات والمنازعات والإعدادات، مع إصدار كشف الحساب بصيغة PDF من الهاتف، وتم إصلاح كل ما ظهر من أخطاء في العرض والاتجاه العربي. وتم نشر النسخة الحية للوحة التحكم والخدمة الخلفية على الإنترنت مع قاعدة بيانات حقيقية ونسخة احتياطية ليلية، وتم بناء نسخة أندرويد قابلة للتنزيل برابط ورمز QR لتجربتها على أي هاتف، وتم تجهيز كل ما تطلبه متاجر التطبيقات من نصوص وصور وإجابات الخصوصية، وتم إعداد دليل الاجتماع مع العميل بالكامل.
+
+## Independent audit before hardening (22 Oct 2026)
+
+**Audited.** The whole repository and the live deployment were reviewed as an outside engineer
+would: security against ASVS Level 2, reliability, performance on a synthetic portfolio of 2,000
+owners, 6,000 units, 12,000 contracts and 68,000 cheques, query plans, load tests at 10 to 250
+concurrent users plus a one-IP office scenario, bundle sizes and Lighthouse, mobile measurements,
+code quality scans (secrets history, dependency advisories, dead code, duplication, complexity) and
+a line-by-line check of the brief. The result is `AUDIT.md`: verdict, the ten worst findings, a
+register of 55 defects with file and line evidence, a 17-dimension scorecard (6.1 / 10 today), the
+complexity table, the load-test and query-plan tables and the brief compliance table. No code was
+changed in this step; the fixes start in the next one and are tracked against the register.
+
+تمت مراجعة المشروع بالكامل مراجعةً مستقلة قبل البدء بأي تعديل، من ناحية الأمان والاعتمادية والأداء وجودة الشيفرة ومطابقة ما تم بناؤه لما تم الاتفاق عليه، وتم اختبار النظام على بيانات تجريبية كبيرة تعادل محفظة عقارية ضخمة وعلى أعداد كبيرة من المستخدمين في نفس الوقت، وتم توثيق كل ما ظهر من نقاط ضعف في ملف واحد مع تقدير خطورة كل نقطة وطريقة علاجها، وتم تحديد ترتيب الإصلاحات التي ستبدأ في الخطوة التالية.
