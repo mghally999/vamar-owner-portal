@@ -8,6 +8,7 @@ import {
   attachmentEntityTypeSchema,
   auditReasonSchema,
   bulkChequeStatusChangeSchema,
+  changeOwnerPhoneSchema,
   chequeStatusChangeSchema,
   chequeStatusSchema,
   contractStatusSchema,
@@ -78,6 +79,7 @@ import {
   listOwners,
   setOwnerStatus,
   updateOwner,
+  changeOwnerPhone,
 } from '../services/owners.js';
 import {
   createBuilding,
@@ -154,6 +156,23 @@ export const staffRoutes = new Hono<AppEnv>()
         ),
       ),
     ),
+  )
+  .post(
+    '/owners/:id/phone',
+    admin,
+    idParam,
+    zValidator('json', changeOwnerPhoneSchema),
+    async (c) =>
+      c.json(
+        await withTx(c, (tx) =>
+          changeOwnerPhone(
+            tx,
+            actorFromContext(c, staffOf(c)),
+            c.req.valid('param').id,
+            c.req.valid('json'),
+          ),
+        ),
+      ),
   )
   .post(
     '/owners/:id/status',

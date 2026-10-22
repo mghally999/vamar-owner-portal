@@ -8,6 +8,7 @@ import {
   type ChequeStatus,
   type ChequeStatusChangeInput,
   type PlainDate,
+  MAX_CHEQUE_COUNT,
 } from '@vamar/shared';
 import type { Dbx } from '../db.js';
 import { ApiError, conflict, notFound, validation } from '../errors.js';
@@ -247,7 +248,7 @@ export async function changeChequeStatus(
       .from(cheques)
       .where(eq(cheques.contractId, before.contractId));
     const seq = (maxSeq?.m ?? 0) + 1;
-    if (seq > 12)
+    if (seq > MAX_CHEQUE_COUNT)
       throw conflict(
         'This contract already has 12 cheques; cancel one before adding a replacement',
       );

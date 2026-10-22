@@ -4,8 +4,15 @@
  */
 import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
-import { monthRange, ownerShareAmount, type ChequeStatus, type PlainDate } from '@vamar/shared';
-import { unitNoOrder, type Dbx } from '../db.js';
+import {
+  EXPECTED_CHEQUE_STATUSES,
+  monthRange,
+  ownerShareAmount,
+  PENDING_CHEQUE_STATUSES,
+  type ChequeStatus,
+  type PlainDate,
+} from '@vamar/shared';
+import { statusIn, unitNoOrder, type Dbx } from '../db.js';
 import { notFound } from '../errors.js';
 import {
   chequeInOwnerScope,
@@ -109,9 +116,9 @@ export async function ownerHome(
     ),
     totals as (
       select
-        coalesce(sum(share_fils) filter (where status in ('upcoming','deposited','cleared','bounced')), 0)::bigint as expected,
+        coalesce(sum(share_fils) filter (where ${statusIn(sql`status`, EXPECTED_CHEQUE_STATUSES)}), 0)::bigint as expected,
         coalesce(sum(share_fils) filter (where status = 'cleared'), 0)::bigint as cleared,
-        coalesce(sum(share_fils) filter (where status in ('upcoming','deposited')), 0)::bigint as pending,
+        coalesce(sum(share_fils) filter (where ${statusIn(sql`status`, PENDING_CHEQUE_STATUSES)}), 0)::bigint as pending,
         count(*) filter (where status = 'bounced')::int as bounced_count,
         coalesce(sum(share_fils) filter (where status = 'bounced'), 0)::bigint as bounced
       from month_cheques
@@ -119,11 +126,11 @@ export async function ownerHome(
     next_cheque as (
       select id, due_date, share_fils, unit_no, building_name_ar, building_name_en, tenant_name, status
       from my_cheques
-      where status in ('upcoming','deposited') and due_date >= ${todayDate}
+      where ${statusIn(sql`status`, PENDING_CHEQUE_STATUSES)} and due_date >= ${todayDate}
       order by due_date, id limit 1
     ),
     next_month as (
-      select coalesce(sum(share_fils) filter (where status in ('upcoming','deposited','cleared','bounced')), 0)::bigint as total
+      select coalesce(sum(share_fils) filter (where ${statusIn(sql`status`, EXPECTED_CHEQUE_STATUSES)}), 0)::bigint as total
       from my_cheques where due_date between ${nextRange.start} and ${nextRange.end}
     ),
     occ as (

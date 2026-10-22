@@ -23,3 +23,8 @@ allowBuilds:
 # React Native + CMake on Windows need short, real paths: a flat node_modules like npm.
 # (Expo recommends hoisted for monorepos; pnpm 12 reads this from pnpm-workspace.yaml.)
 nodeLinker: hoisted
+
+# Dependency advisories without an upstream fix in the parents we use (pnpm audit):
+overrides:
+  '@grpc/grpc-js@<1.13.6': '>=1.13.6'
+  'decode-uri-component@<0.5.0': '>=0.5.0'

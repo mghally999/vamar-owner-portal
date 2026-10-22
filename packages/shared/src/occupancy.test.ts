@@ -79,3 +79,14 @@ describe('vacantSince', () => {
     });
   });
 });
+
+describe('occupancyPct', () => {
+  it('is a whole percent and never divides by zero', async () => {
+    const { occupancyPct } = await import('./occupancy.js');
+    expect(occupancyPct(0, 0)).toBe(0);
+    expect(occupancyPct(1, 3)).toBe(33);
+    expect(occupancyPct(2, 3)).toBe(67);
+    expect(occupancyPct(5, 5)).toBe(100);
+    expect(occupancyPct(7, 5)).toBe(100);
+  });
+});

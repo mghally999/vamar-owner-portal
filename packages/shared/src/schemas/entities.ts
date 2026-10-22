@@ -36,7 +36,14 @@ export const createOwnerSchema = z.object({
 });
 export type CreateOwnerInput = z.infer<typeof createOwnerSchema>;
 
-export const updateOwnerSchema = createOwnerSchema.partial();
+/** The phone is the owner's login identity; it changes only through the dedicated admin action. */
+export const updateOwnerSchema = createOwnerSchema.omit({ phoneE164: true }).partial();
+
+export const changeOwnerPhoneSchema = z.object({
+  phoneE164: phoneE164Schema,
+  reason: z.string().trim().min(3).max(500),
+});
+export type ChangeOwnerPhoneInput = z.infer<typeof changeOwnerPhoneSchema>;
 
 // Buildings and units ----------------------------------------------------------------------
 

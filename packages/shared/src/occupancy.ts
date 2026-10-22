@@ -24,6 +24,12 @@ export function isUnitOccupiedOn(
   );
 }
 
+/** Whole percent 0-100; 0 when there are no units. */
+export function occupancyPct(occupied: number, total: number): number {
+  if (total <= 0) return 0;
+  return Math.round((Math.min(occupied, total) / total) * 100);
+}
+
 export interface OccupancyStats {
   occupied: number;
   total: number;
@@ -46,12 +52,7 @@ export function occupancyStats(
     else vacant.push(id);
   }
   const total = unique.length;
-  return {
-    occupied,
-    total,
-    pct: total === 0 ? 0 : Math.round((occupied / total) * 100),
-    vacantUnitIds: vacant,
-  };
+  return { occupied, total, pct: occupancyPct(occupied, total), vacantUnitIds: vacant };
 }
 
 export type VacantSince = { kind: 'since'; date: PlainDate } | { kind: 'never_rented' };

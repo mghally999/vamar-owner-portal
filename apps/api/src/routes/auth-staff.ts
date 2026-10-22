@@ -34,6 +34,7 @@ import { zValidator } from '../util/validator.js';
 
 const { staffUsers } = schema;
 const COOKIE = 'vamar_staff_refresh';
+const LOCK_MINUTES = Math.round(TOTP_LOCK_MS / 60_000);
 
 /** Full session for a verified staff user: access token in the body, refresh token in the cookie. */
 function issueStaffSession(
@@ -187,9 +188,14 @@ export const authStaffRoutes = new Hono<AppEnv>()
       if (!user.totpSecretEnc)
         throw new ApiError(409, 'conflict', 'Set up the authenticator first');
       if (user.totpLockedUntil && user.totpLockedUntil.getTime() > Date.now()) {
-        throw new ApiError(429, 'totp_locked', 'Too many wrong codes; try again in 15 minutes', {
-          lockedUntil: user.totpLockedUntil.toISOString(),
-        });
+        throw new ApiError(
+          429,
+          'totp_locked',
+          `Too many wrong codes; try again in ${LOCK_MINUTES} minutes`,
+          {
+            lockedUntil: user.totpLockedUntil.toISOString(),
+          },
+        );
       }
       const verdict = await verifyTotpCode(user.totpSecretEnc, code, c.env.TOTP_ENC_KEY);
       // A code is accepted once: replaying the step that signed in last time counts as a wrong code.
@@ -208,7 +214,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
         throw new ApiError(
           lock ? 429 : 403,
           lock ? 'totp_locked' : 'totp_invalid',
-          lock ? 'Too many wrong codes; locked for 15 minutes' : 'Wrong code',
+          lock ? `Too many wrong codes; locked for ${LOCK_MINUTES} minutes` : 'Wrong code',
         );
       }
       const { session } = await withTx(c, async (tx) => {

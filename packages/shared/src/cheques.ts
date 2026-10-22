@@ -36,6 +36,14 @@ export const TERMINAL_CHEQUE_STATUSES: readonly ChequeStatus[] = [
 /** Statuses that still count as money expected (not yet in the bank, not written off). */
 export const PENDING_CHEQUE_STATUSES: readonly ChequeStatus[] = ['upcoming', 'deposited'];
 
+/** Statuses counted in a month's expected rent: everything that is not replaced or cancelled. */
+export const EXPECTED_CHEQUE_STATUSES: readonly ChequeStatus[] = [
+  'upcoming',
+  'deposited',
+  'cleared',
+  'bounced',
+];
+
 export function isChequeStatus(value: unknown): value is ChequeStatus {
   return typeof value === 'string' && (CHEQUE_STATUSES as readonly string[]).includes(value);
 }

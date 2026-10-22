@@ -8,6 +8,7 @@ import {
   type ContractStatus,
   type CreateContractInput,
   type PlainDate,
+  addMonthsClamped,
 } from '@vamar/shared';
 import type { Dbx } from '../db.js';
 import { ApiError, conflict, notFound, validation } from '../errors.js';
@@ -371,7 +372,7 @@ export async function renewContract(db: Dbx, actor: AuditActor, id: string) {
   });
   if (existing) throw conflict('A renewal draft already exists for this contract');
   const startDate = addDays(old.endDate as PlainDate, 1);
-  const endDate = addDays(addDaysMonths(startDate, 12), -1);
+  const endDate = addDays(addMonthsClamped(startDate, 12), -1);
   const created = await createContract(db, actor, {
     unitId: old.unitId,
     tenantId: old.tenantId,
@@ -394,15 +395,4 @@ export async function renewContract(db: Dbx, actor: AuditActor, id: string) {
     after: { newContractId: created.id },
   });
   return { ...created, ...linked };
-}
-
-function addDaysMonths(date: PlainDate, months: number): PlainDate {
-  // local import to keep the dependency explicit
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  const idx = y * 12 + (m - 1) + months;
-  const ty = Math.floor(idx / 12);
-  const tm = (idx % 12) + 1;
-  const dim = new Date(Date.UTC(ty, tm, 0)).getUTCDate();
-  const td = Math.min(d, dim);
-  return `${String(ty).padStart(4, '0')}-${String(tm).padStart(2, '0')}-${String(td).padStart(2, '0')}` as PlainDate;
 }

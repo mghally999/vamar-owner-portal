@@ -44,6 +44,12 @@ export function validateShares<Id extends string>(
   };
 }
 
+/** Basis points as a whole or fractional percent for display: 6000 -> 60, 3333 -> 33.33. */
+export function sharePct(shareBp: number): number {
+  assertShareBp(shareBp);
+  return Math.round(shareBp / 10) / 10;
+}
+
 /** One owner's floor share of an amount: `amount * bp / 10000` in integer math. */
 export function ownerShareAmount(amountFils: number, shareBp: number): number {
   assertFils(amountFils);

@@ -8,6 +8,9 @@ import type { ContractStatus } from './occupancy.js';
 
 export const CHEQUE_REMINDER_DAYS = 3;
 export const CONTRACT_ENDING_DAYS = [60, 30] as const;
+/** Dashboard overview windows: cheques due within a week, contracts ending within two months. */
+export const OVERVIEW_DUE_SOON_DAYS = 7;
+export const OVERVIEW_CONTRACT_ENDING_DAYS = 60;
 
 export const NOTIFICATION_TYPES = [
   'cheque_due_soon',

@@ -1,9 +1,10 @@
 import { and, desc, eq, ilike, isNull, lt, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
-import type { CreateOwnerInput } from '@vamar/shared';
+import type { ChangeOwnerPhoneInput, CreateOwnerInput } from '@vamar/shared';
 import type { Patch } from '../util/types.js';
 import type { Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
+import { log } from '../util/log.js';
 import { audit, type AuditActor } from './audit.js';
 import { decodeCursor, page } from '../util/pagination.js';
 
@@ -113,17 +114,10 @@ export async function updateOwner(
   db: Dbx,
   actor: AuditActor,
   id: string,
-  patch: Patch<CreateOwnerInput>,
+  patch: Patch<Omit<CreateOwnerInput, 'phoneE164'>>,
 ) {
   const before = await db.query.owners.findFirst({ where: eq(owners.id, id) });
   if (!before) throw notFound('Owner');
-  if (patch.phoneE164 && patch.phoneE164 !== before.phoneE164) {
-    const clash = await db.query.owners.findFirst({
-      where: eq(owners.phoneE164, patch.phoneE164),
-      columns: { id: true },
-    });
-    if (clash) throw conflict('An owner with this phone number already exists');
-  }
   const [after] = await db
     .update(owners)
     .set(Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)))
@@ -136,6 +130,54 @@ export async function updateOwner(
     before,
     after,
   });
+  return after;
+}
+
+/**
+ * The phone number is how the owner signs in, so changing it is an admin action with a reason:
+ * every session and device of the old number is signed out and the change is audited.
+ */
+export async function changeOwnerPhone(
+  db: Dbx,
+  actor: AuditActor,
+  id: string,
+  input: ChangeOwnerPhoneInput,
+) {
+  const before = await db.query.owners.findFirst({ where: eq(owners.id, id) });
+  if (!before) throw notFound('Owner');
+  if (before.phoneE164 === input.phoneE164) return before;
+  const clash = await db.query.owners.findFirst({
+    where: eq(owners.phoneE164, input.phoneE164),
+    columns: { id: true },
+  });
+  if (clash) throw conflict('An owner with this phone number already exists');
+  const [after] = await db
+    .update(owners)
+    .set({ phoneE164: input.phoneE164 })
+    .where(eq(owners.id, id))
+    .returning();
+  await db
+    .update(schema.sessions)
+    .set({ revokedAt: new Date() })
+    .where(
+      and(
+        eq(schema.sessions.subjectType, 'owner'),
+        eq(schema.sessions.subjectId, id),
+        isNull(schema.sessions.revokedAt),
+      ),
+    );
+  await db
+    .update(devices)
+    .set({ revokedAt: new Date(), pushToken: null })
+    .where(and(eq(devices.ownerId, id), isNull(devices.revokedAt)));
+  await audit(db, actor, {
+    action: 'owner.phone_change',
+    entityType: 'owner',
+    entityId: id,
+    before: { phoneE164: before.phoneE164 },
+    after: { phoneE164: input.phoneE164, reason: input.reason },
+  });
+  log('warn', 'security.owner_phone_changed', { actorId: actor.id, ownerId: id });
   return after;
 }
 

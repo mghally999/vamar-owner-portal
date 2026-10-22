@@ -126,3 +126,13 @@ describe('splitByShares', () => {
     expect(() => splitByShares(1.5, [{ ownerId: 'a', shareBp: 10_000 }])).toThrow(RangeError);
   });
 });
+
+describe('sharePct', () => {
+  it('turns basis points into a display percent', async () => {
+    const { sharePct } = await import('./shares.js');
+    expect(sharePct(10_000)).toBe(100);
+    expect(sharePct(6000)).toBe(60);
+    expect(sharePct(3333)).toBe(33.3);
+    expect(() => sharePct(0)).toThrow();
+  });
+});

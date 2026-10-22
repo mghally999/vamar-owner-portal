@@ -1,7 +1,15 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
-import { addDays, monthRange, type PlainDate } from '@vamar/shared';
-import type { Dbx } from '../db.js';
+import {
+  addDays,
+  EXPECTED_CHEQUE_STATUSES,
+  monthRange,
+  OVERVIEW_CONTRACT_ENDING_DAYS,
+  OVERVIEW_DUE_SOON_DAYS,
+  PENDING_CHEQUE_STATUSES,
+  type PlainDate,
+} from '@vamar/shared';
+import { statusIn, type Dbx } from '../db.js';
 import { bouncedNeedingAction, pendingDueSoon } from './cheques.js';
 
 const { cheques, contracts, units, buildings, tenants, auditLog, owners } = schema;
@@ -19,9 +27,9 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
   const range = monthRange(y, m);
   const totalsQ = db
     .select({
-      expectedFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${cheques.status} in ('upcoming','deposited','cleared','bounced')), 0)`,
+      expectedFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${statusIn(cheques.status, EXPECTED_CHEQUE_STATUSES)}), 0)`,
       clearedFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${cheques.status} = 'cleared'), 0)`,
-      pendingFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${cheques.status} in ('upcoming','deposited')), 0)`,
+      pendingFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${statusIn(cheques.status, PENDING_CHEQUE_STATUSES)}), 0)`,
       bouncedFils: sql<string>`coalesce(sum(${cheques.amountFils}) filter (where ${cheques.status} = 'bounced'), 0)`,
       bouncedCount: sql<number>`count(*) filter (where ${cheques.status} = 'bounced')::int`,
       chequeCount: sql<number>`count(*)::int`,
@@ -55,7 +63,7 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
     .where(
       and(
         eq(contracts.status, 'active'),
-        sql`${contracts.endDate} between ${todayDate} and ${addDays(todayDate, 60)}`,
+        sql`${contracts.endDate} between ${todayDate} and ${addDays(todayDate, OVERVIEW_CONTRACT_ENDING_DAYS)}`,
       ),
     )
     .orderBy(contracts.endDate)
@@ -91,7 +99,7 @@ export async function overview(db: Dbx, todayDate: PlainDate) {
     endingSoonQ,
     occQ,
     deletionRequestsQ,
-    pendingDueSoon(db, todayDate, 7, OVERVIEW_LIST_LIMIT),
+    pendingDueSoon(db, todayDate, OVERVIEW_DUE_SOON_DAYS, OVERVIEW_LIST_LIMIT),
     bouncedNeedingAction(db, OVERVIEW_LIST_LIMIT),
   ]);
   // The Neon HTTP driver returns { rows }, pg and PGlite return the rows array itself.

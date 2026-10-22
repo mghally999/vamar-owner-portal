@@ -106,6 +106,14 @@ export function cronDb(env: Bindings): { db: Db; close: () => Promise<void> } {
   };
 }
 
+/** `col in (...)` with every value bound, for raw SQL fragments that filter on a status list. */
+export function statusIn(col: SQL | AnyPgColumn, statuses: readonly string[]): SQL {
+  return sql`${col} in (${sql.join(
+    statuses.map((s) => sql`${s}`),
+    sql`, `,
+  )})`;
+}
+
 /**
  * Natural ordering for unit numbers: "801" before "1204", "G-02" with the shops, "W-1" with the
  * warehouses. Sorts by the letters, then the numeric part, then the raw text.
