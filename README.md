@@ -6,10 +6,10 @@ Owner mobile app, staff dashboard and API for **Vamar Real Estate** (Dubai). Pro
 
 All demo data is fictional.
 
-| | Link | Sign in with |
-| --- | --- | --- |
+|                         | Link                                                                                              | Sign in with                                                                                    |
+| ----------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | **Owner app (Android)** | [Download the APK](https://vamar-owner-portal.vamar-api.workers.dev/download/vamar-owner-app.apk) | Phone `+971 50 000 0001`, code `123456` (Arabic) or `+971 50 000 0003`, code `123456` (English) |
-| **Staff dashboard** | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev) | `admin@vamar.test` / `Vamar2026!` (admin) or `entry@vamar.test` / `Vamar2026!` (data entry) |
+| **Staff dashboard**     | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev)      | `admin@vamar.test` / `Vamar2026!` (admin) or `entry@vamar.test` / `Vamar2026!` (data entry)     |
 
 On iPhone, the screenshots below show the owner app.
 
@@ -42,15 +42,15 @@ On iPhone, the screenshots below show the owner app.
 
 ## Stack
 
-| Part | Technology |
-| --- | --- |
-| Owner app | Expo (React Native), TypeScript |
-| Staff dashboard | React, Vite, TanStack |
-| API | Hono on Cloudflare Workers |
-| Database | Neon PostgreSQL with Drizzle ORM |
-| Auth | Firebase phone OTP for owners, email + TOTP for staff |
-| Files | Cloudflare R2 |
-| Monorepo | pnpm workspaces and Turborepo, GitHub Actions CI |
+| Part            | Technology                                            |
+| --------------- | ----------------------------------------------------- |
+| Owner app       | Expo (React Native), TypeScript                       |
+| Staff dashboard | React, Vite, TanStack                                 |
+| API             | Hono on Cloudflare Workers                            |
+| Database        | Neon PostgreSQL with Drizzle ORM                      |
+| Auth            | Firebase phone OTP for owners, email + TOTP for staff |
+| Files           | Cloudflare R2                                         |
+| Monorepo        | pnpm workspaces and Turborepo, GitHub Actions CI      |
 
 ## Run it locally
 
