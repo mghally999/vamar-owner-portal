@@ -55,15 +55,19 @@ try {
   ];
   if (totpRequired !== null) set.push(`totp_required = ${totpRequired}`);
   const r = await client.query(
-    `update staff_users set ${set.join(', ')} where email = $1 returning email, role, totp_required`,
+    `update staff_users set ${set.join(', ')} where email = $1 returning id, email, role, totp_required`,
     [email],
   );
   if (r.rowCount === 0) {
     console.error(`no staff user with email ${email}`);
     process.exit(1);
   }
-  await client.query('delete from rate_limits');
   const row = r.rows[0];
+  // Only this account's counters: the per-IP windows of everyone else stay in place.
+  await client.query('delete from rate_limits where key like $1 or key like $2', [
+    `totp:user:${row.id}%`,
+    `staff_exchange:email:${row.email}%`,
+  ]);
   console.log(
     `[${live ? 'live' : 'local'}] authenticator reset for ${row.email} (${row.role}); 2-step login ${row.totp_required ? 'required' : 'OFF'}`,
   );

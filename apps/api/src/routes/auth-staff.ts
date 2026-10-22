@@ -1,11 +1,11 @@
 import type { Context } from 'hono';
-import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { schema } from '@vamar/db';
 import { staffExchangeSchema, totpCodeSchema } from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
+import { isProduction } from '../config.js';
 import { requireStaff, staffOf } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
 import {
@@ -30,6 +30,7 @@ import { ApiError, unauthorized } from '../errors.js';
 import { audit, actorFromContext } from '../services/audit.js';
 import { sha256 } from '../util/crypto.js';
 import { log, maskEmail } from '../util/log.js';
+import { zValidator } from '../util/validator.js';
 
 const { staffUsers } = schema;
 const COOKIE = 'vamar_staff_refresh';
@@ -49,7 +50,7 @@ function issueStaffSession(
     mfa: true,
   };
   return signAccessToken(c.env, principal).then((accessToken) => {
-    setRefreshCookie(c, session.refreshToken, session.expiresAt, c.env.APP_ENV === 'production');
+    setRefreshCookie(c, session.refreshToken, session.expiresAt);
     log('info', 'auth.staff_login', { staffId: user.id, ip });
     return c.json({
       accessToken,
@@ -60,15 +61,11 @@ function issueStaffSession(
   });
 }
 
-function setRefreshCookie(
-  c: Parameters<typeof setCookie>[0],
-  token: string,
-  expires: Date,
-  secure: boolean,
-) {
+/** Always Secure: the Worker only ever answers over HTTPS and browsers treat localhost as secure. */
+function setRefreshCookie(c: Parameters<typeof setCookie>[0], token: string, expires: Date) {
   setCookie(c, COOKIE, token, {
     httpOnly: true,
-    secure,
+    secure: true,
     sameSite: 'Strict',
     path: '/api/auth/staff',
     expires,
@@ -95,8 +92,23 @@ export const authStaffRoutes = new Hono<AppEnv>()
         throw new ApiError(403, 'forbidden', 'This email is not a Vamar staff account');
       }
       if (user.firebaseUid !== identity.uid) {
-        // First login after invite (seed/placeholder uid) binds the Firebase account.
-        if (user.firebaseUid.startsWith('invite:') || user.firebaseUid.startsWith('seed-')) {
+        // First login after an invite binds the Firebase account to the staff row. The e-mail must
+        // be verified by Firebase first, otherwise anyone who can create a Firebase account with
+        // this address would become this staff member. Seeded placeholder uids bind only outside
+        // production (local emulator).
+        const pending =
+          user.firebaseUid.startsWith('invite:') ||
+          (!isProduction(c.env) && user.firebaseUid.startsWith('seed-'));
+        if (pending) {
+          if (!identity.emailVerified) {
+            log('warn', 'auth.staff_email_unverified', { staffId: user.id, ip });
+            throw new ApiError(
+              403,
+              'email_unverified',
+              'Verify your e-mail address with the link Firebase sent you, then sign in again',
+            );
+          }
+          log('info', 'auth.staff_uid_bound', { staffId: user.id, ip });
           await tx
             .update(staffUsers)
             .set({ firebaseUid: identity.uid })
@@ -179,8 +191,10 @@ export const authStaffRoutes = new Hono<AppEnv>()
           lockedUntil: user.totpLockedUntil.toISOString(),
         });
       }
-      const ok = await verifyTotpCode(user.totpSecretEnc, code, c.env.TOTP_ENC_KEY);
-      if (!ok) {
+      const verdict = await verifyTotpCode(user.totpSecretEnc, code, c.env.TOTP_ENC_KEY);
+      // A code is accepted once: replaying the step that signed in last time counts as a wrong code.
+      const replay = verdict.ok && user.totpLastStep !== null && verdict.step <= user.totpLastStep;
+      if (!verdict.ok || replay) {
         const failures = user.totpFailures + 1;
         const lock = failures >= TOTP_MAX_FAILURES;
         await plain
@@ -190,7 +204,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
             totpLockedUntil: lock ? new Date(Date.now() + TOTP_LOCK_MS) : null,
           })
           .where(eq(staffUsers.id, p.id));
-        log('warn', 'auth.totp_failed', { staffId: p.id, failures, locked: lock, ip });
+        log('warn', 'auth.totp_failed', { staffId: p.id, failures, locked: lock, replay, ip });
         throw new ApiError(
           lock ? 429 : 403,
           lock ? 'totp_locked' : 'totp_invalid',
@@ -201,7 +215,12 @@ export const authStaffRoutes = new Hono<AppEnv>()
         const firstEnrollment = !user.totpEnabled;
         await tx
           .update(staffUsers)
-          .set({ totpEnabled: true, totpFailures: 0, totpLockedUntil: null })
+          .set({
+            totpEnabled: true,
+            totpFailures: 0,
+            totpLockedUntil: null,
+            totpLastStep: verdict.step,
+          })
           .where(eq(staffUsers.id, p.id));
         if (firstEnrollment) {
           await audit(tx, actorFromContext(c, { ...p, mfa: true }), {
@@ -261,7 +280,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
       role: user.role,
       mfa: true,
     });
-    setRefreshCookie(c, rotated.refreshToken, rotated.expiresAt, c.env.APP_ENV === 'production');
+    setRefreshCookie(c, rotated.refreshToken, rotated.expiresAt);
     return c.json({
       accessToken,
       accessExpiresIn: ACCESS_TTL_SECONDS,
@@ -279,12 +298,10 @@ export const authStaffRoutes = new Hono<AppEnv>()
 
   .get('/me', requireStaff('viewer'), async (c) => {
     const p = staffOf(c);
-    const user = await withTx(c, (tx) =>
-      tx.query.staffUsers.findFirst({
-        where: eq(staffUsers.id, p.id),
-        columns: { id: true, name: true, email: true, role: true, totpEnabled: true },
-      }),
-    );
+    const user = await readDb(c).query.staffUsers.findFirst({
+      where: eq(staffUsers.id, p.id),
+      columns: { id: true, name: true, email: true, role: true, totpEnabled: true },
+    });
     if (!user) throw unauthorized();
     return c.json(user);
   })

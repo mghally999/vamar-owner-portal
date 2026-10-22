@@ -2,6 +2,7 @@
  * Verifies Firebase ID tokens. Production: RS256 against Google's securetoken JWKS (cached by
  * jose), `iss` and `aud` pinned to our project. Development: when FIREBASE_AUTH_EMULATOR_HOST is
  * set the emulator issues unsigned tokens (alg "none"), so we decode and check the claims only.
+ * That path is never taken in production, whatever the variables say.
  */
 import { createRemoteJWKSet, decodeJwt, jwtVerify, type JWTPayload } from 'jose';
 import { unauthorized } from '../errors.js';
@@ -34,7 +35,7 @@ export async function verifyFirebaseIdToken(
   const issuer = `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`;
   let claims: FirebaseClaims;
 
-  if (env.FIREBASE_AUTH_EMULATOR_HOST) {
+  if (env.FIREBASE_AUTH_EMULATOR_HOST && env.APP_ENV !== 'production') {
     try {
       claims = decodeJwt<FirebaseClaims>(token);
     } catch {

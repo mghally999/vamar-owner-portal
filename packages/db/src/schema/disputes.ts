@@ -29,6 +29,8 @@ export const disputes = pgTable(
   },
   (t) => [
     index('disputes_unit_status_idx').on(t.unitId, t.status),
+    /** Dispute lists: newest first. */
+    index('disputes_opened_idx').on(t.openedAt.desc(), t.id.desc()),
     check(
       'disputes_amount_non_negative',
       sql`${t.amountClaimedFils} IS NULL OR ${t.amountClaimedFils} >= 0`,

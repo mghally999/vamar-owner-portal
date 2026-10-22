@@ -4,6 +4,7 @@ import type { StaffRole } from '@vamar/shared';
 import type { Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import { audit, type AuditActor } from './audit.js';
+import { log } from '../util/log.js';
 import { decodeCursor, page } from '../util/pagination.js';
 
 const { staffUsers, auditLog } = schema;
@@ -72,6 +73,17 @@ export async function updateStaff(
   if (actor.id === id && patch.role && patch.role !== 'admin')
     throw conflict('You cannot remove your own admin role');
   if (actor.id === id && patch.active === false) throw conflict('You cannot deactivate yourself');
+  // 2-step login is mandatory for admins and cannot be switched off for oneself; it may be switched
+  // off for a non-admin account only (demo accounts during a trial) and is a logged security event.
+  const roleAfter = patch.role ?? before.role;
+  if (patch.totpRequired === false) {
+    if (actor.id === id) throw conflict('You cannot switch off 2-step login for yourself');
+    if (roleAfter === 'admin') throw conflict('2-step login cannot be switched off for an admin');
+    log('warn', 'security.totp_required_off', { actorId: actor.id, staffId: id });
+  }
+  if (roleAfter === 'admin' && !before.totpRequired && patch.totpRequired !== true) {
+    patch = { ...patch, totpRequired: true };
+  }
   const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
   const [after] = await db.update(staffUsers).set(clean).where(eq(staffUsers.id, id)).returning();
   if (patch.active === false) {

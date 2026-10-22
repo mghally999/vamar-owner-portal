@@ -12,6 +12,7 @@ export type ErrorCode =
   | 'totp_required'
   | 'totp_locked'
   | 'totp_invalid'
+  | 'email_unverified'
   | 'invalid_transition'
   | 'shares_invalid'
   | 'grid_incomplete'

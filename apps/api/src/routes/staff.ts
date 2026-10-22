@@ -1,4 +1,4 @@
-import { zValidator } from '@hono/zod-validator';
+import { zValidator } from '../util/validator.js';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {

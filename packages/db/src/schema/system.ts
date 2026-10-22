@@ -27,6 +27,8 @@ export const auditLog = pgTable(
     index('audit_log_entity_idx').on(t.entityType, t.entityId, t.at),
     index('audit_log_actor_idx').on(t.actorType, t.actorId, t.at),
     index('audit_log_at_idx').on(t.at),
+    /** Lookups by action (deletion requests on the overview, audit filter). */
+    index('audit_log_action_idx').on(t.action, t.at.desc()),
   ],
 );
 

@@ -19,6 +19,8 @@ export const staffUsers = pgTable(
     /** Consecutive TOTP failures; reset on success. Locked for 15 minutes after 5. */
     totpFailures: integer().notNull().default(0),
     totpLockedUntil: instant(),
+    /** Time step of the last accepted TOTP code; a code is never accepted twice. */
+    totpLastStep: integer(),
     active: boolean().notNull().default(true),
     createdAt: createdAt(),
   },

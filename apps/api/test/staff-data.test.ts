@@ -56,7 +56,7 @@ describe('owners, buildings, units, shares', () => {
       nameEn: 'x',
       phoneE164: '0507000001',
     });
-    expect(bad.status).toBe(400);
+    expect(bad.status).toBe(422);
   });
 
   it('lists buildings with unit and occupancy counts', async () => {

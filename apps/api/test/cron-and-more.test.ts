@@ -203,14 +203,17 @@ describe('disputes, staff users, overview, security headers', () => {
     expect(await p.text()).toContain('سياسة الخصوصية');
   });
 
-  it('validation errors return 400 with details and unknown API paths return JSON 404', async () => {
+  it('validation errors return 422 with details and unknown API paths return JSON 404', async () => {
     const editor = await w.staffToken('entry@vamar.test');
     const r = await w.request('/api/staff/owners', {
       method: 'POST',
       token: editor,
       body: JSON.stringify({ nameAr: '' }),
     });
-    expect(r.status).toBe(400);
+    expect(r.status).toBe(422);
+    const vb = (await r.json()) as { error: { code: string; details: { path: string }[] } };
+    expect(vb.error.code).toBe('validation');
+    expect(vb.error.details.some((d) => d.path === 'nameAr')).toBe(true);
     const nf = await w.json<{ error: { code: string } }>('/api/nothing-here');
     expect(nf.status).toBe(404);
     expect(nf.body.error.code).toBe('not_found');

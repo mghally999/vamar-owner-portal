@@ -10,7 +10,7 @@
     "directory": "../dashboard/dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/privacy", "/healthz", "/download/*"],
+    "run_worker_first": ["/api/*", "/privacy", "/healthz", "/readyz", "/download/*"],
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "vamar-files" }],
   // One cron: daily alerts at 08:00 Dubai (04:00 UTC).
@@ -19,7 +19,9 @@
     "FIREBASE_PROJECT_ID": "vamar-owner-portal-c55c2",
     // Comma-separated ISO country codes whose phone numbers may sign in as owners.
     "ALLOWED_PHONE_COUNTRIES": "AE",
-    "APP_ENV": "development",
+    // The deployed Worker is production; the dev server (apps/api/src/dev-server.ts) sets its own
+    // bindings and the test harness uses "test". index.ts refuses to serve when secrets are missing.
+    "APP_ENV": "production",
   },
   "dev": { "port": 8787 },
   // Secrets (set with `wrangler secret put`, locally in .dev.vars): DATABASE_URL, JWT_SECRET,

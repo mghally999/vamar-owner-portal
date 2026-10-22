@@ -49,7 +49,8 @@ describe('cheque lifecycle', () => {
       .from(schema.auditLog)
       .where(
         and(eq(schema.auditLog.action, 'cheque.status_change'), eq(schema.auditLog.entityId, q.id)),
-      );
+      )
+      .orderBy(schema.auditLog.at);
     expect(audits).toHaveLength(2);
     expect((audits[0]!.before as { status: string }).status).toBe('upcoming');
   });

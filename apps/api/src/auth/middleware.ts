@@ -1,19 +1,49 @@
 import { createMiddleware } from 'hono/factory';
 import type { StaffRole } from '@vamar/shared';
 import type { Context } from 'hono';
+import { readDb } from '../db.js';
 import type { AppEnv, OwnerPrincipal, StaffPrincipal } from '../env.js';
 import { ApiError, forbidden, unauthorized } from '../errors.js';
-import { verifyAccessToken } from './tokens.js';
+import { isSessionActive, verifyAccessToken } from './tokens.js';
 
 function bearer(authorization: string | undefined): string {
   if (!authorization?.startsWith('Bearer ')) throw unauthorized();
   return authorization.slice(7).trim();
 }
 
+/**
+ * Revocation check. The access token is short-lived, but "sign out other devices", "disable
+ * owner" and "deactivate staff" must bite before it expires, so the session row is consulted. A
+ * positive answer is remembered per isolate for a short time to keep one database round trip off
+ * most requests; revocation therefore takes effect within this window at the latest.
+ */
+export const SESSION_CHECK_CACHE_MS = 60_000;
+const activeUntil = new Map<string, number>();
+
+async function ensureSessionActive(c: Context<AppEnv>, sessionId: string): Promise<void> {
+  const now = Date.now();
+  const until = activeUntil.get(sessionId);
+  if (until !== undefined && until > now) return;
+  const ok = await isSessionActive(readDb(c), sessionId);
+  if (!ok) {
+    activeUntil.delete(sessionId);
+    throw unauthorized('Session ended');
+  }
+  if (activeUntil.size > 10_000) activeUntil.clear();
+  activeUntil.set(sessionId, now + SESSION_CHECK_CACHE_MS);
+}
+
+/** Tests and sign-out paths call this so a revocation is visible at once. */
+export function forgetSession(sessionId?: string): void {
+  if (sessionId) activeUntil.delete(sessionId);
+  else activeUntil.clear();
+}
+
 /** Owner endpoints: the owner id comes from the token only, never from params or body. */
 export const requireOwner = createMiddleware<AppEnv>(async (c, next) => {
   const principal = await verifyAccessToken(c.env, bearer(c.req.header('authorization')));
   if (principal.type !== 'owner') throw forbidden('Owner access only');
+  await ensureSessionActive(c, principal.sessionId);
   c.set('principal', principal);
   await next();
 });
@@ -22,7 +52,8 @@ const ROLE_RANK: Record<StaffRole, number> = { viewer: 0, editor: 1, admin: 2 };
 
 /**
  * Staff endpoints. `minRole` is enforced here, not only in the UI. Tokens issued before the TOTP
- * step carry `mfa: false` and are refused unless `allowPreMfa` is set (TOTP endpoints only).
+ * step carry `mfa: false` and are refused unless `allowPreMfa` is set (TOTP endpoints only); they
+ * have no session row yet, so the revocation check applies to full sessions only.
  */
 export function requireStaff(
   minRole: StaffRole = 'viewer',
@@ -35,6 +66,7 @@ export function requireStaff(
       throw new ApiError(403, 'totp_required', 'Complete the authenticator step first');
     }
     if (ROLE_RANK[principal.role] < ROLE_RANK[minRole]) throw forbidden(`Requires ${minRole} role`);
+    if (principal.mfa) await ensureSessionActive(c, principal.sessionId);
     c.set('principal', principal);
     await next();
   });

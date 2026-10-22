@@ -186,13 +186,22 @@ export async function createWorld(): Promise<TestWorld> {
     staffToken: async (email, opts = {}) => {
       const row = staffRows.find((s) => s.email === email);
       if (!row) throw new Error(`unknown staff ${email}`);
-      return sign({
-        type: 'staff',
-        id: row.id,
-        sessionId: crypto.randomUUID(),
-        role: row.role,
-        mfa: opts.mfa ?? true,
-      });
+      const mfa = opts.mfa ?? true;
+      let sessionId = crypto.randomUUID();
+      if (mfa) {
+        const [s] = await db
+          .insert(schema.sessions)
+          .values({
+            subjectType: 'staff',
+            subjectId: row.id,
+            deviceId: null,
+            tokenHash: crypto.randomUUID(),
+            expiresAt: new Date(Date.now() + 3_600_000),
+          })
+          .returning({ id: schema.sessions.id });
+        sessionId = s?.id ?? sessionId;
+      }
+      return sign({ type: 'staff', id: row.id, sessionId, role: row.role, mfa });
     },
     /** Emulator-style unsigned Firebase ID token (alg none) accepted when FIREBASE_AUTH_EMULATOR_HOST is set. */
     firebaseToken: async (claims) => {

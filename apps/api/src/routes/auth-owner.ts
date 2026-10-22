@@ -1,9 +1,8 @@
-import { zValidator } from '@hono/zod-validator';
 import { and, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { schema } from '@vamar/db';
-import { ownerExchangeSchema, refreshSchema } from '@vamar/shared';
+import { ownerExchangeSchema, refreshSchema, uuidSchema } from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
 import { ownerOf, requireOwner } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
@@ -22,6 +21,7 @@ import type { AppEnv } from '../env.js';
 import { ApiError, unauthorized } from '../errors.js';
 import { queueNewDeviceAlert } from '../services/notifications.js';
 import { log, maskPhone } from '../util/log.js';
+import { zValidator } from '../util/validator.js';
 
 const { owners, devices } = schema;
 
@@ -212,39 +212,42 @@ export const authOwnerRoutes = new Hono<AppEnv>()
   /** Devices of the signed-in owner; lets them sign out other devices. */
   .get('/devices', requireOwner, async (c) => {
     const p = ownerOf(c);
-    const rows = await withTx(c, (tx) =>
-      tx
-        .select({
-          id: devices.id,
-          deviceId: devices.deviceId,
-          platform: devices.platform,
-          model: devices.model,
-          firstSeen: devices.firstSeen,
-          lastSeen: devices.lastSeen,
-          revokedAt: devices.revokedAt,
-        })
-        .from(devices)
-        .where(eq(devices.ownerId, p.id)),
-    );
+    const rows = await readDb(c)
+      .select({
+        id: devices.id,
+        deviceId: devices.deviceId,
+        platform: devices.platform,
+        model: devices.model,
+        firstSeen: devices.firstSeen,
+        lastSeen: devices.lastSeen,
+        revokedAt: devices.revokedAt,
+      })
+      .from(devices)
+      .where(eq(devices.ownerId, p.id));
     return c.json({ items: rows.map((d) => ({ ...d, current: d.deviceId === p.deviceId })) });
   })
 
-  .post('/devices/:id/revoke', requireOwner, async (c) => {
-    const p = ownerOf(c);
-    const id = c.req.param('id');
-    await withTx(c, async (tx) => {
-      const device = await tx.query.devices.findFirst({
-        where: and(eq(devices.id, id), eq(devices.ownerId, p.id)),
+  .post(
+    '/devices/:id/revoke',
+    requireOwner,
+    zValidator('param', z.object({ id: uuidSchema })),
+    async (c) => {
+      const p = ownerOf(c);
+      const { id } = c.req.valid('param');
+      await withTx(c, async (tx) => {
+        const device = await tx.query.devices.findFirst({
+          where: and(eq(devices.id, id), eq(devices.ownerId, p.id)),
+        });
+        if (!device) throw new ApiError(404, 'not_found', 'Device not found');
+        await tx
+          .update(devices)
+          .set({ revokedAt: new Date(), pushToken: null })
+          .where(eq(devices.id, device.id));
+        await revokeChain(tx, 'owner', p.id, device.deviceId);
       });
-      if (!device) throw new ApiError(404, 'not_found', 'Device not found');
-      await tx
-        .update(devices)
-        .set({ revokedAt: new Date(), pushToken: null })
-        .where(eq(devices.id, device.id));
-      await revokeChain(tx, 'owner', p.id, device.deviceId);
-    });
-    return c.json({ ok: true });
-  })
+      return c.json({ ok: true });
+    },
+  )
 
   .post('/devices/revoke-others', requireOwner, async (c) => {
     const p = ownerOf(c);

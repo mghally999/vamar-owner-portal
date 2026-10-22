@@ -35,12 +35,18 @@ export async function createTotpEnrollment(email: string, encKey: string): Promi
   };
 }
 
-/** Accepts the current window and one step either side (clock drift). */
+export const TOTP_PERIOD_SECONDS = 30;
+
+/**
+ * Accepts the current window and one step either side (clock drift). Returns the matched time
+ * step so the caller can refuse a code that was already used (RFC 6238 single use).
+ */
 export async function verifyTotpCode(
   secretEnc: string,
   code: string,
   encKey: string,
-): Promise<boolean> {
+  now = Date.now(),
+): Promise<{ ok: true; step: number } | { ok: false }> {
   const base32 = await decryptString(secretEnc, encKey);
   const totp = new TOTP({
     issuer: TOTP_ISSUER,
@@ -49,7 +55,9 @@ export async function verifyTotpCode(
     period: 30,
     secret: Secret.fromBase32(base32),
   });
-  return totp.validate({ token: code, window: 1 }) !== null;
+  const delta = totp.validate({ token: code, window: 1, timestamp: now });
+  if (delta === null) return { ok: false };
+  return { ok: true, step: Math.floor(now / (TOTP_PERIOD_SECONDS * 1000)) + delta };
 }
 
 /** For tests and the demo: compute the current code from a base32 secret. */

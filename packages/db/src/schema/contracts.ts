@@ -42,6 +42,8 @@ export const contracts = pgTable(
       .on(t.endDate)
       .where(sql`${t.status} = 'active'`),
     index('contracts_tenant_idx').on(t.tenantId),
+    /** Staff contract list: newest first. */
+    index('contracts_created_idx').on(t.createdAt.desc(), t.id.desc()),
     check('contracts_dates_order', sql`${t.endDate} >= ${t.startDate}`),
     check('contracts_cheque_count_range', sql`${t.chequeCount} BETWEEN 1 AND 12`),
     check('contracts_annual_rent_positive', sql`${t.annualRentFils} > 0`),
@@ -80,6 +82,10 @@ export const cheques = pgTable(
     index('cheques_pending_due_date_idx')
       .on(t.dueDate)
       .where(sql`${t.status} IN ('upcoming', 'deposited')`),
+    /** Overview "bounced needing action": newest bounce first. */
+    index('cheques_bounced_idx')
+      .on(t.bouncedAt.desc())
+      .where(sql`${t.status} = 'bounced'`),
     check('cheques_amount_positive', sql`${t.amountFils} IS NULL OR ${t.amountFils} > 0`),
     check('cheques_seq_range', sql`${t.seq} BETWEEN 1 AND 12`),
   ],

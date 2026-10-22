@@ -17,12 +17,13 @@ export interface RateLimitRule {
 }
 
 export const RATE_LIMITS = {
-  ownerExchangeIp: { name: 'owner_exchange:ip', limit: 20, windowMs: 10 * 60 * 1000 },
+  // Per-IP limits are generous on purpose: UAE mobile carriers and offices share one address.
+  ownerExchangeIp: { name: 'owner_exchange:ip', limit: 100, windowMs: 10 * 60 * 1000 },
   ownerExchangePhone: { name: 'owner_exchange:phone', limit: 10, windowMs: 10 * 60 * 1000 },
-  refreshIp: { name: 'refresh:ip', limit: 60, windowMs: 10 * 60 * 1000 },
-  staffExchangeIp: { name: 'staff_exchange:ip', limit: 20, windowMs: 10 * 60 * 1000 },
+  refreshIp: { name: 'refresh:ip', limit: 300, windowMs: 10 * 60 * 1000 },
+  staffExchangeIp: { name: 'staff_exchange:ip', limit: 60, windowMs: 10 * 60 * 1000 },
   staffExchangeEmail: { name: 'staff_exchange:email', limit: 10, windowMs: 10 * 60 * 1000 },
-  totpIp: { name: 'totp:ip', limit: 30, windowMs: 15 * 60 * 1000 },
+  totpIp: { name: 'totp:ip', limit: 60, windowMs: 15 * 60 * 1000 },
   totpUser: { name: 'totp:user', limit: 10, windowMs: 15 * 60 * 1000 },
 } as const satisfies Record<string, RateLimitRule>;
 

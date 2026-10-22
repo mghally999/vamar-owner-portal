@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { createMiddleware } from 'hono/factory';
 import { secureHeaders } from 'hono/secure-headers';
+import { cspConnectSrc, isProduction } from './config.js';
 import type { AppEnv } from './env.js';
 import { ApiError } from './errors.js';
 import { authOwnerRoutes } from './routes/auth-owner.js';
@@ -23,48 +25,57 @@ export const app = new Hono<AppEnv>()
   })
   .use(
     '*',
-    secureHeaders({
-      strictTransportSecurity: 'max-age=63072000; includeSubDomains; preload',
-      xFrameOptions: 'DENY',
-      referrerPolicy: 'strict-origin-when-cross-origin',
-      xContentTypeOptions: 'nosniff',
-      contentSecurityPolicy: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
-        fontSrc: ["'self'", 'data:'],
-        connectSrc: [
-          "'self'",
-          'https://*.googleapis.com',
-          'https://*.firebaseapp.com',
-          'http://127.0.0.1:9099',
-          'http://localhost:9099',
-        ],
-        frameAncestors: ["'none'"],
-        baseUri: ["'self'"],
-        formAction: ["'self'"],
-        objectSrc: ["'none'"],
-      },
-    }),
-  )
-  .get('/healthz', async (c) => {
-    if (c.req.query('db') !== '1') return c.json({ ok: true, env: c.env.APP_ENV });
-    // Database probe for local troubleshooting: surfaces the driver's own error message.
-    try {
-      const r = await readDb(c).execute(sql`select 1 as one`);
-      return c.json({ ok: true, db: (r as { rows?: unknown[] }).rows?.length ?? 1 });
-    } catch (e) {
-      const err = e as Error & { cause?: unknown };
-      const cause = err.cause as (Error & { code?: string }) | undefined;
-      return c.json(
-        {
-          ok: false,
-          error: err.message.slice(0, 200),
-          causeMessage: cause?.message,
-          causeCode: cause?.code,
+    createMiddleware<AppEnv>((c, next) =>
+      secureHeaders({
+        strictTransportSecurity: 'max-age=63072000; includeSubDomains; preload',
+        xFrameOptions: 'DENY',
+        referrerPolicy: 'strict-origin-when-cross-origin',
+        xContentTypeOptions: 'nosniff',
+        permissionsPolicy: { camera: [], microphone: [], geolocation: [] },
+        contentSecurityPolicy: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          fontSrc: ["'self'", 'data:'],
+          connectSrc: cspConnectSrc(c.env),
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+          objectSrc: ["'none'"],
         },
-        500,
+      })(c, next),
+    ),
+  )
+  // API responses carry tokens and personal data: never cacheable by browsers or proxies.
+  .use('/api/*', async (c, next) => {
+    await next();
+    c.header('Cache-Control', 'no-store');
+    c.header('Pragma', 'no-cache');
+  })
+  /** Liveness: the isolate answers. */
+  .get('/healthz', (c) => c.json({ ok: true, env: c.env.APP_ENV }))
+  /**
+   * Readiness: the database answers. Uptime checks point here. The failure body stays generic in
+   * production; the driver's own message goes to the log.
+   */
+  .get('/readyz', async (c) => {
+    try {
+      await readDb(c).execute(sql`select 1 as one`);
+      return c.json({ ok: true, db: true });
+    } catch (e) {
+      const err = e as Error & { cause?: Error & { code?: string } };
+      log('error', 'readyz.db_failed', {
+        requestId: c.var.requestId,
+        error: err.message.slice(0, 200),
+        causeMessage: err.cause?.message,
+        causeCode: err.cause?.code,
+      });
+      return c.json(
+        isProduction(c.env)
+          ? { ok: false, db: false }
+          : { ok: false, db: false, error: err.message.slice(0, 200), causeCode: err.cause?.code },
+        503,
       );
     }
   })
@@ -94,9 +105,11 @@ export const app = new Hono<AppEnv>()
   .onError((err, c) => {
     if (err instanceof ApiError) return c.json(err.toBody(), err.status);
     if (err instanceof HTTPException) {
-      // zod-validator failures arrive here as 400s
-      const res = err.getResponse();
-      return new Response(res.body, { status: res.status, headers: res.headers });
+      // Framework exceptions (body too large, bad JSON): same envelope as ApiError.
+      return c.json(
+        { error: { code: err.status === 400 ? 'validation' : 'http_error', message: err.message } },
+        err.status,
+      );
     }
     log('error', 'unhandled', {
       requestId: c.var.requestId,
