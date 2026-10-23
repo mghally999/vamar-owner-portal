@@ -39,7 +39,7 @@ export function Icon({
 }: {
   name: IconName;
   color: string;
-  /** Mirror horizontally (chevrons in left-to-right layouts). */
+  /** Mirror horizontally. The chevrons are drawn for right-to-left; flip them in left-to-right. */
   flip?: boolean;
   accessibilityLabel?: string;
 }) {

@@ -5,6 +5,8 @@
 module.exports = {
   preset: 'jest-expo',
   testMatch: ['<rootDir>/src/**/*.test.tsx'],
+  // The first render loads React Native and Expo modules: slow on a cold or busy machine.
+  testTimeout: 30_000,
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     // The hoisted root react belongs to the dashboard; the app and the renderer must share one.

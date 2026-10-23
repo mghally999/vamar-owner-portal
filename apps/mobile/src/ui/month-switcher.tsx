@@ -35,12 +35,8 @@ export function MonthSwitcher({
         backgroundColor: pressed ? t.colors.bgSunken : 'transparent',
       })}
     >
-      {/* Both design chevrons point right: mirror the one that must point left. */}
-      <Icon
-        name={dir < 0 ? 'chevronPrev' : 'chevronNext'}
-        color={t.colors.ink}
-        flip={isRTL ? dir > 0 : dir < 0}
-      />
+      {/* The design draws the right-to-left pair (previous ">", next "<"): mirror both in LTR. */}
+      <Icon name={dir < 0 ? 'chevronPrev' : 'chevronNext'} color={t.colors.ink} flip={!isRTL} />
     </Pressable>
   );
   return (

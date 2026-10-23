@@ -58,6 +58,23 @@ describe('owner app UI', () => {
     expect(onChange).toHaveBeenLastCalledWith('2026-02-01');
   });
 
+  it.each(['ar', 'en'] as const)(
+    'mirrors the month chevrons only left to right (%s)',
+    async (lang) => {
+      await renderIn(lang, <MonthSwitcher value="2026-01-01" onChange={jest.fn()} />);
+      await screen.findByRole('button', {
+        name: lang === 'ar' ? 'الشهر السابق' : 'Previous month',
+      });
+      // The design's chevrons are drawn for right to left (previous ">", next "<"): in English
+      // every chevron node (19 px) is mirrored, in Arabic none.
+      const tree = JSON.stringify(screen.toJSON());
+      const chevrons = tree.match(/"width":19/g)?.length ?? 0;
+      const mirrored = tree.match(/"scaleX":-1/g)?.length ?? 0;
+      expect(chevrons).toBeGreaterThan(0);
+      expect(mirrored).toBe(lang === 'en' ? chevrons : 0);
+    },
+  );
+
   it('offers a retry on the error state', async () => {
     const onRetry = jest.fn();
     await renderIn('en', <ErrorState onRetry={onRetry} />);

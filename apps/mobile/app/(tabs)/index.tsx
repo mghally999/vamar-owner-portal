@@ -246,7 +246,7 @@ export default function HomeScreen() {
                           : tr('home_disputes', { n: d.openDisputes })}
                     </Text>
                   </Row>
-                  <Icon name="chevronRow" color={t.colors.ink} flip={isRTL} />
+                  <Icon name="chevronRow" color={t.colors.ink} flip={!isRTL} />
                 </Card>
               </Pressable>
             </Link>
