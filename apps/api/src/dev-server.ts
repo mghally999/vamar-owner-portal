@@ -141,8 +141,13 @@ if (existsSync(dist)) {
     '/*',
     serveStatic({
       root: dist,
+      // Same fallback as the Worker: owner web app routes get the app's shell, others the dashboard's.
       rewriteRequestPath: (p) =>
-        existsSync(join(dist, p)) && statSync(join(dist, p)).isFile() ? p : '/index.html',
+        existsSync(join(dist, p)) && statSync(join(dist, p)).isFile()
+          ? p
+          : p.startsWith('/app')
+            ? '/app/index.html'
+            : '/index.html',
     }),
   );
 }
