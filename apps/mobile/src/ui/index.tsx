@@ -350,15 +350,17 @@ export function ErrorState({ onRetry }: { onRetry?: () => void }) {
 
 export function ProgressBar({ pct }: { pct: number }) {
   const t = useTheme();
+  const now = Math.max(0, Math.min(100, pct));
   return (
     <View
+      accessible
       accessibilityRole="progressbar"
-      accessibilityValue={{ min: 0, max: 100, now: pct }}
+      accessibilityValue={{ min: 0, max: 100, now }}
       style={{ height: 7, borderRadius: 999, backgroundColor: t.colors.track, overflow: 'hidden' }}
     >
       <View
         style={{
-          width: `${Math.max(0, Math.min(100, pct))}%`,
+          width: `${now}%`,
           height: '100%',
           borderRadius: 999,
           backgroundColor: t.colors.trackFill,

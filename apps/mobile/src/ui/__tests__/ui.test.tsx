@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import type { ReactNode } from 'react';
 import { LangProvider } from '@/lib/i18n';
 import { ThemeProvider } from '@/lib/theme';
-import { Amount, ErrorState, StatusChip } from '..';
+import { Amount, EmptyState, ErrorState, ProgressBar, StatusChip } from '..';
 import { MonthSwitcher } from '../month-switcher';
 
 const mockStore = new Map<string, string>();
@@ -74,6 +74,39 @@ describe('owner app UI', () => {
       expect(mirrored).toBe(lang === 'en' ? chevrons : 0);
     },
   );
+
+  it('shows a hero amount and the empty and error states without optional parts', async () => {
+    await renderIn(
+      'en',
+      <>
+        <Amount fils={500_000} size="hero" />
+        <EmptyState title="No cheques" body="Nothing due this month" />
+        <EmptyState title="No disputes" />
+        <ErrorState />
+      </>,
+    );
+    expect(await screen.findByText('5,000')).toBeTruthy();
+    expect(screen.getByText('Nothing due this month')).toBeTruthy();
+    expect(screen.getByText('No disputes')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
+  it('keeps the progress bar between 0 and 100 %', async () => {
+    await renderIn(
+      'en',
+      <>
+        <ProgressBar pct={140} />
+        <ProgressBar pct={-5} />
+      </>,
+    );
+    const bars = await screen.findAllByRole('progressbar');
+    expect(
+      bars.map((b) => (b.props as { accessibilityValue: { now: number } }).accessibilityValue.now),
+    ).toEqual([100, 0]);
+    const tree = JSON.stringify(screen.toJSON());
+    expect(tree).toContain('"width":"100%"');
+    expect(tree).toContain('"width":"0%"');
+  });
 
   it('offers a retry on the error state', async () => {
     const onRetry = jest.fn();

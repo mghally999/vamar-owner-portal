@@ -17,5 +17,5 @@ module.exports = {
   },
   collectCoverageFrom: ['src/ui/**/*.tsx'],
   // Floors measured on 23 Oct 2026; raised as tests are added, never lowered.
-  coverageThreshold: { global: { lines: 48, statements: 47, branches: 44, functions: 46 } },
+  coverageThreshold: { global: { lines: 53, statements: 51, branches: 48, functions: 53 } },
 };
