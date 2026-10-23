@@ -35,10 +35,10 @@ uploads it to the private R2 bucket `vamar-backups`. It needs an R2 API token.
   for `https://vamar-owner-portal.vamar-api.workers.dev/readyz` every 3 minutes, alert to your
   e-mail. Nothing in the code depends on it.
 
-## 4. Docker Desktop
+## 4. Docker Desktop (resolved)
 
-Docker Desktop is installed but was not running during the audit. Start it once so the
-`docker compose` smoke test in Phase C can run (`docker compose up --wait`).
+No longer needed: the CI job "Docker image" builds the image and runs the whole compose stack on
+every push (green since 23 Oct 2026). Docker Desktop is only needed to run it on this machine.
 
 ## 5. Keystore and credentials backup (Phase E)
 

@@ -331,3 +331,96 @@ four list screens; images not cached; no offline state; two Expo transitive advi
 | §12 authorship rules                                                                                                                              | Done                                                                       | `git log`                                                      |
 | Steps 1 to 9 of the v2 brief (push, screenshots, emulator, DEMO.md, deploy, PROGRESS entries)                                                     | Done                                                                       | `PROGRESS.md`                                                  |
 | 22 Oct decisions: no stores, APK + PWA at `/app`, `/download` page, update check, staging, Sentry, Docker, import template, blank start, handover | Pending                                                                    | Phases C to H                                                  |
+
+## 9. Re-audit after hardening (23 Oct 2026)
+
+Same method as sections 2 to 6, on `main` after Phases B to G. Evidence: CI run 40016774677 (all
+six jobs green: checks with coverage floors, build and budgets, security, Playwright with axe and
+the load smoke, the Docker stack), the two "Load comparison" workflow runs in 9.2, Lighthouse on
+staging, and the test and coverage numbers in 9.3.
+
+### 9.1 Scorecard after (0 to 10)
+
+| #   | Dimension                             | Before  | After   | Why now                                                                                                                                                                    |
+| --- | ------------------------------------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Authentication and session management | 6       | 9       | Verified-email binding, single-use TOTP, revocation checked on every request (60 s cache), 2-step mandatory for admins and real accounts; V-043 grace window in FUTURE.md  |
+| 2   | Authorisation and owner isolation     | 9       | 9       | Design unchanged, V-007 fixed; isolation and role suites pass on every route                                                                                               |
+| 3   | Input validation and injection        | 9       | 9       | One 422 envelope for every validation error; uploads sniffed by content and length-checked first                                                                           |
+| 4   | Data integrity and transactions       | 8       | 9       | Import commits each row in a savepoint, stores its report, keys batches by file fingerprint; 5,000-row test with bad and duplicate rows                                    |
+| 5   | Reliability and fault tolerance       | 3       | 8       | Timeouts and retries on every outbound call, two-phase notification log with retry, guarded cron with retention, clients keep the session through network errors           |
+| 6   | Observability and operability         | 3       | 7       | JSON access logs with request ids, readiness probe, scrubbed error reporter, staging, restore drill passed. Not 8: Sentry DSN and uptime monitor need accounts (BLOCKED 3) |
+| 7   | API performance                       | 6       | 9       | Parallel overview plus the four indexes: overview 70 → 189 req/s, p95 745 → 284 ms; mixed p95 at 100 users 1,369 → 404 ms (9.2)                                            |
+| 8   | Database design and indexing          | 7       | 9       | Partial and sort indexes of V-021, occupancy as one aggregate, migrations 0003 to 0005 applied in production                                                               |
+| 9   | Scalability and capacity              | 5       | 8       | Throughput doubled on the same runner, every list paged by cursor, payloads capped; Workers scale per request                                                              |
+| 10  | Dashboard quality                     | 7       | 8       | Redesign with two themes, virtualised cheques, debounced search, owner picker, batched import; Lighthouse sign-in 84 (was 80), best practices 96 (was 93)                  |
+| 11  | Mobile quality                        | 6       | 8       | Home 1:1 with the Figma design in two themes, APK 36.7 MB (was 114 MB), cached images, offline banner, update check, web app at `/app`; web bundle size in 9.4             |
+| 12  | Accessibility                         | 8       | 9       | WCAG AA contrast tested for every theme; axe in Playwright (both languages), on the PWA and in component tests; progress bar name and value fixed                          |
+| 13  | Internationalisation and RTL          | 8       | 9       | Chevrons and back arrows checked in both directions with a regression test; web direction without a reload; two dictionaries kept on purpose (FUTURE.md)                   |
+| 14  | Maintainability and code quality      | 6       | 7       | Staff routes split by area, rules back in `@vamar/shared`, one validator and error format. Not 8: the five dashboard files over 400 lines (section 5) are unchanged        |
+| 15  | Tests                                 | 6       | 8       | 159 → about 250 cases; coverage floors in every package; property tests; component tests on web and native; PWA and load smoke in CI. No pixel-diff visual regression      |
+| 16  | CI/CD, environments and secrets       | 4       | 8       | Six CI jobs including Docker, staging, deploy workflow (main → staging, tag → production) waiting only for the Cloudflare token (BLOCKED 6), rotation record in GOLIVE.md  |
+| 17  | Documentation and brief compliance    | 7       | 9       | HANDOVER.md, GOLIVE.md, BLOCKED.md, FUTURE.md, updated PROJECT, README and DEMO; brief status in 9.5                                                                       |
+|     | **Average**                           | **6.1** | **8.4** |                                                                                                                                                                            |
+
+Below 8, with the reason: observability (7) needs two free accounts only the project owner can
+open; maintainability (7) because splitting the large dashboard pages was traded for the redesign
+and the go-live work in this round (FUTURE.md).
+
+### 9.2 Load tests before and after
+
+GitHub-hosted runner, Postgres 17, the large dataset of section 2 (`tooling/load/large-dataset.sql`),
+one Node API process, the scenarios of 6.4 (`tooling/load/run.mjs`), 15 s each after a warm-up.
+"Before" is the audit commit 44aa3e2 (run 40016784877), "after" is `main` (run 40016792144). The
+office 403s are the editor's requests to the admin-only audit route, by design. Latencies in ms.
+
+| Scenario        | Users | req/s before | req/s after | p50 before | p50 after | p95 before | p95 after | p99 before | p99 after | Failed |
+| --------------- | ----- | ------------ | ----------- | ---------- | --------- | ---------- | --------- | ---------- | --------- | ------ |
+| mixed           | 10    | 375          | 679         | 20         | 13        | 143        | 30        | 153        | 35        | 0      |
+| mixed           | 50    | 383          | 765         | 102        | 58        | 673        | 176       | 742        | 206       | 0      |
+| mixed           | 100   | 375          | 744         | 206        | 119       | 1,369      | 404       | 1,546      | 447       | 0      |
+| mixed           | 250   | 375          | 650         | 536        | 349       | 3,678      | 1,141     | 3,800      | 1,255     | 0      |
+| office (one IP) | 50    | 225          | 625         | 134        | 58        | 768        | 190       | 783        | 207       | 0      |
+| overview only   | 50    | 70           | 189         | 688        | 261       | 745        | 284       | 773        | 304       | 0      |
+| owner home only | 100   | 400          | 593         | 229        | 164       | 422        | 266       | 486        | 292       | 0      |
+
+The runner is faster than the dev machine of section 6.4, so the two columns here are the
+comparison, not section 6.4. The load smoke in CI (20 users, 15 s, p95 under 1.5 s, no failures)
+guards against regressions.
+
+### 9.3 Tests and coverage
+
+| Package   | Cases                                                                            | Coverage floor enforced (lines / branches)           |
+| --------- | -------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| api       | 95, incl. the 5,000-row import and owner isolation                               | 86 / 67 (measured 86.6 / 67.1)                       |
+| shared    | 92, incl. 6 property tests (fast-check)                                          | 96 / 94                                              |
+| db        | 11, migrations and seed invariants                                               | n/a                                                  |
+| dashboard | 12 unit and component (with axe); Playwright flows and axe in Arabic and English | 56 / 53 on the unit-tested modules; pages end to end |
+| mobile    | 5 unit (Vitest), 9 component (jest-expo)                                         | 53 / 48 on `src/ui`                                  |
+| tokens    | 5, WCAG AA for every theme                                                       | n/a                                                  |
+| owner PWA | 2 Playwright on an iPhone screen with axe                                        | after every staging deploy                           |
+
+### 9.4 Frontend (Lighthouse 12, mobile profile, staging)
+
+| Page                  | Performance | Accessibility | Best practices | SEO | LCP    | Total weight |
+| --------------------- | ----------- | ------------- | -------------- | --- | ------ | ------------ |
+| Dashboard `/login`    | 84 (was 80) | 100           | 96 (was 93)    | 63  | 2.6 s  | 398 KB       |
+| Owner web app `/app/` | 34          | 100           | 96             | 66  | 10.1 s | 1,037 KB     |
+
+SEO fails only "page is blocked from indexing": `noindex` is deliberate for a private portal. The
+owner web app ships one 766 KB (gzip) script (React Native for Web, Reanimated, zod, Firebase Auth).
+The measuring machine was short of memory, which inflates blocking time, but the size is real.
+Splitting it by route is the first item in FUTURE.md; the Android app is not affected.
+
+### 9.5 Defect register and brief
+
+All Critical, High and Medium findings and every Low under 30 minutes are fixed, each with a test
+where one can exist. Open by decision, with reason and size in FUTURE.md: V-003 (second half),
+V-017, V-034, V-043, V-048, V-054. Found and fixed during this round: the overview progress bar had
+no accessible name; month and row chevrons pointed the wrong way in both languages; a detail
+screen opened from a notification had no back button; the renewal demo's cheque timelines were a
+year off; the compose stack could not reach Postgres (non-Neon hosts now use `pg`).
+
+The 22 Oct decisions are delivered: APK by direct link and the iPhone web app at `/app`, the
+`/download` page with its QR code, the update check with over-the-air updates, staging, the error
+reporter (DSN pending), Docker, the import template, the blank start and this handover. Waiting on
+the project owner: BLOCKED.md items 1 to 6.
