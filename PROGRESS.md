@@ -133,3 +133,29 @@ API, app 1.1.0 prepared with over-the-air updates; the next APK is 36.7 MB inste
 installed app and the trial accounts work as before.
 
 تمت مراجعة النظام بالكامل ومعالجة كل ما ظهر في تقرير المراجعة من نقاط ضعف في الأمان والاعتمادية والأداء، وتم تجهيز نسخة تجريبية منفصلة تماماً عن النسخة الحية لاختبار أي تعديل قبل وصوله إلى المستخدمين، مع سجلات تشغيل منظمة وتجربة ناجحة لاسترجاع النسخة الاحتياطية لقاعدة البيانات. وتم البدء بتطبيق التصميم الجديد من ملف فيجما على التطبيق ولوحة التحكم بمظهرين يختار المستخدم بينهما، وتم تجهيز صفحة تنزيل واحدة ترسل للملاك وتعرض الطريقة المناسبة لهاتف كل منهم، وتم تقليص حجم تطبيق أندرويد من 114 إلى نحو 37 ميجابايت، وتم نشر هذه التحسينات على النسخة الحية بعد نجاح اختبارها على النسخة التجريبية.
+
+## Distribution, go-live kit, tests, re-audit and handover (24 Oct 2026)
+
+**Distribution**: owner app 1.1.0 (36.7 MB APK) on the `/download` page and in the update check;
+the same app as a web app at `/app` for iPhone (installable from Safari, offline shell, tested on an
+iPhone screen with axe after every staging deploy); an over-the-air update with this round's fixes
+published to installed 1.1.0 apps. Production runs v1.1.1.
+
+**Go-live kit**: `vamar-import-template.xlsx` (Arabic instructions, examples, Excel validation for
+5,000 rows) downloadable from the Import page; imports go in batches of 500 keyed by the file, so
+uploading the same file twice adds nothing; a 5,000-row test with bad and duplicate rows;
+`pnpm golive:blank` (dry run, then `--confirm`) rehearsed on the staging database server; GOLIVE.md
+with the day's checklist, rollback and the secret rotation record.
+
+**Tests and CI**: about 250 tests with coverage floors in every package, property tests for money
+and dates, component tests for the dashboard and the app, a load smoke and the Docker stack in CI;
+all six CI jobs green.
+
+**Re-audit**: AUDIT.md section 9, average 8.4 out of 10 (was 6.1). On the same machine and data,
+the API serves about twice the requests with a 3 to 5 times lower p95; the staff overview went from
+70 to 189 requests a second. Found and fixed along the way: arrows pointing the wrong way in both
+languages, a missing back button on screens opened from a notification, demo cheque timelines a
+year off, an unnamed progress bar. HANDOVER.md, README, DEMO and PROJECT updated; app screenshots
+v2 in both themes and both languages.
+
+تم تسليم المشروع كاملاً وجاهزاً للتشغيل الفعلي، فقد أصبح تطبيق الملاك متاحاً عبر رابط تنزيل واحد يعرض تطبيق أندرويد أو نسخة الويب المناسبة للآيفون، مع تحديثات تصل للتطبيق المثبت تلقائياً. وتم تجهيز نموذج إكسل باللغة العربية لإدخال بيانات فامار الحقيقية مع التحقق من صحتها قبل الحفظ، وتجربة استيراد 5,000 سجل بنجاح، وخطوات واضحة ومجربة لبدء التشغيل الفعلي ببيانات نظيفة. وأظهرت المراجعة النهائية تحسناً في التقييم العام من 6.1 إلى 8.4 من 10، وأصبح النظام يتحمل ضعف عدد المستخدمين بسرعة استجابة أعلى بثلاث إلى خمس مرات، وتم توثيق كل ما يلزم لاستلام المشروع وتشغيله.
