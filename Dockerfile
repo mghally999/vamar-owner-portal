@@ -32,7 +32,9 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 FROM deps AS build
 ARG DASHBOARD_MODE=development
 COPY . .
-RUN pnpm --filter @vamar/dashboard exec vite build --mode ${DASHBOARD_MODE}
+# tokens.css is generated from the design tokens before the dashboard imports it.
+RUN pnpm --filter @vamar/tokens build \
+ && pnpm --filter @vamar/dashboard exec vite build --mode ${DASHBOARD_MODE}
 
 FROM node:${NODE_VERSION}-alpine AS runtime
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=8787

@@ -187,7 +187,7 @@ export async function createWorld(): Promise<TestWorld> {
       const row = staffRows.find((s) => s.email === email);
       if (!row) throw new Error(`unknown staff ${email}`);
       const mfa = opts.mfa ?? true;
-      let sessionId = crypto.randomUUID();
+      let sessionId: string = crypto.randomUUID();
       if (mfa) {
         const [s] = await db
           .insert(schema.sessions)
