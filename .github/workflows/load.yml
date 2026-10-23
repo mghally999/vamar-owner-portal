@@ -1,0 +1,106 @@
+name: Load comparison
+
+# Runs the audit's load scenarios (AUDIT.md section 6.4) against the API at any commit, on a clean
+# runner and the same large synthetic dataset, so "before" and "after" are measured the same way:
+# run it once with the audit commit (44aa3e2) and once with main, then compare the two summaries.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit, tag or branch of the API to measure
+        required: true
+        default: main
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    name: Load scenarios on the large dataset (${{ inputs.ref }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: postgres://vamar:vamar@localhost:5432/vamar
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: vamar
+          POSTGRES_PASSWORD: vamar
+          POSTGRES_DB: vamar
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vamar -d vamar"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Load tooling (from main)
+        uses: actions/checkout@v5
+        with:
+          path: tools
+      - name: API under test
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.ref }}
+          path: app
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: tools/.nvmrc
+      - name: Install the API under test
+        working-directory: app
+        run: pnpm install --frozen-lockfile
+      - name: Schema and the large dataset
+        working-directory: app
+        run: |
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tooling/postgres/init/01-roles.sql
+          pnpm db:migrate
+          psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f ../tools/tooling/load/large-dataset.sql
+          psql "$DATABASE_URL" -c 'analyze'
+      - name: Start the API (Node server, one process, like the audit)
+        working-directory: app/apps/api
+        run: |
+          (npx tsx src/dev-server.ts > /tmp/api.log 2>&1 &)
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8787/healthz && exit 0; sleep 2; done
+          tail -50 /tmp/api.log; exit 1
+      - name: Load tools
+        run: |
+          mkdir -p /tmp/load && cp tools/tooling/load/*.mjs /tmp/load/
+          cd /tmp/load && npm init -y > /dev/null && npm install --no-audit --no-fund autocannon@8 jose@6 pg@8
+      - name: Scenarios (15 s each)
+        working-directory: /tmp/load
+        run: |
+          node tokens.mjs > tokens.json
+          B=http://127.0.0.1:8787
+          # Warm the caches once so every scenario starts from the same state.
+          node run.mjs $B tokens.json mixed 10 10 > /dev/null
+          {
+            for c in 10 50 100 250; do node run.mjs $B tokens.json mixed $c 15; done
+            node run.mjs $B tokens.json office 50 15
+            node run.mjs $B tokens.json overview 50 15
+            node run.mjs $B tokens.json ownerhome 100 15
+          } | tee results.jsonl
+          {
+            echo "### Load on \`${{ inputs.ref }}\` ($(cd $GITHUB_WORKSPACE/app && git rev-parse --short HEAD))"
+            echo
+            echo "| Scenario | Concurrent | Requests | req/s | p50 | p95 | p99 | max | Failed |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+            node -e "
+              for (const l of require('fs').readFileSync('results.jsonl','utf8').split('\n').filter(Boolean)) {
+                const r = JSON.parse(l);
+                console.log('| ' + [r.scenario, r.connections, r.requests, r.rps, r.p50_ms, r.p95_ms, r.p99_ms, r.max_ms, r.non2xx + r.errors + r.timeouts].join(' | ') + ' |');
+              }"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: load-${{ github.run_id }}
+          path: |
+            /tmp/load/results.jsonl
+            /tmp/api.log
+          retention-days: 30
