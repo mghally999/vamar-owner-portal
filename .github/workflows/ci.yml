@@ -151,3 +151,31 @@ jobs:
             apps/dashboard/test-results
             /tmp/*.log
           retention-days: 7
+
+  docker:
+    name: Docker image (multi-stage, non-root, healthcheck) and the full compose stack
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build and start Postgres, the Auth emulator, migrations and the app
+        run: docker compose up -d --build
+      - name: App answers and is ready
+        run: |
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8787/readyz; then break; fi
+            sleep 5
+          done
+          curl -sf http://localhost:8787/healthz
+          curl -sf http://localhost:8787/readyz
+          curl -sf -o /dev/null -w '%{http_code} %{content_type}\n' http://localhost:8787/
+          test "$(docker compose ps -a --format '{{.ExitCode}}' migrate)" = "0"
+          test "$(docker compose exec -T app id -u)" != "0"
+          for i in $(seq 1 12); do
+            test "$(docker inspect --format '{{.State.Health.Status}}' vamar-app)" = healthy && exit 0
+            sleep 5
+          done
+          echo "container never reported healthy"; exit 1
+      - name: Logs
+        if: failure()
+        run: docker compose logs --tail 150

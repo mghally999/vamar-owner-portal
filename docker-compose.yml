@@ -1,5 +1,7 @@
-# Local development infrastructure. Nothing here is used in deployed environments:
-# production runs on Neon (Postgres) and the real Firebase project.
+# Local stack. `docker compose up -d postgres firebase` gives the infrastructure for `pnpm dev`;
+# `docker compose up --wait` also builds and runs the app (API + dashboard on http://localhost:8787)
+# after migrating and seeding. Nothing here is used in deployed environments: production runs on
+# Cloudflare Workers, Neon and the real Firebase project.
 name: vamar-owner-portal
 
 services:
@@ -48,6 +50,34 @@ services:
       interval: 5s
       timeout: 5s
       retries: 30
+
+  migrate:
+    # One-shot: apply migrations, seed the demo data when the database is empty.
+    build:
+      context: .
+      target: build
+    environment:
+      DATABASE_URL: postgres://vamar:vamar@postgres:5432/vamar
+    command: ['sh', '-c', 'pnpm db:migrate && pnpm db:seed']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  app:
+    build: .
+    container_name: vamar-app
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://vamar_app:vamar_app@postgres:5432/vamar
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:9099
+      FIREBASE_PROJECT_ID: demo-vamar
+    ports:
+      - '8787:8787'
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      firebase:
+        condition: service_healthy
 
 volumes:
   postgres-data:
