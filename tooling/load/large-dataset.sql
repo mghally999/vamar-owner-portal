@@ -112,4 +112,4 @@ union all select 'unit_ownerships', count(*) from unit_ownerships union all sele
 union all select 'cheque_events', count(*) from cheque_events union all select 'disputes', count(*) from disputes union all select 'audit_log', count(*) from audit_log
 union all select 'devices', count(*) from devices union all select 'notification_log', count(*) from notification_log;
 select status, count(*) from cheques group by 1 order by 1;
-select pg_size_pretty(pg_database_size('vamar_load'));
+select pg_size_pretty(pg_database_size(current_database()));
