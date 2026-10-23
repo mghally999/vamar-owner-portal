@@ -486,9 +486,32 @@ export async function seed(db: SeedDb, today: PlainDate = todayInDubai()): Promi
       for (const ch of chequeRows.filter((c) => c.contractId === earlier.id)) {
         ch.dueDate = addMonthsClamped(ch.dueDate, -12);
         ch.status = 'cleared';
+        ch.depositedAt = new Date(Date.parse(ch.dueDate));
         ch.clearedAt = new Date(Date.parse(ch.dueDate) + 2 * 86_400_000);
+        ch.statusChangedAt = ch.clearedAt;
         ch.bouncedAt = null;
         ch.bounceReason = null;
+        // The timeline moves with the cheque: upcoming at the start, deposited, then cleared.
+        const kept = eventRows.filter((e) => e.chequeId !== ch.id);
+        eventRows.length = 0;
+        eventRows.push(
+          ...kept,
+          ...(
+            [
+              [null, 'upcoming', new Date(Date.parse(earlier.startDate))],
+              ['upcoming', 'deposited', ch.depositedAt],
+              ['deposited', 'cleared', ch.clearedAt],
+            ] as const
+          ).map(([fromStatus, toStatus, at]) => ({
+            id: uuidv7(),
+            chequeId: ch.id,
+            fromStatus,
+            toStatus,
+            note: '',
+            actorStaffId: admin.id,
+            at,
+          })),
+        );
       }
     }
     addContract(renewUnit, addDays(old.endDate, 1), 4, 'draft', { previousContractId: old.id });

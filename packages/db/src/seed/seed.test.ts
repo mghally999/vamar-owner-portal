@@ -65,6 +65,17 @@ describe('seed data', () => {
     for (const r of rows.rows) expect(r.total).toBe(10_000);
   });
 
+  it('cheque timelines sit inside their own contract, deposits on the due date', async () => {
+    const rows = await db.execute<{ n: number }>(
+      sql`SELECT COUNT(*)::int AS n FROM cheque_events e
+          JOIN cheques ch ON ch.id = e.cheque_id JOIN contracts k ON k.id = ch.contract_id
+          WHERE e.at::date < k.start_date
+             OR (e.to_status = 'deposited' AND e.at::date <> ch.due_date)
+             OR e.at::date > ch.due_date + 30`,
+    );
+    expect(rows.rows[0]?.n).toBe(0);
+  });
+
   it('every unit has at most one active contract', async () => {
     const rows = await db.execute<{ unit_id: string; n: number }>(
       sql`SELECT unit_id, COUNT(*)::int AS n FROM contracts WHERE status = 'active' GROUP BY unit_id HAVING COUNT(*) > 1`,
