@@ -89,7 +89,7 @@ select gen_random_uuid(), 'RDC-2026-' || lpad(n::text, 5, '0'), c.unit_id, c.id,
        (array['rent_arrears','bounced_cheque','eviction','damages','other'])[1 + n % 5]::dispute_type,
        (10000 + n * 100) * 100,
        (array['open','in_progress','hearing_scheduled','judgment_issued','closed'])[1 + n % 5]::dispute_status,
-       case when n % 5 = 2 then current_date + (n % 60) end, now() - ((n % 300) || ' days')::interval, ''
+       case when n % 5 = 2 then current_date + (n % 60)::int end, now() - ((n % 300) || ' days')::interval, ''
 from (select *, row_number() over (order by id) n from contracts where status = 'active') c where n <= 1500;
 insert into dispute_counters values (2026, 1500);
 insert into dispute_updates (id, dispute_id, note, visible_to_owner, actor_staff_id, at)
