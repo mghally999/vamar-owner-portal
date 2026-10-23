@@ -19,6 +19,9 @@ allowBuilds:
   sharp: true
   '@tailwindcss/oxide': true
   '@parcel/watcher': true
+  # jest's resolver: its script only downloads a native binary when the platform package is
+  # missing, and the platform packages install as optional dependencies.
+  unrs-resolver: false
 
 # React Native + CMake on Windows need short, real paths: a flat node_modules like npm.
 # (Expo recommends hoisted for monorepos; pnpm 12 reads this from pnpm-workspace.yaml.)
