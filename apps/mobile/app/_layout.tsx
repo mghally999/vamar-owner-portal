@@ -17,6 +17,10 @@ import { useUpdateState } from '@/lib/version';
 
 void SplashScreen.preventAutoHideAsync();
 
+// A detail screen opened directly (a push notification, a link, a reload of the web app) gets the
+// tabs underneath it, so it has a back button.
+export const unstable_settings = { initialRouteName: '(tabs)' };
+
 // Queries pause while the phone is offline and resume on reconnect; what was fetched last stays
 // on screen in the meantime (see OfflineBanner).
 onlineManager.setEventListener((setOnline) =>
