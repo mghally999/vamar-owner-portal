@@ -6,38 +6,38 @@ Owner mobile app, staff dashboard and API for **Vamar Real Estate** (Dubai). Pro
 
 All demo data is fictional.
 
-|                         | Link                                                                                              | Sign in with                                                                                    |
-| ----------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **Owner app (Android)** | [Download the APK](https://vamar-owner-portal.vamar-api.workers.dev/download/vamar-owner-app.apk) | Phone `+971 50 000 0001`, code `123456` (Arabic) or `+971 50 000 0003`, code `123456` (English) |
-| **Staff dashboard**     | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev)      | `admin@vamar.test` / `Vamar2026!` (admin) or `entry@vamar.test` / `Vamar2026!` (data entry)     |
+|                     | Link                                                                                                                                               | Sign in with                                                                                    |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Owner app**       | [vamar-owner-portal.vamar-api.workers.dev/download](https://vamar-owner-portal.vamar-api.workers.dev/download) (APK on Android, web app on iPhone) | Phone `+971 50 000 0001`, code `123456` (Arabic) or `+971 50 000 0003`, code `123456` (English) |
+| **Staff dashboard** | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev)                                                       | `admin@vamar.test` / `Vamar2026!` (admin) or `entry@vamar.test` / `Vamar2026!` (data entry)     |
 
-On iPhone, the screenshots below show the owner app.
+The download page picks the right option for the phone that opens it: the Android app, or on iPhone the same app as a web app at `/app` (Safari, Share, Add to Home Screen). Its QR code is `demo/download-qr.png`. Phone sign-in on the web app starts working once the site is added to Firebase's authorised domains ([BLOCKED.md](BLOCKED.md) item 2).
 
 ## Screenshots
 
 **Owner app**
 
 <p>
-  <img src="demo/screenshots/app/03-home-en.png" width="200" alt="Home">
-  <img src="demo/screenshots/app/04-cheques-en.png" width="200" alt="Cheques">
-  <img src="demo/screenshots/app/05-cheque-detail-en.png" width="200" alt="Cheque detail">
-  <img src="demo/screenshots/app/06-properties-en.png" width="200" alt="Properties">
+  <img src="demo/screenshots/v2/app/home-default-ar.png" width="200" alt="Home, Default theme, Arabic">
+  <img src="demo/screenshots/v2/app/cheques-default-en.png" width="200" alt="Cheques">
+  <img src="demo/screenshots/v2/app/cheque-white-en.png" width="200" alt="Cheque detail, White theme">
+  <img src="demo/screenshots/v2/app/properties-white-ar.png" width="200" alt="Properties, White theme, Arabic">
 </p>
 
 **Staff dashboard**
 
 <p>
-  <img src="demo/screenshots/dashboard/overview-en-1440.png" width="820" alt="Overview">
+  <img src="demo/screenshots/v2/dashboard/overview-en-1440.png" width="820" alt="Overview">
 </p>
 <p>
-  <img src="demo/screenshots/dashboard/cheques-en-1440.png" width="405" alt="Cheques">
-  <img src="demo/screenshots/dashboard/owners-en-1440.png" width="405" alt="Owners">
+  <img src="demo/screenshots/v2/dashboard/cheques-ar-1440.png" width="405" alt="Cheques, Arabic">
+  <img src="demo/screenshots/v2/dashboard/owners-en-1440-white.png" width="405" alt="Owners, White theme">
 </p>
 
 ## What it does
 
-- **Owner app:** phone and OTP sign-in, monthly cheque overview, cheque statuses (upcoming, cleared, bounced), properties and units, shared ownership, disputes, PDF statements, Arabic and English, light and dark themes.
-- **Staff dashboard:** owners, buildings, units, contracts, cheques, disputes, Excel import, staff users with roles, two-step login (TOTP) and a full audit log.
+- **Owner app:** phone and OTP sign-in, monthly cheque overview, cheque statuses (upcoming, cleared, bounced), properties and units, shared ownership, disputes, PDF statements, update check, Arabic and English, Default and White themes.
+- **Staff dashboard:** owners, buildings, units, contracts, cheques, disputes, Excel import with a ready template, staff users with roles, two-step login (TOTP) and a full audit log.
 - **Security:** every owner only ever sees their own data, staff actions are role-checked on the server, and every change is recorded in the audit log.
 
 ## Stack
@@ -60,7 +60,9 @@ pnpm infra:up && pnpm db:migrate && pnpm db:seed
 pnpm check
 ```
 
-See [PROJECT.md](PROJECT.md) for engineering notes, local setup, decisions and the phase log, and [DEMO.md](DEMO.md) for the full demo script.
+Or the whole stack in containers: `docker compose up -d --build`, then http://localhost:8787.
+
+See [HANDOVER.md](HANDOVER.md) for where everything runs and how a change reaches people, [PROJECT.md](PROJECT.md) for engineering notes and decisions, [GOLIVE.md](GOLIVE.md) for moving to real data, [AUDIT.md](AUDIT.md) for the audit and the scores after it, and [DEMO.md](DEMO.md) for the full demo script.
 
 ---
 

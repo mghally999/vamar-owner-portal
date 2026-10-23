@@ -90,7 +90,14 @@ registered, contact Vamar" screen.
 
 ## Screenshots
 
-`demo/screenshots/dashboard` (1440 px and 390 px, Arabic and English, every page and detail
+**Current design (v2)**: `demo/screenshots/v2/dashboard` (every page at 1440 px and 390 px, Arabic
+and English, Default and White themes; regenerate with `SCREENSHOT_THEME=white pnpm --filter
+@vamar/dashboard e2e -- screenshots` and without the variable for Default) and
+`demo/screenshots/v2/app` (home, cheques, properties, disputes, settings and the three detail
+screens on an iPhone 13 screen, both themes, both languages; regenerate with
+`node tooling/dev/app-screenshots.mjs` after `pnpm build:web` while the API dev server runs).
+
+**First design (v1)**, kept for comparison: `demo/screenshots/dashboard` (1440 px and 390 px, Arabic and English, every page and detail
 page), `demo/screenshots/app` (emulator captures: login, OTP, not registered, home, cheques,
 cheque detail, properties, unit detail, disputes, dispute detail, settings, account deletion,
 statement share; Arabic and English, plus a dark-mode set) and `demo/screenshots/store`

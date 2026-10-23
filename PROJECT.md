@@ -301,7 +301,7 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 | Production  | https://vamar-owner-portal.vamar-api.workers.dev         | Neon branch `main`    | R2 `vamar-files`         | tag `v*` (Deploy workflow, after staging) |
 | Staging     | https://vamar-owner-portal-staging.vamar-api.workers.dev | Neon branch `staging` | R2 `vamar-files-staging` | every green CI run on `main`              |
 | Local       | http://localhost:5173 (dashboard), :8787 (API)           | Postgres 17 on 5433   | `apps/api/.dev-files`    | `pnpm dev`                                |
-| Docker      | http://localhost:8787                                    | compose `postgres`    | container folder         | `docker compose up --wait`                |
+| Docker      | http://localhost:8787                                    | compose `postgres`    | container folder         | `docker compose up -d --build`            |
 
 Staging has its own Worker secrets (`JWT_SECRET`, `TOTP_ENC_KEY`, `DATABASE_URL` for
 `vamar_app` on the staging branch), so a token or authenticator from one environment never works
@@ -352,6 +352,19 @@ To restore production from a nightly file:
 For a mistake within the last 24 hours, Neon's point-in-time restore (console: Restore) is
 faster than a file.
 
+### Load and capacity
+
+`tooling/load` holds the load runner (`run.mjs`, autocannon), a token script that creates real
+sessions (`tokens.mjs`) and the large synthetic dataset of the audit (`large-dataset.sql`). CI runs
+a 15-second smoke (20 users, p95 under 1.5 s, no failures) on every push; the manual "Load
+comparison" workflow measures any commit on the large dataset. Numbers before and after the
+hardening are in AUDIT.md section 9.2.
+
+### Releases and go-live
+
+How a change reaches staging, production and the owner app (APK, over-the-air update, web app) is
+in HANDOVER.md; moving production from demo data to Vamar's real data is in GOLIVE.md.
+
 ## Setup I must do
 
 Nothing here blocks local development; all of it is for deployed environments or for pushing.
@@ -376,7 +389,8 @@ Nothing here blocks local development; all of it is for deployed environments or
    https://vamar-owner-portal.vamar-api.workers.dev with the daily cron; R2 buckets `vamar-files`
    (attachments) and `vamar-backups` (nightly dumps). Secrets set: `DATABASE_URL` (the
    `vamar_app` Neon URL), `JWT_SECRET`, `TOTP_ENC_KEY`. Deploy with
-   `pnpm --filter @vamar/dashboard build && cd apps/api && npx wrangler deploy` (`APP_ENV` is
+   `pnpm build:web && cd apps/api && npx wrangler deploy --var RELEASE:<tag>` (`pnpm build:web`
+   builds the dashboard and exports the owner web app into its `dist/app`; `APP_ENV` is
    `production` in `wrangler.jsonc`; the Worker refuses to serve when a secret is missing or a
    development placeholder is set).
    Static files get their security headers from `apps/dashboard/public/_headers` (the asset layer
@@ -393,12 +407,10 @@ Nothing here blocks local development; all of it is for deployed environments or
    (id `7e929192-4d31-4476-a3ef-49e0eeb78760`), Android keystore kept by EAS, preview APK built
    against the live API (link in MEETING.md and `.local/apk-url.txt`). Production profile builds
    an AAB; `eas submit` needs the store accounts listed in STORE.md.
-6. **Firebase (real project `vamar-owner-portal-c55c2`)**: created, Android app `ae.vamar.owner` and
-   web app registered, dashboard production config in `apps/dashboard/.env.production`, Worker var
-   `FIREBASE_PROJECT_ID` set. **Still needed in the console**: Build > Authentication > Get started;
-   `.local/firebase-auth-config.mjs` then enables Email/Password, Phone with the five test numbers
-   (code 123456) and the UAE-only SMS region through the Identity Toolkit API, and the demo staff
-   users are created the same way.
+6. **Firebase (real project `vamar-owner-portal-c55c2`)**: done, see item 3. Android app
+   `ae.vamar.owner` and web app registered, dashboard production config in
+   `apps/dashboard/.env.production`, Worker var `FIREBASE_PROJECT_ID` set; sign-in methods, test
+   numbers and the UAE-only SMS region were applied with `.local/firebase-auth-config.mjs`.
 
 ## Phase log
 
