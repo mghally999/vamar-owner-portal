@@ -63,8 +63,7 @@ try {
     owners: [],
   };
   for (const o of owners) out.owners.push(await ownerToken(o));
-  process.stdout.write(`${JSON.stringify(out)}
-`);
+  process.stdout.write(`${JSON.stringify(out)}\n`);
 } finally {
   await client.end();
 }

@@ -92,8 +92,7 @@ const row = {
   timeouts: result.timeouts,
   failures: tally,
 };
-process.stdout.write(`${JSON.stringify(row)}
-`);
+process.stdout.write(`${JSON.stringify(row)}\n`);
 if (maxP95 !== null) {
   const failed = result.non2xx + result.errors + result.timeouts;
   if (failed > 0 || result.latency.p97_5 > maxP95) {
