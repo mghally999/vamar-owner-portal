@@ -5,9 +5,10 @@
  * hold), and multi-statement writes open a per-request Pool over WebSocket so a real transaction
  * is possible; the pool is closed with `ctx.waitUntil(pool.end())`.
  *
- * Local development and tests: the Neon drivers only speak to Neon's proxy, so when DATABASE_URL
- * points at localhost we use `pg` (works on Workers with nodejs_compat), and tests inject a
- * ready-made PGlite database via `env.TEST_DB`. Service code only ever sees `Db` / `Tx`.
+ * Any other Postgres (localhost, the `postgres` service in docker-compose, a self-hosted server):
+ * the Neon drivers only speak to Neon's proxy, so we use `pg` (works on Workers with
+ * nodejs_compat). Tests inject a ready-made PGlite database via `env.TEST_DB`. Service code only
+ * ever sees `Db` / `Tx`.
  */
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
 import { sql, type ExtractTablesWithRelations, type SQL } from 'drizzle-orm';
@@ -30,10 +31,11 @@ export type Dbx = Db | Tx;
 /** A Neon wake-up takes about a second; anything beyond this is reported, not waited for. */
 const NEON_CONNECT_TIMEOUT_MS = 10_000;
 
+/** True unless DATABASE_URL is a Neon host (the only place the Neon drivers can connect to). */
 function isLocal(url: string): boolean {
   try {
     const host = new URL(url).hostname;
-    return host === 'localhost' || host === '127.0.0.1';
+    return !(host === 'neon.tech' || host.endsWith('.neon.tech'));
   } catch {
     return false;
   }
