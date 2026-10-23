@@ -139,6 +139,10 @@ jobs:
           CI: '1'
           PW_CHANNEL: chromium
         run: pnpm --filter @vamar/dashboard e2e
+      - name: Load smoke (20 users for 15 s, staff and owner traffic, no failures, p95 under 1.5 s)
+        run: |
+          node tooling/load/tokens.mjs > /tmp/load-tokens.json
+          node tooling/load/run.mjs http://127.0.0.1:8787 /tmp/load-tokens.json mixed 20 15 --max-p95 1500
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
