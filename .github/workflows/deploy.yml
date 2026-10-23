@@ -78,6 +78,15 @@ jobs:
       - name: Smoke test
         if: env.HAS_TOKEN == 'true'
         run: node tooling/ci/smoke.mjs https://vamar-owner-portal-staging.vamar-api.workers.dev staging
+      - name: Owner web app on an iPhone screen (Playwright)
+        if: env.HAS_TOKEN == 'true'
+        working-directory: apps/dashboard
+        env:
+          PW_CHANNEL: chromium
+          PWA_URL: https://vamar-owner-portal-staging.vamar-api.workers.dev
+        run: |
+          npx playwright install --with-deps chromium
+          pnpm e2e:pwa
 
   production:
     name: Production

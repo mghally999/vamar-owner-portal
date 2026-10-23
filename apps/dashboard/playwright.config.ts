@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './e2e',
+  // The owner web app runs against a deployed environment: playwright.pwa.config.ts.
+  testIgnore: 'pwa.spec.ts',
   globalSetup: './e2e/global-setup.ts',
   timeout: 60_000,
   retries: 0,
