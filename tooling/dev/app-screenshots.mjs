@@ -5,9 +5,10 @@
 //   node tooling/dev/app-screenshots.mjs [baseUrl] [phone]
 //
 // Signs the demo owner in by writing a device and a session straight into the local database
-// (no SMS): refuses any database that is not on this machine.
+// (no SMS): refuses any database that is not on this machine. Every capture is checked to be the
+// signed-in screen (never the sign-in page), and the run fails when two files are identical.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium, devices } from '@playwright/test';
 import pg from 'pg';
@@ -75,11 +76,17 @@ const SCREENS = [
   ...(dispute ? [['dispute', `/app/dispute/${dispute.id}`]] : []),
 ];
 
-const browser = await chromium.launch({ channel: process.env.PW_CHANNEL ?? 'msedge' });
+const browser = await chromium.launch(
+  process.env.PW_EXECUTABLE
+    ? { executablePath: process.env.PW_EXECUTABLE }
+    : { channel: process.env.PW_CHANNEL ?? 'msedge' },
+);
+const SIGN_IN = /^(Sign in|تسجيل الدخول)$/;
+const written = [];
 try {
   for (const theme of ['default', 'white']) {
     for (const lang of ['ar', 'en']) {
-      const { deviceId, refreshToken } = await signIn();
+      let session = await signIn();
       const context = await browser.newContext({
         ...devices['iPhone 13'],
         locale: lang === 'ar' ? 'ar-AE' : 'en-AE',
@@ -92,8 +99,8 @@ try {
           for (const [k, value] of Object.entries(v)) localStorage.setItem(k, value);
         },
         {
-          'vamar.refresh': refreshToken,
-          'vamar.device': deviceId,
+          'vamar.refresh': session.refreshToken,
+          'vamar.device': session.deviceId,
           'vamar.lang': lang,
           'vamar.theme': theme,
           'vamar.owner': JSON.stringify(owner),
@@ -108,10 +115,25 @@ try {
           { timeout: 90_000 },
         );
         await page.goto(`${base}${path}`);
-        await refreshed;
+        await refreshed.catch(() => undefined);
         await page.waitForTimeout(4000);
+        // Never save the sign-in page under another screen's name: sign in again and retry.
+        for (let attempt = 0; (await page.getByText(SIGN_IN).count()) > 0; attempt++) {
+          if (attempt === 2) throw new Error(`${name} ${theme} ${lang}: stuck on the sign-in page`);
+          session = await signIn();
+          await page.evaluate(
+            ({ r, d }) => {
+              localStorage.setItem('vamar.refresh', r);
+              localStorage.setItem('vamar.device', d);
+            },
+            { r: session.refreshToken, d: session.deviceId },
+          );
+          await page.goto(`${base}${path}`);
+          await page.waitForTimeout(6000);
+        }
         const file = resolve(out, `${name}-${theme}-${lang}.png`);
         await page.screenshot({ path: file });
+        written.push(file);
         console.info(file);
       }
       await context.close();
@@ -121,3 +143,17 @@ try {
   await browser.close();
   await db.end();
 }
+
+// Two identical files mean a screen did not render what its name says (or did not change theme).
+const seen = new Map();
+let duplicates = 0;
+for (const file of written) {
+  const hash = createHash('sha256').update(readFileSync(file)).digest('hex');
+  const other = seen.get(hash);
+  if (other) {
+    console.error(`identical screenshots: ${other} and ${file}`);
+    duplicates += 1;
+  } else seen.set(hash, file);
+}
+if (duplicates > 0) process.exit(1);
+console.info(`${String(written.length)} screenshots, all different`);

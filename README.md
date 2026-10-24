@@ -19,8 +19,8 @@ The download page picks the right option for the phone that opens it: the Androi
 
 <p>
   <img src="demo/screenshots/v2/app/home-default-ar.png" width="200" alt="Home, Default theme, Arabic">
-  <img src="demo/screenshots/v2/app/cheques-default-en.png" width="200" alt="Cheques">
-  <img src="demo/screenshots/v2/app/cheque-white-en.png" width="200" alt="Cheque detail, White theme">
+  <img src="demo/screenshots/v2/app/cheques-default-en.png" width="200" alt="Cheques, Default theme, English">
+  <img src="demo/screenshots/v2/app/cheque-white-en.png" width="200" alt="Cheque detail, White theme, English">
   <img src="demo/screenshots/v2/app/properties-white-ar.png" width="200" alt="Properties, White theme, Arabic">
 </p>
 
