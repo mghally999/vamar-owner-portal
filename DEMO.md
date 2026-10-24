@@ -27,10 +27,13 @@ Windows Hypervisor Platform) and the dev build installed once with
 
 ## Dashboard logins
 
-| Role       | Email            | Password     |
-| ---------- | ---------------- | ------------ |
-| Admin      | admin@vamar.test | `Vamar2026!` |
-| Data entry | entry@vamar.test | `Vamar2026!` |
+| Role       | Email            |
+| ---------- | ---------------- |
+| Admin      | admin@vamar.test |
+| Data entry | entry@vamar.test |
+
+Passwords: demo logins, ask Mohammed. Locally the emulator gives both accounts the local-only
+password `LOCAL_STAFF_PASSWORD` (default in `apps/dashboard/e2e/helpers.ts`).
 
 These accounts are recreated in the Firebase emulator every time `pnpm dev` starts.
 

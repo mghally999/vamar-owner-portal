@@ -130,7 +130,7 @@ if (want('firebase')) {
     { localId: 'seed-staff-admin', email: 'admin@vamar.test' },
     { localId: 'seed-staff-entry', email: 'entry@vamar.test' },
   ];
-  const password = process.env.DEMO_STAFF_PASSWORD ?? 'Vamar2026!';
+  const password = process.env.LOCAL_STAFF_PASSWORD ?? 'local-emulator-only';
   (async () => {
     for (let i = 0; i < 60 && !(await portOpen(9099)); i++)
       await new Promise((r) => setTimeout(r, 1000));

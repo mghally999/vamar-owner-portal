@@ -9,7 +9,7 @@ All demo data is fictional.
 |                     | Link                                                                                                                                               | Sign in with                                                                                    |
 | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | **Owner app**       | [vamar-owner-portal.vamar-api.workers.dev/download](https://vamar-owner-portal.vamar-api.workers.dev/download) (APK on Android, web app on iPhone) | Phone `+971 50 000 0001`, code `123456` (Arabic) or `+971 50 000 0003`, code `123456` (English) |
-| **Staff dashboard** | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev)                                                       | `admin@vamar.test` / `Vamar2026!` (admin) or `entry@vamar.test` / `Vamar2026!` (data entry)     |
+| **Staff dashboard** | [vamar-owner-portal.vamar-api.workers.dev](https://vamar-owner-portal.vamar-api.workers.dev)                                                       | Demo logins: ask Mohammed                                                                       |
 
 The download page picks the right option for the phone that opens it: the Android app, or on iPhone the same app as a web app at `/app` (Safari, Share, Add to Home Screen). Its QR code is `demo/download-qr.png`. Phone sign-in on the web app starts working once the site is added to Firebase's authorised domains ([BLOCKED.md](BLOCKED.md) item 2).
 

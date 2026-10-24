@@ -12,12 +12,13 @@ import { unlinkSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { withLocalDb } from './db';
+import { LOCAL_STAFF_PASSWORD } from './helpers';
 
 const STAFF = [
   { localId: 'seed-staff-admin', email: 'admin@vamar.test' },
   { localId: 'seed-staff-entry', email: 'entry@vamar.test' },
 ];
-const PASSWORD = 'Vamar2026!';
+const PASSWORD = LOCAL_STAFF_PASSWORD;
 
 export default async function globalSetup(): Promise<void> {
   // Secrets from a previous run are invalid once the authenticator is reset below.

@@ -42,9 +42,15 @@ async function nextUnusedStep(who: string): Promise<void> {
   writeFileSync(STEPS_FILE, JSON.stringify(all));
 }
 
+/**
+ * Password of the demo staff accounts in the local Auth emulator (dev and CI only). It is not the
+ * password of any deployed account; override with LOCAL_STAFF_PASSWORD.
+ */
+export const LOCAL_STAFF_PASSWORD = process.env['LOCAL_STAFF_PASSWORD'] ?? 'local-emulator-only';
+
 export const STAFF = {
-  admin: { email: 'admin@vamar.test', password: 'Vamar2026!' },
-  entry: { email: 'entry@vamar.test', password: 'Vamar2026!' },
+  admin: { email: 'admin@vamar.test', password: LOCAL_STAFF_PASSWORD },
+  entry: { email: 'entry@vamar.test', password: LOCAL_STAFF_PASSWORD },
 } as const;
 
 /** RFC 6238 TOTP (SHA-1, 6 digits, 30 s) from a base32 secret; no dependency needed in e2e. */
