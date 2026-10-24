@@ -93,3 +93,37 @@ describe('owner web app at /app', () => {
     expect(api.headers.get('content-security-policy')).not.toContain('recaptcha');
   });
 });
+
+describe('dashboard bundles at /assets', () => {
+  it('a missing bundle is a 404 that is never cached; a real one keeps its year-long cache', async () => {
+    // The asset layer answers a missing file with the dashboard's index.html (SPA fallback).
+    const assets = {
+      fetch: (input: Request | string) => {
+        const url = new URL(typeof input === 'string' ? input : input.url);
+        return Promise.resolve(
+          url.pathname === '/assets/index-abc123.js'
+            ? new Response('console.log(1)', {
+                status: 200,
+                headers: { 'content-type': 'text/javascript' },
+              })
+            : new Response('<!doctype html>', {
+                status: 200,
+                headers: { 'content-type': 'text/html' },
+              }),
+        );
+      },
+    } as unknown as Fetcher;
+    const env = { ...w.env, ASSETS: assets };
+    const { app } = await import('../src/app.js');
+
+    const missing = await app.request('http://test/assets/index-old999.js', {}, env, w.ctx);
+    expect(missing.status).toBe(404);
+    expect(missing.headers.get('cache-control')).toBe('no-store');
+
+    const real = await app.request('http://test/assets/index-abc123.js', {}, env, w.ctx);
+    expect(real.status).toBe(200);
+    expect(await real.text()).toBe('console.log(1)');
+    expect(real.headers.get('cache-control')).toBe('public, max-age=31536000, immutable');
+    expect(real.headers.get('x-content-type-options')).toBe('nosniff');
+  });
+});

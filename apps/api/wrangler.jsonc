@@ -19,6 +19,8 @@
       "/download/*",
       "/app",
       "/app/*",
+      // Missing dashboard bundles must be 404s, not the SPA shell (app.ts).
+      "/assets/*",
     ],
   },
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "vamar-files" }],

@@ -164,6 +164,20 @@ export const app = new Hono<AppEnv>()
     if (!isFile) out.headers.set('cache-control', 'no-cache');
     return out;
   })
+  /**
+   * Dashboard bundles. Hashed files are cached for a year; a missing one (an old chunk name after a
+   * deploy) is a 404 that is never cached, not the dashboard's index.html under a year-long cache.
+   */
+  .get('/assets/*', async (c) => {
+    if (!c.env.ASSETS) return c.notFound();
+    const res = await c.env.ASSETS.fetch(c.req.raw);
+    if (res.status === 200 && res.headers.get('content-type')?.startsWith('text/html')) {
+      return c.text('Not found', 404, { 'cache-control': 'no-store' });
+    }
+    const out = new Response(res.body, res);
+    if (res.status === 200) out.headers.set('cache-control', 'public, max-age=31536000, immutable');
+    return out;
+  })
   /** One link for owners: the right install option for the phone that opens it. */
   .get('/download', (c) =>
     c.html(
