@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
+import AllTestFilesRan from '../../tooling/ci/vitest-all-files-ran';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -14,6 +15,8 @@ export default defineConfig({
     proxy: { '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false } },
   },
   test: {
+    // Fails the run when a selected test file never ran (tooling/ci/vitest-all-files-ran.ts).
+    reporters: ['default', new AllTestFilesRan()],
     // Unit tests only; the Playwright suite in e2e/ runs through `pnpm e2e`.
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],

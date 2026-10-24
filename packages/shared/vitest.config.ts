@@ -1,7 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import AllTestFilesRan from '../../tooling/ci/vitest-all-files-ran';
 
 export default defineConfig({
   test: {
+    // Fails the run when a selected test file never ran (tooling/ci/vitest-all-files-ran.ts).
+    reporters: ['default', new AllTestFilesRan()],
     include: ['src/**/*.test.ts'],
     coverage: {
       provider: 'v8',
