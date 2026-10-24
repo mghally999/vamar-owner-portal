@@ -1,0 +1,4 @@
+# Development placeholders, not secrets (checked in VERIFY.md section 3): the .dev.vars example
+# TOTP key decodes to "dev-only-totp-key-32-bytes-long!!", the other is the test harness key.
+fa61614b42b6cfa224e3dd4d9c6f3682c1fad56b:apps/api/.dev.vars.example:generic-api-key:6
+fa61614b42b6cfa224e3dd4d9c6f3682c1fad56b:apps/api/test/harness.ts:generic-api-key:99
