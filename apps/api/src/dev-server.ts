@@ -28,6 +28,7 @@ const VAR_NAMES = [
   'FIREBASE_AUTH_EMULATOR_HOST',
   'EXPO_ACCESS_TOKEN',
   'ALLOWED_PHONE_COUNTRIES',
+  'DEMO_TRIAL',
 ];
 
 /** `.dev.vars` first, then the process environment (containers set variables, not files). */
@@ -116,6 +117,7 @@ const env: Bindings = {
   FIREBASE_AUTH_EMULATOR_HOST: vars['FIREBASE_AUTH_EMULATOR_HOST'] ?? '127.0.0.1:9099',
   EXPO_ACCESS_TOKEN: vars['EXPO_ACCESS_TOKEN'] ?? '',
   ALLOWED_PHONE_COUNTRIES: vars['ALLOWED_PHONE_COUNTRIES'] ?? 'AE',
+  DEMO_TRIAL: vars['DEMO_TRIAL'] ?? 'false',
   APP_ENV: 'development',
 };
 

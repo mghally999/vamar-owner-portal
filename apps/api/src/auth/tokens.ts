@@ -4,7 +4,7 @@
  * - Refresh token: random 256-bit secret, stored as SHA-256, rotated on every use, bound to the
  *   device for owners. Presenting an already-rotated token revokes the whole chain.
  */
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, type SQL } from 'drizzle-orm';
 import { jwtVerify, SignJWT } from 'jose';
 import { schema } from '@vamar/db';
 import type { Dbx } from '../db.js';
@@ -12,6 +12,25 @@ import { unauthorized } from '../errors.js';
 import type { Bindings, Principal } from '../env.js';
 import { randomToken, sha256 } from '../util/crypto.js';
 import { log } from '../util/log.js';
+import { forgetSession } from './session-cache.js';
+
+/**
+ * Revoke every live session matching `where` and forget them (and the sessions they rotated
+ * from, whose access tokens may still be in use) in this isolate's revocation cache, so the
+ * revocation bites on the very next request here. Returns the revoked ids.
+ */
+export async function revokeSessions(db: Dbx, where: SQL | undefined): Promise<string[]> {
+  const rows = await db
+    .update(schema.sessions)
+    .set({ revokedAt: new Date() })
+    .where(and(where, isNull(schema.sessions.revokedAt)))
+    .returning({ id: schema.sessions.id, rotatedFrom: schema.sessions.rotatedFrom });
+  for (const r of rows) {
+    forgetSession(r.id);
+    if (r.rotatedFrom) forgetSession(r.rotatedFrom);
+  }
+  return rows.map((r) => r.id);
+}
 
 export const ACCESS_TTL_SECONDS = 15 * 60;
 export const OWNER_REFRESH_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -78,6 +97,8 @@ export interface IssuedSession {
 export async function createSession(
   db: Dbx,
   input: {
+    /** Fixed id (the staff pre-auth token's `sid`); generated when omitted. */
+    id?: string;
     subjectType: 'owner' | 'staff';
     subjectId: string;
     deviceId: string | null;
@@ -90,6 +111,7 @@ export async function createSession(
   const [row] = await db
     .insert(schema.sessions)
     .values({
+      ...(input.id ? { id: input.id } : {}),
       subjectType: input.subjectType,
       subjectId: input.subjectId,
       deviceId: input.deviceId,
@@ -176,10 +198,7 @@ export async function rejectReplayedToken(db: Dbx, refreshToken: string): Promis
 
 export async function revokeSessionByToken(db: Dbx, refreshToken: string): Promise<void> {
   const hash = await sha256(refreshToken);
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(schema.sessions.tokenHash, hash), isNull(schema.sessions.revokedAt)));
+  await revokeSessions(db, eq(schema.sessions.tokenHash, hash));
 }
 
 export async function revokeChain(
@@ -191,13 +210,9 @@ export async function revokeChain(
   const conditions = [
     eq(schema.sessions.subjectType, subjectType),
     eq(schema.sessions.subjectId, subjectId),
-    isNull(schema.sessions.revokedAt),
   ];
   if (deviceId) conditions.push(eq(schema.sessions.deviceId, deviceId));
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(and(...conditions));
+  await revokeSessions(db, and(...conditions));
 }
 
 /** Is the session behind an access token still alive? Used on sensitive calls only. */

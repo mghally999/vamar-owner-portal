@@ -10,6 +10,7 @@ import {
   uuidSchema,
 } from '@vamar/shared';
 import { staffOf } from '../../auth/middleware.js';
+import { isDemoTrial } from '../../config.js';
 import { readDb, withTx } from '../../db.js';
 import type { AppEnv } from '../../env.js';
 import { actorFromContext } from '../../services/audit.js';
@@ -40,6 +41,7 @@ export const staffUsersRoutes = new Hono<AppEnv>()
           actorFromContext(c, staffOf(c)),
           c.req.valid('param').id,
           c.req.valid('json'),
+          { demoTrial: isDemoTrial(c.env) },
         ),
       ),
     ),

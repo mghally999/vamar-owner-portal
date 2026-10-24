@@ -5,8 +5,11 @@
  * Resets a staff member's authenticator (the next sign-in shows the QR enrolment screen) and
  * clears the lockout and rate-limit counters. `--live` targets the live database through
  * `.local/neon.env` (gitignored, dev machine only); the default is the local database.
- * `--off` also switches 2-step login off for that account (demo accounts during a trial only),
- * `--on` switches it back on (the default for every real staff account).
+ * `--off` also switches 2-step login off for that account, `--on` switches it back on (the
+ * default for every real staff account). `--off` is refused for any account outside
+ * DEMO_TRIAL_EMAILS, and for admins unless the demo trial is on: DEMO_TRIAL from the environment,
+ * otherwise the Worker variable in apps/api/wrangler.jsonc (production's for `--live`, "false"
+ * locally). The API enforces the same rules (apps/api/src/config.ts).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -22,6 +25,24 @@ if (!email) {
 }
 const live = args.includes('--live');
 const totpRequired = args.includes('--off') ? false : args.includes('--on') ? true : null;
+
+/** Same list as apps/api/src/config.ts DEMO_TRIAL_EMAILS (a test checks they agree). */
+const DEMO_TRIAL_EMAILS = ['admin@vamar.test', 'entry@vamar.test'];
+
+function demoTrialOn() {
+  if (process.env.DEMO_TRIAL) return process.env.DEMO_TRIAL === 'true';
+  if (!live) return false;
+  // The first DEMO_TRIAL in wrangler.jsonc is the production Worker's variable.
+  const config = readFileSync(join(root, 'apps', 'api', 'wrangler.jsonc'), 'utf8');
+  return /"DEMO_TRIAL":\s*"true"/.exec(config)?.index === config.indexOf('"DEMO_TRIAL"');
+}
+
+if (totpRequired === false && !DEMO_TRIAL_EMAILS.includes(email)) {
+  console.error(
+    `refused: 2-step login can be switched off only for ${DEMO_TRIAL_EMAILS.join(', ')}`,
+  );
+  process.exit(1);
+}
 
 function parseEnv(file) {
   const out = {};
@@ -47,6 +68,14 @@ const { Client } = require('pg');
 const client = new Client({ connectionString: url });
 await client.connect();
 try {
+  if (totpRequired === false) {
+    const found = await client.query('select role from staff_users where email = $1', [email]);
+    if (found.rows[0]?.role === 'admin' && !demoTrialOn()) {
+      console.error('refused: 2-step login stays on for admins unless DEMO_TRIAL is "true"');
+      process.exitCode = 1;
+      throw new Error('refused');
+    }
+  }
   const set = [
     'totp_enabled = false',
     'totp_secret_enc = null',
@@ -71,6 +100,8 @@ try {
   console.log(
     `[${live ? 'live' : 'local'}] authenticator reset for ${row.email} (${row.role}); 2-step login ${row.totp_required ? 'required' : 'OFF'}`,
   );
+} catch (e) {
+  if (!(e instanceof Error && e.message === 'refused')) throw e;
 } finally {
   await client.end();
 }

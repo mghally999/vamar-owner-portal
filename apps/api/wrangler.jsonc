@@ -30,6 +30,9 @@
     "ALLOWED_PHONE_COUNTRIES": "AE",
     "APP_LATEST_VERSION": "1.1.0",
     "APP_MIN_VERSION": "1.0.0",
+    // Client trial: the two listed demo staff accounts may skip the authenticator step while this
+    // is "true" (apps/api/src/config.ts DEMO_TRIAL_EMAILS). Set to "false" on go-live day.
+    "DEMO_TRIAL": "true",
     // The deployed Worker is production; the dev server (apps/api/src/dev-server.ts) sets its own
     // bindings and the test harness uses "test". index.ts refuses to serve when secrets are missing.
     "APP_ENV": "production",
@@ -47,6 +50,7 @@
         "ALLOWED_PHONE_COUNTRIES": "AE",
         "APP_LATEST_VERSION": "1.1.0",
         "APP_MIN_VERSION": "1.0.0",
+        "DEMO_TRIAL": "true",
         "APP_ENV": "staging",
       },
     },

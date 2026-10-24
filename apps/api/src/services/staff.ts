@@ -1,9 +1,11 @@
 import { and, desc, eq, gte, lte, lt, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import type { StaffRole } from '@vamar/shared';
+import { isDemoTrialAccount } from '../config.js';
 import type { Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import { audit, type AuditActor } from './audit.js';
+import { revokeSessions } from '../auth/tokens.js';
 import { log } from '../util/log.js';
 import { decodeCursor, page } from '../util/pagination.js';
 
@@ -67,6 +69,7 @@ export async function updateStaff(
     active?: boolean | undefined;
     totpRequired?: boolean | undefined;
   },
+  options: { demoTrial: boolean } = { demoTrial: false },
 ) {
   const before = await db.query.staffUsers.findFirst({ where: eq(staffUsers.id, id) });
   if (!before) throw notFound('Staff user');
@@ -74,11 +77,15 @@ export async function updateStaff(
     throw conflict('You cannot remove your own admin role');
   if (actor.id === id && patch.active === false) throw conflict('You cannot deactivate yourself');
   // 2-step login is mandatory for admins and cannot be switched off for oneself; it may be switched
-  // off for a non-admin account only (demo accounts during a trial) and is a logged security event.
+  // off only for a listed demo account while the demo trial is on, as a logged security event.
   const roleAfter = patch.role ?? before.role;
   if (patch.totpRequired === false) {
     if (actor.id === id) throw conflict('You cannot switch off 2-step login for yourself');
     if (roleAfter === 'admin') throw conflict('2-step login cannot be switched off for an admin');
+    if (!options.demoTrial || !isDemoTrialAccount(before.email))
+      throw conflict(
+        '2-step login can be switched off only for the demo accounts during the trial',
+      );
     log('warn', 'security.totp_required_off', { actorId: actor.id, staffId: id });
   }
   if (roleAfter === 'admin' && !before.totpRequired && patch.totpRequired !== true) {
@@ -87,10 +94,10 @@ export async function updateStaff(
   const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
   const [after] = await db.update(staffUsers).set(clean).where(eq(staffUsers.id, id)).returning();
   if (patch.active === false) {
-    await db
-      .update(schema.sessions)
-      .set({ revokedAt: new Date() })
-      .where(and(eq(schema.sessions.subjectType, 'staff'), eq(schema.sessions.subjectId, id)));
+    await revokeSessions(
+      db,
+      and(eq(schema.sessions.subjectType, 'staff'), eq(schema.sessions.subjectId, id)),
+    );
   }
   await audit(db, actor, {
     action: 'staff.update',
@@ -109,10 +116,10 @@ export async function resetStaffTotp(db: Dbx, actor: AuditActor, id: string) {
     .update(staffUsers)
     .set({ totpSecretEnc: null, totpEnabled: false, totpFailures: 0, totpLockedUntil: null })
     .where(eq(staffUsers.id, id));
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(and(eq(schema.sessions.subjectType, 'staff'), eq(schema.sessions.subjectId, id)));
+  await revokeSessions(
+    db,
+    and(eq(schema.sessions.subjectType, 'staff'), eq(schema.sessions.subjectId, id)),
+  );
   await audit(db, actor, { action: 'staff.totp_reset', entityType: 'staff_user', entityId: id });
 }
 

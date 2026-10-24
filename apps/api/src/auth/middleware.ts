@@ -4,7 +4,10 @@ import type { Context } from 'hono';
 import { readDb } from '../db.js';
 import type { AppEnv, OwnerPrincipal, StaffPrincipal } from '../env.js';
 import { ApiError, forbidden, unauthorized } from '../errors.js';
+import { forgetSession, isCachedActive, rememberActive } from './session-cache.js';
 import { isSessionActive, verifyAccessToken } from './tokens.js';
+
+export { forgetSession, SESSION_CHECK_CACHE_MS } from './session-cache.js';
 
 function bearer(authorization: string | undefined): string {
   if (!authorization?.startsWith('Bearer ')) throw unauthorized();
@@ -15,28 +18,17 @@ function bearer(authorization: string | undefined): string {
  * Revocation check. The access token is short-lived, but "sign out other devices", "disable
  * owner" and "deactivate staff" must bite before it expires, so the session row is consulted. A
  * positive answer is remembered per isolate for a short time to keep one database round trip off
- * most requests; revocation therefore takes effect within this window at the latest.
+ * most requests (session-cache.ts). A revocation clears the entries it revoked in this isolate at
+ * once; other isolates see it within SESSION_CHECK_CACHE_MS at the latest.
  */
-export const SESSION_CHECK_CACHE_MS = 60_000;
-const activeUntil = new Map<string, number>();
-
 async function ensureSessionActive(c: Context<AppEnv>, sessionId: string): Promise<void> {
-  const now = Date.now();
-  const until = activeUntil.get(sessionId);
-  if (until !== undefined && until > now) return;
+  if (isCachedActive(sessionId)) return;
   const ok = await isSessionActive(readDb(c), sessionId);
   if (!ok) {
-    activeUntil.delete(sessionId);
+    forgetSession(sessionId);
     throw unauthorized('Session ended');
   }
-  if (activeUntil.size > 10_000) activeUntil.clear();
-  activeUntil.set(sessionId, now + SESSION_CHECK_CACHE_MS);
-}
-
-/** Tests and sign-out paths call this so a revocation is visible at once. */
-export function forgetSession(sessionId?: string): void {
-  if (sessionId) activeUntil.delete(sessionId);
-  else activeUntil.clear();
+  rememberActive(sessionId);
 }
 
 /** Owner endpoints: the owner id comes from the token only, never from params or body. */

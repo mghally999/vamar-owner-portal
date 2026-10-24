@@ -5,6 +5,7 @@ import type { Dbx } from '../db.js';
 import type { AppEnv } from '../env.js';
 import { notFound } from '../errors.js';
 import { audit, actorFromContext } from './audit.js';
+import { revokeSessions } from '../auth/tokens.js';
 
 /**
  * Owner-initiated account deletion request: the account is disabled immediately, every session
@@ -24,16 +25,14 @@ export async function requestAccountDeletion(
     .set({ status: 'disabled' })
     .where(eq(schema.owners.id, ownerId))
     .returning();
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(schema.sessions.subjectType, 'owner'),
-        eq(schema.sessions.subjectId, ownerId),
-        isNull(schema.sessions.revokedAt),
-      ),
-    );
+  await revokeSessions(
+    db,
+    and(
+      eq(schema.sessions.subjectType, 'owner'),
+      eq(schema.sessions.subjectId, ownerId),
+      isNull(schema.sessions.revokedAt),
+    ),
+  );
   await db
     .update(schema.devices)
     .set({ revokedAt: new Date(), pushToken: null })

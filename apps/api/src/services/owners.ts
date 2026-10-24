@@ -6,6 +6,7 @@ import type { Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import { log } from '../util/log.js';
 import { audit, type AuditActor } from './audit.js';
+import { revokeSessions } from '../auth/tokens.js';
 import { decodeCursor, page } from '../util/pagination.js';
 
 const { owners, unitOwnerships, units, buildings, devices } = schema;
@@ -156,16 +157,14 @@ export async function changeOwnerPhone(
     .set({ phoneE164: input.phoneE164 })
     .where(eq(owners.id, id))
     .returning();
-  await db
-    .update(schema.sessions)
-    .set({ revokedAt: new Date() })
-    .where(
-      and(
-        eq(schema.sessions.subjectType, 'owner'),
-        eq(schema.sessions.subjectId, id),
-        isNull(schema.sessions.revokedAt),
-      ),
-    );
+  await revokeSessions(
+    db,
+    and(
+      eq(schema.sessions.subjectType, 'owner'),
+      eq(schema.sessions.subjectId, id),
+      isNull(schema.sessions.revokedAt),
+    ),
+  );
   await db
     .update(devices)
     .set({ revokedAt: new Date(), pushToken: null })
@@ -191,16 +190,14 @@ export async function setOwnerStatus(
   if (!before) throw notFound('Owner');
   const [after] = await db.update(owners).set({ status }).where(eq(owners.id, id)).returning();
   if (status === 'disabled') {
-    await db
-      .update(schema.sessions)
-      .set({ revokedAt: new Date() })
-      .where(
-        and(
-          eq(schema.sessions.subjectType, 'owner'),
-          eq(schema.sessions.subjectId, id),
-          isNull(schema.sessions.revokedAt),
-        ),
-      );
+    await revokeSessions(
+      db,
+      and(
+        eq(schema.sessions.subjectType, 'owner'),
+        eq(schema.sessions.subjectId, id),
+        isNull(schema.sessions.revokedAt),
+      ),
+    );
   }
   await audit(db, actor, {
     action: `owner.${status === 'disabled' ? 'disable' : 'enable'}`,

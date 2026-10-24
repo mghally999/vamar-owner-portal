@@ -16,6 +16,33 @@ export const PLACEHOLDER_SECRETS: readonly string[] = [
 
 export const MIN_JWT_SECRET_LENGTH = 32;
 
+/**
+ * The two demo staff accounts of the client trial. Only these, and only while the Worker variable
+ * DEMO_TRIAL is "true", may sign in without the authenticator step. Matched by e-mail, never by
+ * role. `tooling/dev/staff-reset-totp.mjs` keeps the same list (a test checks they agree).
+ */
+export const DEMO_TRIAL_EMAILS: readonly string[] = ['admin@vamar.test', 'entry@vamar.test'];
+
+export function isDemoTrial(env: Pick<Bindings, 'DEMO_TRIAL'>): boolean {
+  return env.DEMO_TRIAL === 'true';
+}
+
+export function isDemoTrialAccount(email: string): boolean {
+  return DEMO_TRIAL_EMAILS.includes(email.trim().toLowerCase());
+}
+
+/**
+ * Whether a staff account may skip the authenticator step: its row has 2-step login off, the demo
+ * trial is on, and it is one of the listed demo accounts. Every other account (admin or not) gets
+ * the TOTP step.
+ */
+export function maySkipTotp(
+  env: Pick<Bindings, 'DEMO_TRIAL'>,
+  staff: { email: string; totpRequired: boolean },
+): boolean {
+  return !staff.totpRequired && isDemoTrial(env) && isDemoTrialAccount(staff.email);
+}
+
 export function isProduction(env: Pick<Bindings, 'APP_ENV'>): boolean {
   return env.APP_ENV === 'production';
 }

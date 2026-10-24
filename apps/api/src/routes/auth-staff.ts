@@ -5,7 +5,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { schema } from '@vamar/db';
 import { staffExchangeSchema, totpCodeSchema } from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
-import { isDeployed } from '../config.js';
+import { isDeployed, maySkipTotp } from '../config.js';
 import { requireStaff, staffOf } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
 import {
@@ -60,6 +60,18 @@ function issueStaffSession(
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
   });
+}
+
+/**
+ * A pre-auth token is good for one authenticator step: once it has produced a session (whose id
+ * is the token's `sid`), it is refused, so it cannot mint further sessions with later codes.
+ */
+async function rejectUsedPreAuth(c: Context<AppEnv>, p: StaffPrincipal): Promise<void> {
+  const used = await readDb(c).query.sessions.findFirst({
+    where: eq(schema.sessions.id, p.sessionId),
+    columns: { id: true },
+  });
+  if (used) throw unauthorized('This sign-in step is already complete; sign in again');
 }
 
 /** Always Secure: the Worker only ever answers over HTTPS and browsers treat localhost as secure. */
@@ -120,8 +132,9 @@ export const authStaffRoutes = new Hono<AppEnv>()
       }
       return user;
     });
-    if (!staff.totpRequired) {
-      // 2-step login switched off for this account (demo accounts during a client trial only).
+    if (maySkipTotp(c.env, staff)) {
+      // Listed demo account, 2-step login off, DEMO_TRIAL on: the client trial only. Every other
+      // account goes through the authenticator, whatever its row says.
       const session = await withTx(c, (tx) =>
         createSession(tx, {
           subjectType: 'staff',
@@ -151,6 +164,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
   /** Step 2a: first time only, start TOTP enrollment (QR + manual secret). */
   .post('/totp/setup', requireStaff('viewer', { allowPreMfa: true }), async (c) => {
     const p = staffOf(c);
+    await rejectUsedPreAuth(c, p);
     const enrollment = await withTx(c, async (tx) => {
       const user = await tx.query.staffUsers.findFirst({ where: eq(staffUsers.id, p.id) });
       if (!user) throw unauthorized();
@@ -179,6 +193,7 @@ export const authStaffRoutes = new Hono<AppEnv>()
       const p = staffOf(c);
       const { code } = c.req.valid('json');
       const ip = clientIp(c.req.raw.headers);
+      await rejectUsedPreAuth(c, p);
       // Everything before the success path runs on an autocommit connection so failures persist.
       const plain = readDb(c);
       await enforceRateLimit(plain, RATE_LIMITS.totpIp, ip);
@@ -235,7 +250,9 @@ export const authStaffRoutes = new Hono<AppEnv>()
             entityId: p.id,
           });
         }
+        // The pre-auth token's id becomes the session id, so that token completes this step once.
         const session = await createSession(tx, {
+          id: p.sessionId,
           subjectType: 'staff',
           subjectId: user.id,
           deviceId: null,

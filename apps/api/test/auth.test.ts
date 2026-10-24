@@ -175,12 +175,13 @@ describe('owner auth', () => {
 });
 
 describe('staff auth', () => {
-  it('signs a staff user in without 2-step login when totp_required is off', async () => {
+  it('signs a listed demo account in without 2-step login when totp_required is off during the demo trial', async () => {
     await w.db
       .update(schema.staffUsers)
       .set({ totpRequired: false })
       .where(eq(schema.staffUsers.email, 'entry@vamar.test'));
     const fb = await w.firebaseToken({ email: 'entry@vamar.test', email_verified: true });
+    w.env.DEMO_TRIAL = 'true';
     const ex = await w.json<{
       accessToken?: string;
       preAuthToken?: string;
@@ -189,6 +190,7 @@ describe('staff auth', () => {
       method: 'POST',
       body: JSON.stringify({ firebaseIdToken: fb }),
     });
+    delete w.env.DEMO_TRIAL;
     expect(ex.status).toBe(200);
     expect(ex.body.preAuthToken).toBeUndefined();
     expect(ex.body.user?.email).toBe('entry@vamar.test');

@@ -12,6 +12,11 @@ export interface Bindings {
   EXPO_ACCESS_TOKEN?: string;
   ALLOWED_PHONE_COUNTRIES: string;
   APP_ENV: 'development' | 'test' | 'staging' | 'production';
+  /**
+   * "true" only during the client trial: the listed demo staff accounts may then sign in without
+   * the authenticator step (config.ts DEMO_TRIAL_EMAILS). Set to "false" on go-live day.
+   */
+  DEMO_TRIAL?: string;
   /** Error reporting (optional): events go to Sentry when set. */
   SENTRY_DSN?: string;
   /** Newest owner app version and the oldest one still allowed to sign in (semver). */

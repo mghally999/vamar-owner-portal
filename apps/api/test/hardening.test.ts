@@ -143,8 +143,9 @@ describe('sessions and 2-step login', () => {
     expect(ok.body.preAuthToken).toBeTruthy();
   });
 
-  it('a TOTP code is accepted once', async () => {
-    const fb = await w.firebaseToken({ email: 'admin@vamar.test', email_verified: true });
+  it('a TOTP code is accepted once, and a pre-auth token completes one sign-in', async () => {
+    const sub = `fb-${crypto.randomUUID()}`;
+    const fb = await w.firebaseToken({ email: 'admin@vamar.test', email_verified: true, sub });
     const ex = await w.json<{ preAuthToken: string }>('/api/auth/staff/exchange', {
       method: 'POST',
       body: JSON.stringify({ firebaseIdToken: fb }),
@@ -160,13 +161,30 @@ describe('sessions and 2-step login', () => {
       body: JSON.stringify({ code }),
     });
     expect(first.status).toBe(200);
+    // The same code through a fresh pre-auth token: refused as a replay.
+    const ex2 = await w.json<{ preAuthToken: string }>('/api/auth/staff/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseIdToken: fb }),
+    });
     const again = await w.json<{ error: { code: string } }>('/api/auth/staff/totp/verify', {
       method: 'POST',
-      token: ex.body.preAuthToken,
+      token: ex2.body.preAuthToken,
       body: JSON.stringify({ code }),
     });
     expect(again.status).toBe(403);
     expect(again.body.error.code).toBe('totp_invalid');
+    // The used pre-auth token: refused before any code is looked at.
+    const reused = await w.request('/api/auth/staff/totp/verify', {
+      method: 'POST',
+      token: ex.body.preAuthToken,
+      body: JSON.stringify({ code }),
+    });
+    expect(reused.status).toBe(401);
+    const setupAgain = await w.request('/api/auth/staff/totp/setup', {
+      method: 'POST',
+      token: ex.body.preAuthToken,
+    });
+    expect(setupAgain.status).toBe(401);
   });
 
   it('2-step login cannot be switched off for admins or for oneself, and is forced back on with the admin role', async () => {
@@ -185,11 +203,20 @@ describe('sessions and 2-step login', () => {
       body: JSON.stringify({ role: 'admin', totpRequired: false }),
     });
     expect(asAdmin.status).toBe(409);
+    // Outside the demo trial even the listed demo editor keeps 2-step login.
+    const noTrial = await w.json<{ error: { code: string } }>(`/api/staff/staff/${entry}`, {
+      method: 'PATCH',
+      token: admin,
+      body: JSON.stringify({ totpRequired: false }),
+    });
+    expect(noTrial.status).toBe(409);
+    w.env.DEMO_TRIAL = 'true';
     const off = await w.json<{ totpRequired: boolean }>(`/api/staff/staff/${entry}`, {
       method: 'PATCH',
       token: admin,
       body: JSON.stringify({ totpRequired: false }),
     });
+    delete w.env.DEMO_TRIAL;
     expect(off.status).toBe(200);
     expect(off.body.totpRequired).toBe(false);
     const promoted = await w.json<{ totpRequired: boolean; role: string }>(
