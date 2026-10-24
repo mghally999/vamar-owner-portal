@@ -31,11 +31,15 @@ nodeLinker: hoisted
 overrides:
   '@grpc/grpc-js@<1.13.6': '>=1.13.6'
   'decode-uri-component@<0.5.0': '>=0.5.0'
+  # GHSA-w5hq-g745-h8pq (uuid v3/v5/v6 buffer bounds): fixed in 11.1.1; the Expo toolchain's
+  # uuid 7 and 8 only use the named v4 export, which 11.x keeps.
+  'uuid@<11.1.1': '11.1.1'
+  # GHSA-mrhx-c7xc-m3w5 (zod memory exhaustion): no zod 3 release is fixed, and the Expo CLI asks
+  # for zod 3; it runs on zod 4 (checked with expo config and expo export).
+  '@expo/cli>zod': '^4.6.6'
 
-# Advisories accepted for now (AUDIT.md section 7, FUTURE.md): all three live only in the Expo
-# build toolchain and have no fixed version that works with Expo SDK 57.
+# Advisory accepted for now (AUDIT.md section 7, FUTURE.md): no fixed node-forge release exists;
+# it is reached only through the Expo CLI at build time. (The braces advisory was withdrawn.)
 auditConfig:
   ignoreGhsas:
-    - GHSA-vfj7-8cjw-p6xm # braces: stack exhaustion through deeply nested patterns (react-native cli plugin)
     - GHSA-86w9-cpqp-85rv # node-forge: PKCS#1 v1.5 signature verification (expo cli)
-    - GHSA-w5hq-g745-h8pq # uuid: buffer bounds in v3/v5/v6 (expo config plugins)
