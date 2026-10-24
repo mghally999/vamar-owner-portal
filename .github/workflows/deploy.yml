@@ -2,6 +2,7 @@ name: Deploy
 
 # main -> staging (migrate the staging Neon branch, deploy the staging Worker, smoke test).
 # tag v* -> the same for staging, then production only if staging passed.
+# Without CLOUDFLARE_API_TOKEN both jobs FAIL (red), so a missing deploy is never reported as green.
 # Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID, STAGING_DATABASE_URL_OWNER,
 # PROD_DATABASE_URL_OWNER (owner roles, used for migrations only; the Workers use their own
 # vamar_app URLs stored as Worker secrets).
@@ -37,27 +38,23 @@ jobs:
     steps:
       - name: Deploy credentials present?
         if: env.HAS_TOKEN != 'true'
-        run: echo "::notice::CLOUDFLARE_API_TOKEN is not set (BLOCKED.md item 6); skipping the staging deploy."
+        run: |
+          echo "::error::CLOUDFLARE_API_TOKEN is not set (BLOCKED.md item 6); staging was NOT deployed. Deploy by hand (HANDOVER.md) until the token exists."
+          exit 1
       - uses: actions/checkout@v5
-        if: env.HAS_TOKEN == 'true'
         with:
           ref: ${{ env.SHA }}
       - uses: pnpm/action-setup@v4
-        if: env.HAS_TOKEN == 'true'
       - uses: actions/setup-node@v5
-        if: env.HAS_TOKEN == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-        if: env.HAS_TOKEN == 'true'
       - name: Migrate the staging database
-        if: env.HAS_TOKEN == 'true'
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL_OWNER }}
         run: pnpm db:migrate
       - name: Dashboard Firebase web config (public; repository variables)
-        if: env.HAS_TOKEN == 'true'
         run: |
           cat > apps/dashboard/.env.production <<EOF
           VITE_FIREBASE_PROJECT_ID=${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -66,20 +63,16 @@ jobs:
           VITE_FIREBASE_APP_ID=${{ vars.VITE_FIREBASE_APP_ID }}
           EOF
       - name: Build the dashboard and the owner web app
-        if: env.HAS_TOKEN == 'true'
         run: pnpm build:web
       - name: Deploy the staging Worker
-        if: env.HAS_TOKEN == 'true'
         working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --env staging --var RELEASE:${SHA::7}
       - name: Smoke test
-        if: env.HAS_TOKEN == 'true'
         run: node tooling/ci/smoke.mjs https://vamar-owner-portal-staging.vamar-api.workers.dev staging
       - name: Owner web app on an iPhone screen (Playwright)
-        if: env.HAS_TOKEN == 'true'
         working-directory: apps/dashboard
         env:
           PW_CHANNEL: chromium
@@ -104,23 +97,17 @@ jobs:
           echo "::error::CLOUDFLARE_API_TOKEN is not set (BLOCKED.md item 6); production was not deployed."
           exit 1
       - uses: actions/checkout@v5
-        if: env.HAS_TOKEN == 'true'
       - uses: pnpm/action-setup@v4
-        if: env.HAS_TOKEN == 'true'
       - uses: actions/setup-node@v5
-        if: env.HAS_TOKEN == 'true'
         with:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-        if: env.HAS_TOKEN == 'true'
       - name: Migrate the production database
-        if: env.HAS_TOKEN == 'true'
         env:
           DATABASE_URL: ${{ secrets.PROD_DATABASE_URL_OWNER }}
         run: pnpm db:migrate
       - name: Dashboard Firebase web config (public; repository variables)
-        if: env.HAS_TOKEN == 'true'
         run: |
           cat > apps/dashboard/.env.production <<EOF
           VITE_FIREBASE_PROJECT_ID=${{ vars.VITE_FIREBASE_PROJECT_ID }}
@@ -129,15 +116,12 @@ jobs:
           VITE_FIREBASE_APP_ID=${{ vars.VITE_FIREBASE_APP_ID }}
           EOF
       - name: Build the dashboard and the owner web app
-        if: env.HAS_TOKEN == 'true'
         run: pnpm build:web
       - name: Deploy the production Worker
-        if: env.HAS_TOKEN == 'true'
         working-directory: apps/api
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy --var RELEASE:${GITHUB_REF_NAME}
       - name: Smoke test
-        if: env.HAS_TOKEN == 'true'
         run: node tooling/ci/smoke.mjs https://vamar-owner-portal.vamar-api.workers.dev production
