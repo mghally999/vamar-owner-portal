@@ -7,6 +7,7 @@ export type ErrorCode =
   | 'validation'
   | 'conflict'
   | 'rate_limited'
+  | 'payload_too_large'
   | 'owner_not_registered'
   | 'owner_disabled'
   | 'totp_required'
@@ -20,7 +21,7 @@ export type ErrorCode =
 
 export class ApiError extends HTTPException {
   constructor(
-    status: 400 | 401 | 403 | 404 | 409 | 422 | 429,
+    status: 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429,
     readonly code: ErrorCode,
     message: string,
     readonly details?: unknown,

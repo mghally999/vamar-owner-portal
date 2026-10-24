@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
 import { HTTPException } from 'hono/http-exception';
 import { createMiddleware } from 'hono/factory';
 import { routePath } from 'hono/route';
@@ -16,6 +17,9 @@ import { privacyPage } from './privacy.js';
 import { readDb } from './db.js';
 import { log } from './util/log.js';
 import { reportError } from './util/report.js';
+
+export const MAX_JSON_BYTES = 1024 * 1024;
+export const MAX_MULTIPART_BYTES = 11 * 1024 * 1024;
 
 /**
  * The Hono app. `/api/*` is the JSON API; everything else falls through to the dashboard's
@@ -90,6 +94,20 @@ export const app = new Hono<AppEnv>()
     c.header('Cache-Control', 'no-store');
     c.header('Pragma', 'no-cache');
   })
+  // Request bodies: 11 MB for uploads (the 10 MB file limit plus the form envelope), 1 MB for
+  // everything else. Checked from Content-Length and while streaming, before anything is parsed.
+  .use(
+    '/api/*',
+    createMiddleware<AppEnv>((c, next) => {
+      const multipart = (c.req.header('content-type') ?? '').startsWith('multipart/form-data');
+      return bodyLimit({
+        maxSize: multipart ? MAX_MULTIPART_BYTES : MAX_JSON_BYTES,
+        onError: () => {
+          throw new ApiError(413, 'payload_too_large', 'The request body is too large');
+        },
+      })(c, next);
+    }),
+  )
   /** Liveness: the isolate answers. */
   .get('/healthz', (c) => c.json({ ok: true, env: c.env.APP_ENV }))
   /**
