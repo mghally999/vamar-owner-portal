@@ -12,7 +12,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   slug: 'vamar-owner-portal',
   owner: 'best-coder-alive',
   scheme: 'vamar',
-  version: '1.1.0',
+  version: '1.2.0',
   orientation: 'portrait',
   icon: `${brand}/app-icon-1024.png`,
   userInterfaceStyle: 'automatic',
