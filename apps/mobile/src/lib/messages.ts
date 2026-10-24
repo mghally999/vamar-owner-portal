@@ -4,6 +4,7 @@ const en = {
   tab_properties: 'Properties',
   tab_disputes: 'Disputes',
   settings: 'Settings',
+  back: 'Back',
 
   phone_title: 'Sign in',
   phone_subtitle: 'Enter the mobile number registered with Vamar. We will send you a code.',
@@ -146,6 +147,7 @@ const ar: Record<MessageKey, string> = {
   tab_properties: 'العقارات',
   tab_disputes: 'المنازعات',
   settings: 'الإعدادات',
+  back: 'رجوع',
 
   phone_title: 'تسجيل الدخول',
   phone_subtitle: 'أدخل رقم الجوال المسجّل لدى فامار. سنرسل لك رمز التحقق.',

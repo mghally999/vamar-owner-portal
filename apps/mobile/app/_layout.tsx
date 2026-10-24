@@ -12,6 +12,8 @@ import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
+import { OfflineBanner } from '@/ui/offline-banner';
+import { ScreenHeader } from '@/ui/screen-header';
 import { UpdateRequired } from '@/screens/update';
 import { useUpdateState } from '@/lib/version';
 
@@ -28,6 +30,32 @@ onlineManager.setEventListener((setOnline) =>
     setOnline(state.isConnected !== false);
   }),
 );
+
+/**
+ * Stack screens (cheque, unit, dispute, settings) use the same themed header as the tabs, with a
+ * back button instead of the settings button, and the offline banner under it.
+ */
+function stackHeader(title: string) {
+  return {
+    headerShown: true,
+    header: ({ navigation }: { navigation: { canGoBack: () => boolean; goBack: () => void } }) => (
+      <View>
+        <ScreenHeader
+          title={title}
+          onBack={
+            navigation.canGoBack()
+              ? () => {
+                  navigation.goBack();
+                }
+              : undefined
+          }
+          showSettings={false}
+        />
+        <OfflineBanner />
+      </View>
+    ),
+  };
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -65,7 +93,7 @@ export default function RootLayout() {
 function Root() {
   const t = useTheme();
   const auth = useAuth();
-  const { ready, isRTL } = useI18n();
+  const { ready, isRTL, t: tr } = useI18n();
   const themeChoice = useThemeChoice();
   const update = useUpdateState();
   const [fontsLoaded, fontError] = useFonts({
@@ -103,42 +131,10 @@ function Root() {
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colors.bg } }}>
         <Stack.Protected guard={auth.stage === 'authenticated'}>
           <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="cheque/[id]"
-            options={{
-              headerShown: true,
-              title: '',
-              headerTintColor: t.colors.ink,
-              headerStyle: { backgroundColor: t.colors.bg },
-            }}
-          />
-          <Stack.Screen
-            name="unit/[id]"
-            options={{
-              headerShown: true,
-              title: '',
-              headerTintColor: t.colors.ink,
-              headerStyle: { backgroundColor: t.colors.bg },
-            }}
-          />
-          <Stack.Screen
-            name="dispute/[id]"
-            options={{
-              headerShown: true,
-              title: '',
-              headerTintColor: t.colors.ink,
-              headerStyle: { backgroundColor: t.colors.bg },
-            }}
-          />
-          <Stack.Screen
-            name="settings"
-            options={{
-              headerShown: true,
-              title: '',
-              headerTintColor: t.colors.ink,
-              headerStyle: { backgroundColor: t.colors.bg },
-            }}
-          />
+          <Stack.Screen name="cheque/[id]" options={stackHeader(tr('cheque_detail'))} />
+          <Stack.Screen name="unit/[id]" options={stackHeader(tr('unit'))} />
+          <Stack.Screen name="dispute/[id]" options={stackHeader(tr('dispute_case'))} />
+          <Stack.Screen name="settings" options={stackHeader(tr('settings'))} />
         </Stack.Protected>
         <Stack.Protected guard={auth.stage !== 'authenticated'}>
           <Stack.Screen name="(auth)" />
