@@ -13,7 +13,8 @@
     "test": "vitest run",
     "e2e": "playwright test",
     "coverage": "vitest run --coverage",
-    "e2e:pwa": "playwright test -c playwright.pwa.config.ts"
+    "e2e:pwa": "playwright test -c playwright.pwa.config.ts",
+    "e2e:staging": "playwright test -c playwright.staging.config.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

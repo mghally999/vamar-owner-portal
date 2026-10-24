@@ -15,6 +15,7 @@
     "vite.config.ts",
     "playwright.config.ts",
     "playwright.pwa.config.ts",
+    "playwright.staging.config.ts",
     "vitest.config.ts"
   ]
 }

@@ -18,8 +18,8 @@ export default defineConfig({
       include: ['src/**/*.ts'],
       // The Node dev server is local tooling, not part of the Worker.
       exclude: ['src/dev-server.ts'],
-      // Floors measured on 23 Oct 2026; raised as tests are added, never lowered.
-      thresholds: { lines: 86, functions: 88, statements: 81, branches: 67 },
+      // Floors measured on 25 Oct 2026; raised as tests are added, never lowered.
+      thresholds: { lines: 90, functions: 94, statements: 85, branches: 71 },
     },
   },
 });

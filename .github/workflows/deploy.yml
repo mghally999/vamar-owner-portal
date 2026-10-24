@@ -80,6 +80,12 @@ jobs:
         run: |
           npx playwright install --with-deps chromium
           pnpm e2e:pwa
+      - name: Staging from outside (Playwright, both themes and languages, headers, refusals)
+        working-directory: apps/dashboard
+        env:
+          PW_CHANNEL: chromium
+          STAGING_URL: https://vamar-owner-portal-staging.vamar-api.workers.dev
+        run: pnpm e2e:staging
 
   production:
     name: Production
