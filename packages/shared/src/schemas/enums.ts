@@ -3,7 +3,9 @@ import { CHEQUE_STATUSES } from '../cheques.js';
 import { CONTRACT_STATUSES } from '../occupancy.js';
 import { NOTIFICATION_TYPES } from '../alerts.js';
 
-export const langSchema = z.enum(['ar', 'en']);
+export const langSchema = z.enum(['ar', 'en'], {
+  error: 'Language must be ar or en · اللغة يجب أن تكون ar أو en',
+});
 
 export const STAFF_ROLES = ['admin', 'editor', 'viewer'] as const;
 export const staffRoleSchema = z.enum(STAFF_ROLES);

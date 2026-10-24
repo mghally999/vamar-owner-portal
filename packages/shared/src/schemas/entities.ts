@@ -10,6 +10,7 @@ import {
   filsNonNegativeSchema,
   filsSchema,
   longText,
+  ownerPhoneSchema,
   phoneE164Schema,
   plainDateSchema,
   shareBpSchema,
@@ -30,7 +31,7 @@ import {
 export const createOwnerSchema = z.object({
   nameAr: shortText,
   nameEn: shortText,
-  phoneE164: phoneE164Schema,
+  phoneE164: ownerPhoneSchema(),
   email: emailSchema.nullable().default(null),
   preferredLang: langSchema.default('ar'),
 });
@@ -40,7 +41,7 @@ export type CreateOwnerInput = z.infer<typeof createOwnerSchema>;
 export const updateOwnerSchema = createOwnerSchema.omit({ phoneE164: true }).partial();
 
 export const changeOwnerPhoneSchema = z.object({
-  phoneE164: phoneE164Schema,
+  phoneE164: ownerPhoneSchema(),
   reason: z.string().trim().min(3).max(500),
 });
 export type ChangeOwnerPhoneInput = z.infer<typeof changeOwnerPhoneSchema>;

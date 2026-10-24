@@ -2,7 +2,13 @@ import { and, eq, isNull } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { schema } from '@vamar/db';
-import { ownerExchangeSchema, refreshSchema, uuidSchema } from '@vamar/shared';
+import {
+  ownerExchangeSchema,
+  parseCountryList,
+  phoneInCountries,
+  refreshSchema,
+  uuidSchema,
+} from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
 import { ownerOf, requireOwner } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
@@ -25,31 +31,12 @@ import { zValidator } from '../util/validator.js';
 
 const { owners, devices } = schema;
 
-/** Country calling codes we accept for owner phones; configurable via ALLOWED_PHONE_COUNTRIES. */
-const COUNTRY_PREFIX: Record<string, string> = {
-  AE: '+971',
-  SA: '+966',
-  QA: '+974',
-  KW: '+965',
-  BH: '+973',
-  OM: '+968',
-  EG: '+20',
-  GB: '+44',
-  US: '+1',
-  IN: '+91',
-  PK: '+92',
-};
-
+/**
+ * Whether an owner phone may sign in under ALLOWED_PHONE_COUNTRIES (comma-separated ISO codes,
+ * `*` for any). Same rule as the shared owner phone schema, mobile shape included.
+ */
 export function phoneAllowed(phone: string, allowedCountries: string): boolean {
-  const list = allowedCountries
-    .split(',')
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean);
-  if (list.includes('*')) return true;
-  return list.some((cc) => {
-    const prefix = COUNTRY_PREFIX[cc];
-    return prefix ? phone.startsWith(prefix) : false;
-  });
+  return phoneInCountries(phone, parseCountryList(allowedCountries));
 }
 
 export const authOwnerRoutes = new Hono<AppEnv>()
