@@ -9,104 +9,22 @@ import type { WorkBook } from 'xlsx';
 // SheetJS is ~400 KB; it is loaded only when a file is chosen, never in the main bundle.
 let xlsx: typeof Xlsx | null = null;
 const loadXlsx = async () => (xlsx ??= await import('xlsx'));
-import { z } from 'zod';
-import {
-  createBuildingSchema,
-  createOwnerSchema,
-  createTenantSchema,
-  createUnitSchema,
-  UNIT_TYPES,
-} from '@vamar/shared';
 import { request } from '@/lib/api';
-import { chunk, IMPORT_BATCH_SIZE } from '@/lib/batch';
+import { IMPORT_BATCH_SIZE } from '@/lib/batch';
 import { useI18n } from '@/lib/i18n';
+import {
+  cellText,
+  FIELDS,
+  fileFingerprint,
+  IMPORT_TARGETS,
+  importBatches,
+  SCHEMAS,
+  shapeRow,
+  type Target,
+} from '@/lib/import-rows';
 import type { MessageKey } from '@/lib/messages';
 import { Button, Card, Field, PageHeader, SectionTitle, Select, Toast } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
-
-type Target = 'owners' | 'buildings' | 'units' | 'tenants';
-
-const FIELDS: Record<
-  Target,
-  { key: string; label: { ar: string; en: string }; required?: boolean }[]
-> = {
-  owners: [
-    { key: 'nameAr', label: { ar: 'الاسم (عربي)', en: 'Name (Arabic)' }, required: true },
-    { key: 'nameEn', label: { ar: 'الاسم (إنجليزي)', en: 'Name (English)' }, required: true },
-    { key: 'phoneE164', label: { ar: 'الهاتف', en: 'Phone' }, required: true },
-    { key: 'email', label: { ar: 'البريد', en: 'Email' } },
-    { key: 'preferredLang', label: { ar: 'اللغة (ar/en)', en: 'Language (ar/en)' } },
-  ],
-  buildings: [
-    { key: 'nameAr', label: { ar: 'اسم المبنى (عربي)', en: 'Building (Arabic)' }, required: true },
-    {
-      key: 'nameEn',
-      label: { ar: 'اسم المبنى (إنجليزي)', en: 'Building (English)' },
-      required: true,
-    },
-    { key: 'area', label: { ar: 'المنطقة', en: 'Area' }, required: true },
-    { key: 'address', label: { ar: 'العنوان', en: 'Address' } },
-  ],
-  units: [
-    { key: 'building', label: { ar: 'المبنى (الاسم)', en: 'Building (name)' }, required: true },
-    { key: 'unitNo', label: { ar: 'رقم الوحدة', en: 'Unit no.' }, required: true },
-    { key: 'type', label: { ar: 'النوع', en: 'Type' } },
-    { key: 'bedrooms', label: { ar: 'غرف النوم', en: 'Bedrooms' } },
-    { key: 'sizeSqft', label: { ar: 'المساحة', en: 'Size (sq ft)' } },
-  ],
-  tenants: [
-    { key: 'name', label: { ar: 'الاسم', en: 'Name' }, required: true },
-    { key: 'phone', label: { ar: 'الهاتف', en: 'Phone' } },
-    { key: 'email', label: { ar: 'البريد', en: 'Email' } },
-    { key: 'company', label: { ar: 'الشركة', en: 'Company' } },
-  ],
-};
-
-const unitClientSchema = createUnitSchema
-  .omit({ buildingId: true })
-  .extend({ building: z.string().trim().min(1), type: z.enum(UNIT_TYPES).default('apartment') });
-const SCHEMAS: Record<Target, z.ZodType> = {
-  owners: createOwnerSchema,
-  buildings: createBuildingSchema,
-  units: unitClientSchema,
-  tenants: createTenantSchema,
-};
-
-/** Normalise cell values: trim strings, coerce numbers, phones to E.164, empty -> undefined. */
-function coerce(key: string, raw: unknown): unknown {
-  if (raw === null || raw === undefined) return undefined;
-  let v: unknown = typeof raw === 'string' ? raw.trim() : raw;
-  if (v === '') return undefined;
-  if (key === 'phoneE164' || key === 'phone') {
-    const digits = cellText(v).replace(/[^\d+]/g, '');
-    if (digits.startsWith('+')) v = digits;
-    else if (digits.startsWith('00')) v = `+${digits.slice(2)}`;
-    else if (digits.startsWith('971')) v = `+${digits}`;
-    else if (digits.startsWith('0')) v = `+971${digits.slice(1)}`;
-    else v = `+971${digits}`;
-  }
-  if (key === 'bedrooms' || key === 'sizeSqft') v = Number(v);
-  if (key === 'type' && typeof v === 'string') v = v.toLowerCase();
-  if (key === 'preferredLang' && typeof v === 'string')
-    v = v.toLowerCase().startsWith('en') ? 'en' : 'ar';
-  if (key === 'unitNo') v = cellText(v);
-  return v;
-}
-
-/** Text for a spreadsheet cell: SheetJS gives strings, numbers, booleans or Date objects. */
-function cellText(v: unknown): string {
-  if (v === null || v === undefined) return '';
-  if (typeof v === 'string') return v;
-  if (typeof v === 'number' || typeof v === 'boolean' || typeof v === 'bigint') return String(v);
-  if (v instanceof Date) return v.toISOString().slice(0, 10);
-  return JSON.stringify(v);
-}
-
-/** First 16 hex digits of the file's SHA-256: the same file always gets the same import key. */
-async function fileFingerprint(buf: ArrayBuffer): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', buf));
-  return Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
-}
 
 export function ImportPage() {
   const { t, lang } = useI18n();
@@ -118,7 +36,7 @@ export function ImportPage() {
   const [result, setResult] = useState<{
     rowsOk: number;
     rowsFailed: number;
-    results: { row: number; ok: boolean; errors?: string[] }[];
+    results: { row: number; ok: boolean; errors?: string[]; note?: string }[];
     alreadyDone?: boolean;
   } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,14 +54,7 @@ export function ImportPage() {
   const dryRun = useMemo(() => {
     const schema = SCHEMAS[target];
     return rows.map((r, i) => {
-      const data: Record<string, unknown> = {};
-      for (const f of FIELDS[target]) {
-        const col = mapping[f.key];
-        if (col) {
-          const v = coerce(f.key, r[col]);
-          if (v !== undefined) data[f.key] = v;
-        }
-      }
+      const data = shapeRow(target, mapping, r);
       const parsed = schema.safeParse(data);
       return {
         row: i + 2,
@@ -200,7 +111,7 @@ export function ImportPage() {
 
   async function commit() {
     setBusy(true);
-    const batches = chunk(okRows, IMPORT_BATCH_SIZE);
+    const batches = importBatches(target, okRows, IMPORT_BATCH_SIZE);
     const total = {
       rowsOk: 0,
       rowsFailed: 0,
@@ -208,8 +119,10 @@ export function ImportPage() {
       alreadyDone: false,
     };
     try {
+      let sent = 0;
       for (const [i, batch] of batches.entries()) {
-        setProgress({ done: i * IMPORT_BATCH_SIZE, total: okRows.length });
+        setProgress({ done: sent, total: okRows.length });
+        sent += batch.length;
         const r = await request<NonNullable<typeof result>>('/api/staff/import/commit', {
           method: 'POST',
           body: JSON.stringify({
@@ -291,7 +204,7 @@ export function ImportPage() {
               setResult(null);
             }}
           >
-            {(['owners', 'buildings', 'units', 'tenants'] as Target[]).map((tg) => (
+            {IMPORT_TARGETS.map((tg) => (
               <option key={tg} value={tg}>
                 {t(`import_target_${tg}` as MessageKey)}
               </option>
@@ -299,6 +212,7 @@ export function ImportPage() {
           </Select>
         </Field>
       </Card>
+      <p className="text-[14px] text-ink-soft">{t('import_order')}</p>
 
       {columns.length > 0 ? (
         <section>
@@ -388,7 +302,8 @@ export function ImportPage() {
               </thead>
               <tbody>
                 {dryRun.map((r) => {
-                  const serverErrors = result?.results.find((x) => x.row === r.row)?.errors;
+                  const server = result?.results.find((x) => x.row === r.row);
+                  const serverErrors = server?.errors;
                   return (
                     <tr
                       key={r.row}
@@ -402,6 +317,9 @@ export function ImportPage() {
                       ))}
                       <td className="px-3 py-2 text-status-bounced">
                         {[...r.errors, ...(serverErrors ?? [])].join('; ')}
+                        {server?.note ? (
+                          <span className="block text-ink-soft">{server.note}</span>
+                        ) : null}
                       </td>
                     </tr>
                   );

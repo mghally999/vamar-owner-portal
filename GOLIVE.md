@@ -14,13 +14,20 @@ starts empty.
    must be able to receive mail: the first sign-in sends a verification link.
 2. **Fill the import template.** Download it from the dashboard (Import page, "Download the
    template") or take `apps/dashboard/public/vamar-import-template.xlsx`. The sheet "اقرأني"
-   explains every column in Arabic, with an example per sheet. Excel itself refuses wrong
-   languages, unit types, bedroom counts and sizes; the dashboard checks everything again and
-   lists each bad row with its reason before anything is saved.
+   explains every column in Arabic, with an example per sheet. Seven sheets: Owners, Buildings,
+   Units, Tenants, Shares (one row per owner of a unit; a unit's shares add up to 100 %), Contracts
+   (no two may overlap on a unit) and Cheques (each names its contract by building, unit and
+   start date; amounts in AED). Excel itself refuses wrong languages, unit types, counts, shares
+   and dates; the dashboard checks everything again and lists each bad row with its reason (in
+   Arabic and English) before anything is saved. Owner phones must be UAE mobile numbers.
 3. **Rehearse the import on staging** with the real file: sign in to the staging dashboard, import
-   Owners, then Buildings, then Units, then Tenants, and fix what the report lists. Re-importing
-   the same file is safe: each batch of 500 rows is keyed by the file's fingerprint, so a batch
-   that already landed returns its earlier report instead of inserting twice.
+   the sheets in this order: Owners, Buildings, Units, Tenants, Shares, Contracts, Cheques, and fix
+   what the report lists. A contract is created as a draft and becomes active when its last cheque
+   arrives and the cheques add up to the annual rent; when they do not, it stays a draft (the
+   report says so) and is activated on its page with a reason. Re-importing is safe: each batch of
+   500 rows is keyed by the file's fingerprint, so a batch that already landed returns its earlier
+   report, and rows imported before under another key (an edited file) are refused as already
+   there (a unit's identical shares are left unchanged).
 4. **Firebase.** In the Firebase console, Authentication > Users > Add user: the admin's e-mail
    and a temporary password (the admin changes it after the first sign-in). Remove the demo staff
    users `admin@vamar.test` and `entry@vamar.test` from the production project once the trial is
@@ -49,6 +56,10 @@ connection string of the production Neon branch (`.local/neon.env`, `DATABASE_UR
    passwords (Neon console > Roles > `vamar_app` > Reset password, then
    `npx wrangler secret put DATABASE_URL` with the new `vamar_app` URL; same for `neondb_owner`,
    then update the GitHub secret `PROD_DATABASE_URL_OWNER`). Record the date in the table below.
+
+   **End the demo trial** in the same step: in `apps/api/wrangler.jsonc` set `"DEMO_TRIAL": "false"`
+   for production (and staging if the trial accounts should stop there too), commit, and deploy.
+   From then on every staff account, the two demo accounts included, needs the authenticator.
 
 3. **Dry run** (counts only, nothing is changed):
 
@@ -86,9 +97,10 @@ connection string of the production Neon branch (`.local/neon.env`, `DATABASE_UR
 7. **Staff.** The Staff page: invite the other staff members with their roles. Each one goes
    through the same first sign-in. Two-step login is required for every account and cannot be
    switched off for admins.
-8. **Import** the real file: Owners, Buildings, Units, Tenants, in that order. Then, in the
-   dashboard: ownership shares on each shared unit (unit > Assign owners), contracts and their
-   cheques.
+8. **Import** the real file, sheet by sheet: Owners, Buildings, Units, Tenants, Shares, Contracts,
+   Cheques. Then, in the dashboard: activate any contract the report left as a draft (its cheques
+   do not add up to the rent), and set the status of cheques that were already deposited,
+   cleared or bounced (Cheques page, bulk status).
 9. **Check.** `curl https://vamar-owner-portal.vamar-api.workers.dev/readyz` answers
    `{"ok":true,"db":true}`; Overview shows the imported counts; an owner with a real number signs
    in to the app and sees their units.

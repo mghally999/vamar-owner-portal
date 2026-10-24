@@ -320,6 +320,9 @@ const en = {
   import_target_buildings: 'Buildings',
   import_target_units: 'Units',
   import_target_tenants: 'Tenants',
+  import_target_shares: 'Ownership shares',
+  import_target_contracts: 'Contracts',
+  import_target_cheques: 'Cheques',
   import_dryRun: 'Validate',
   import_rowsOk: '{n} rows ready',
   import_rowsFailed: '{n} rows with errors',
@@ -329,6 +332,8 @@ const en = {
   import_ignore: 'Ignore',
   import_row: 'Row',
   import_errors: 'Errors',
+  import_order:
+    'Import in this order: owners, buildings, units, tenants, shares, contracts, cheques. A contract becomes active when its last cheque arrives.',
 
   // staff
   staff_title: 'Staff users',
@@ -675,6 +680,9 @@ const ar: Record<MessageKey, string> = {
   import_target_buildings: 'مبانٍ',
   import_target_units: 'وحدات',
   import_target_tenants: 'مستأجرون',
+  import_target_shares: 'حصص الملكية',
+  import_target_contracts: 'عقود',
+  import_target_cheques: 'شيكات',
   import_dryRun: 'فحص',
   import_rowsOk: '{n} صفوف جاهزة',
   import_rowsFailed: '{n} صفوف بها أخطاء',
@@ -684,6 +692,8 @@ const ar: Record<MessageKey, string> = {
   import_ignore: 'تجاهل',
   import_row: 'الصف',
   import_errors: 'الأخطاء',
+  import_order:
+    'استورد بهذا الترتيب: الملاك، المباني، الوحدات، المستأجرون، الحصص، العقود، الشيكات. يصبح العقد ساريًا عند وصول آخر شيك له.',
 
   staff_title: 'مستخدمو الموظفين',
   staff_invite: 'دعوة موظف',

@@ -6,6 +6,7 @@ import { withTx } from '../../db.js';
 import type { AppEnv } from '../../env.js';
 import { actorFromContext } from '../../services/audit.js';
 import { commitImport, importCommitSchema } from '../../services/imports.js';
+import { today } from '../../util/today.js';
 import { editor } from './common.js';
 
 export const importRoutes = new Hono<AppEnv>().post(
@@ -15,7 +16,9 @@ export const importRoutes = new Hono<AppEnv>().post(
   async (c) =>
     c.json(
       await withTx(c, (tx) =>
-        commitImport(tx, actorFromContext(c, staffOf(c)), c.req.valid('json')),
+        commitImport(tx, actorFromContext(c, staffOf(c)), c.req.valid('json'), {
+          today: today(c.env),
+        }),
       ),
     ),
 );

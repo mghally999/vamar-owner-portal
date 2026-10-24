@@ -56,6 +56,34 @@ SHEETS = {
         ("email", "البريد الإلكتروني", "اختياري", 28),
         ("company", "اسم الشركة إن وجد", "اختياري", 28),
     ],
+    "Shares": [
+        ("building", "اسم المبنى كما في ورقة المباني", "مطلوب", 28),
+        ("unitNo", "رقم الوحدة كما في ورقة الوحدات", "مطلوب", 16),
+        ("ownerPhone", "جوال المالك كما في ورقة الملاك", "مطلوب", 22),
+        ("sharePct", "حصة المالك بالنسبة المئوية، مثل 100 أو 60 أو 33.33", "مطلوب؛ حصص الوحدة الواحدة مجموعها 100", 18),
+        ("fromDate", "تاريخ بداية الملكية YYYY-MM-DD", "اختياري، تاريخ اليوم إذا ترك فارغاً", 18),
+    ],
+    "Contracts": [
+        ("building", "اسم المبنى كما في ورقة المباني", "مطلوب", 28),
+        ("unitNo", "رقم الوحدة", "مطلوب", 16),
+        ("tenantName", "اسم المستأجر كما في ورقة المستأجرين", "مطلوب", 28),
+        ("tenantPhone", "جوال المستأجر", "اختياري، يلزم إذا تكرر اسم المستأجر", 20),
+        ("startDate", "تاريخ بداية العقد YYYY-MM-DD", "مطلوب", 16),
+        ("endDate", "تاريخ نهاية العقد YYYY-MM-DD", "مطلوب، بعد البداية", 16),
+        ("annualRentAed", "الإيجار السنوي بالدرهم، مثل 63000", "مطلوب، منزلتان عشريتان كحد أقصى", 18),
+        ("chequeCount", "عدد الشيكات (1 إلى 12)", "مطلوب", 14),
+        ("ejariNo", "رقم إيجاري", "اختياري", 18),
+    ],
+    "Cheques": [
+        ("building", "اسم المبنى كما في ورقة المباني", "مطلوب", 28),
+        ("unitNo", "رقم الوحدة", "مطلوب", 16),
+        ("contractStart", "تاريخ بداية العقد الذي يتبعه الشيك YYYY-MM-DD", "مطلوب، كما في ورقة العقود", 18),
+        ("seq", "ترتيب الشيك في العقد (1، 2، 3 ...)", "مطلوب، من 1 إلى عدد شيكات العقد", 12),
+        ("dueDate", "تاريخ استحقاق الشيك YYYY-MM-DD", "مطلوب، ضمن مدة العقد", 16),
+        ("amountAed", "مبلغ الشيك بالدرهم، مثل 15750", "مطلوب، منزلتان عشريتان كحد أقصى", 16),
+        ("chequeNo", "رقم الشيك", "مطلوب", 16),
+        ("bankName", "اسم البنك", "مطلوب", 22),
+    ],
 }
 
 EXAMPLES = {
@@ -63,7 +91,12 @@ EXAMPLES = {
     "Buildings": ["برج النور", "Al Noor Tower", "ديرة", "شارع المطار، دبي"],
     "Units": ["برج النور", "1204", "apartment", 2, 1150],
     "Tenants": ["سارة خليل", "+971559876543", "", ""],
+    "Shares": ["برج النور", "1204", "+971501234567", 100, "2026-01-01"],
+    "Contracts": ["برج النور", "1204", "سارة خليل", "+971559876543", "2026-01-01", "2026-12-31", 63000, 4, ""],
+    "Cheques": ["برج النور", "1204", "2026-01-01", 1, "2026-01-01", 15750, "836466", "Emirates NBD"],
 }
+
+DATE_COLUMNS = {"fromDate", "startDate", "endDate", "contractStart", "dueDate"}
 
 
 def instructions(ws):
@@ -73,7 +106,7 @@ def instructions(ws):
         ("نموذج استيراد بيانات فامار", Font(name="Almarai", bold=True, size=16, color=SLATE)),
         ("", None),
         ("طريقة الاستخدام", Font(name="Almarai", bold=True, size=13, color=SLATE)),
-        ("1. املأ الأوراق بالترتيب: الملاك، ثم المباني، ثم الوحدات، ثم المستأجرين. صف واحد لكل سجل، ابتداءً من الصف الثاني.", BODY_FONT),
+        ("1. املأ الأوراق واستوردها بالترتيب: الملاك، المباني، الوحدات، المستأجرون، الحصص، العقود، ثم الشيكات. صف واحد لكل سجل، ابتداءً من الصف الثاني.", BODY_FONT),
         ("2. لا تغيّر الصف الأول (أسماء الأعمدة) ولا تحذفه. مرّر المؤشر على اسم العمود لرؤية شرحه، والشرح نفسه في الأسفل.", BODY_FONT),
         ("3. في لوحة التحكم افتح «استيراد»، اختر الملف، ثم اختر الورقة ونوع البيانات. تُطابق الأعمدة تلقائياً.", BODY_FONT),
         ("4. راجع نتيجة الفحص: الصفوف السليمة تُستورد، والصفوف التي فيها أخطاء تظهر مع السبب لتصحيحها ثم رفعها مرة أخرى.", BODY_FONT),
@@ -82,7 +115,11 @@ def instructions(ws):
         ("قواعد مهمة", Font(name="Almarai", bold=True, size=13, color=SLATE)),
         ("• رقم الجوال هو رقم دخول المالك إلى التطبيق. أرقام الإمارات تقبل بأي صيغة: 0501234567 أو 971501234567 أو +971501234567.", BODY_FONT),
         ("• اسم المبنى في ورقة الوحدات يجب أن يطابق اسمه في ورقة المباني (العربي أو الإنجليزي).", BODY_FONT),
-        ("• حصص الملاك في الوحدات المشتركة، والعقود والشيكات، تُدخل من لوحة التحكم بعد الاستيراد (شاشة الوحدة ثم «تعيين الملاك»، وشاشة العقود).", BODY_FONT),
+        ("• الحصص: صف لكل مالك في الوحدة، ومجموع حصص الوحدة الواحدة 100 بالضبط. الوحدة التي لها ملاك من قبل لا تتغير من الاستيراد (تُعدّل من شاشة الوحدة).", BODY_FONT),
+        ("• العقود: لا يتداخل عقدان على نفس الوحدة. المستأجر يجب أن يكون في ورقة المستأجرين. يُنشأ العقد مسودة إلى أن تصل شيكاته.", BODY_FONT),
+        ("• الشيكات: كل شيك يتبع عقداً موجوداً (نفس المبنى والوحدة وتاريخ بداية العقد). عندما يكتمل آخر شيك ومجموع الشيكات يساوي الإيجار السنوي يصبح العقد سارياً تلقائياً؛ إن اختلف المجموع يبقى مسودة لتفعيله من لوحة التحكم مع ذكر السبب.", BODY_FONT),
+        ("• المبالغ بالدرهم (مثل 63000 أو 15750.50) وتُحفظ بالفلس. التواريخ بصيغة YYYY-MM-DD أو تاريخ Excel.", BODY_FONT),
+        ("• حالة الشيكات (مودَع، تم الصرف، مرتجع) تُحدّث من لوحة التحكم بعد الاستيراد (تحديث جماعي في شاشة الشيكات).", BODY_FONT),
         ("• حتى 5,000 صف في كل ورقة. الملف الأكبر يقسّم إلى ملفات.", BODY_FONT),
         ("", None),
         ("شرح الأعمدة", Font(name="Almarai", bold=True, size=13, color=SLATE)),
@@ -159,6 +196,34 @@ def data_sheet(wb, name, cols):
                            error="رقم صحيح أكبر من صفر."), "sizeSqft")
     if name == "Tenants":
         add(required_text("الاسم"), "name")
+    if name in ("Shares", "Contracts", "Cheques"):
+        add(required_text("المبنى"), "building")
+    if name == "Shares":
+        add(DataValidation(type="decimal", operator="between", formula1="0.01", formula2="100",
+                           allow_blank=True, showErrorMessage=True, errorTitle="الحصة",
+                           error="نسبة من 0.01 إلى 100."), "sharePct")
+    if name == "Contracts":
+        add(required_text("المستأجر"), "tenantName")
+        add(DataValidation(type="decimal", operator="greaterThan", formula1="0",
+                           allow_blank=True, showErrorMessage=True, errorTitle="الإيجار",
+                           error="مبلغ بالدرهم أكبر من صفر."), "annualRentAed")
+        add(DataValidation(type="whole", operator="between", formula1="1", formula2="12",
+                           allow_blank=True, showErrorMessage=True, errorTitle="عدد الشيكات",
+                           error="رقم صحيح من 1 إلى 12."), "chequeCount")
+    if name == "Cheques":
+        add(DataValidation(type="whole", operator="between", formula1="1", formula2="12",
+                           allow_blank=True, showErrorMessage=True, errorTitle="ترتيب الشيك",
+                           error="رقم صحيح من 1 إلى 12."), "seq")
+        add(DataValidation(type="decimal", operator="greaterThan", formula1="0",
+                           allow_blank=True, showErrorMessage=True, errorTitle="المبلغ",
+                           error="مبلغ بالدرهم أكبر من صفر."), "amountAed")
+    for key, *_rest in cols:
+        if key in DATE_COLUMNS:
+            add(DataValidation(type="date", operator="between", formula1="DATE(2000,1,1)",
+                               formula2="DATE(2100,12,31)", allow_blank=True, showErrorMessage=True,
+                               errorTitle="التاريخ", error="تاريخ صحيح بصيغة YYYY-MM-DD."), key)
+            for r in range(2, 202):
+                ws[f"{col(key)}{r}"].number_format = "yyyy-mm-dd"
 
 
 def main():
