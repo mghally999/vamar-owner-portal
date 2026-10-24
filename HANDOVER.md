@@ -10,7 +10,10 @@ documents linked from each section; this page is the map.
   with their phone number and see their cheques, units, disputes and statements, in Arabic or
   English, in the Default or White theme.
 - **Staff dashboard** (`/`): Vamar staff manage owners, buildings, units, tenants, contracts,
-  cheques and disputes, import from Excel, and see the audit log. Two-step login is required.
+  cheques and disputes, import from Excel, and see the audit log. Two-step login is required for
+  every staff account. During the client trial the Worker variable `DEMO_TRIAL` is `"true"`, which
+  lets only the two listed demo accounts (`admin@vamar.test`, `entry@vamar.test`, list in
+  `apps/api/src/config.ts`) skip it; set it to `"false"` on go-live day (GOLIVE.md step 2).
 - **API**: one Cloudflare Worker serves the API, the dashboard, the web app and `/download`.
   Data in Neon Postgres, files in R2, sign-in by Firebase Authentication.
 
@@ -43,15 +46,29 @@ the toolchain; the CI job "Docker image" proves it on every push.
    floors, the dashboard build with its bundle budget, the Worker dry run, the app bundle, the
    secrets scan and dependency audit, Playwright end-to-end plus axe, a load smoke test and the
    Docker stack. Everything must be green.
-2. **Staging** deploys from `main` automatically once the Cloudflare token exists (BLOCKED.md
-   item 6), then smoke-tests and runs the iPhone web-app test against it. Until then deploy by
-   hand: `pnpm build:web`, then `cd apps/api && npx wrangler deploy --env staging --var RELEASE:<sha>`,
-   then `node tooling/ci/smoke.mjs <staging url> staging`.
+2. **Staging.** The Deploy workflow deploys `main` to staging, smoke-tests it and runs the iPhone
+   web-app test and the staging Playwright run (`pnpm e2e:staging`), but only once the Cloudflare
+   token exists (BLOCKED.md item 6). Until then that workflow **fails (red) on every push to
+   `main`, on purpose**: nothing has been deployed by CI so far, every deploy has been by hand.
+   By hand: `pnpm build:web` (needs `apps/dashboard/.env.production`, the public Firebase web
+   config), then `cd apps/api && npx wrangler deploy --env staging --var RELEASE:<sha>`, then
+   the checks, from the repository root:
+
+   ```sh
+   node tooling/ci/smoke.mjs <staging url> staging
+   PWA_URL=<staging url> pnpm --filter @vamar/dashboard e2e:pwa
+   STAGING_URL=<staging url> pnpm --filter @vamar/dashboard e2e:staging
+   ```
+
 3. **Production** deploys from a version tag (`git tag -a v1.2.0 -m v1.2.0 && git push origin v1.2.0`),
-   after staging. By hand: apply migrations first (`pnpm db:migrate` with the production owner
-   URL), then `pnpm build:web` and `npx wrangler deploy --var RELEASE:v1.2.0`, then the smoke test.
-   Rollback: `npx wrangler rollback <previous version id>` (`npx wrangler deployments list`).
-4. **Owner app.** JavaScript-only fixes: `eas update --channel preview` reaches installed apps of
+   after staging, once the token exists. By hand: apply migrations first (`pnpm db:migrate` with
+   the production owner URL), then `pnpm build:web` and `npx wrangler deploy --var RELEASE:<sha>`,
+   then the smoke test. Rollback: `npx wrangler rollback <previous version id>`
+   (`npx wrangler deployments list`).
+4. **Owner app.** The APK is built for 64-bit ARM phones only (`arm64-v8a`, which keeps it near
+   37 MB): it does not install on x86 emulators or Chromebooks; the download page says so. The
+   `staging` build profile in `apps/mobile/eas.json` builds the same app against the staging API
+   for testing. JavaScript-only fixes: `eas update --channel preview` reaches installed apps of
    the same version on their next launch. Native changes: raise `version` in
    `apps/mobile/app.config.ts`, `eas build --profile preview --platform android`, upload the APK
    (`npx wrangler r2 object put vamar-files/releases/vamar-owner-app.apk --file <apk> --remote`,
@@ -66,10 +83,14 @@ the toolchain; the CI job "Docker image" proves it on every push.
   id; the same id is in the `x-request-id` header and in any error the user reports.
 - **Errors**: set the `SENTRY_DSN` Worker secret (BLOCKED.md item 3) and every server error goes
   to Sentry with personal data scrubbed; until then errors are in the logs only.
-- **Backups**: the nightly workflow encrypts a database dump to R2 once its R2 key exists
-  (BLOCKED.md item 1). Neon also keeps point-in-time history. The restore drill
-  (`tooling/ops/restore-drill.mjs`) restores into a scratch branch and compares all 19 tables;
-  it passed on 22 Oct 2026. Run it after any schema change and once a quarter.
+- **Backups**: **no backup has been taken yet.** The nightly workflow encrypts a database dump to
+  R2 once its R2 key exists (BLOCKED.md item 1); until then it fails every night. Neon keeps 24
+  hours of point-in-time history on the free plan. The restore drill script
+  (`tooling/ops/restore-drill.mjs`) makes a dump the way the workflow does, decrypts it, restores
+  it into a scratch database and compares all 19 tables. The only run so far (22 Oct 2026) dumped
+  the **staging** branch on the dev machine; it has never restored a real nightly backup. Run it
+  on the first nightly file, after any schema change and once a quarter. The decryption key is in
+  `.local/` on the dev machine only: keep a copy in the password manager.
 - **Load**: the "Load comparison" workflow (Actions > Load comparison > Run) measures any commit on
   the large synthetic dataset; AUDIT.md section 9 has the numbers before and after this round.
 - **Secrets**: rotate at go-live (GOLIVE.md step 2) and when anyone with access leaves; the
@@ -78,8 +99,11 @@ the toolchain; the CI job "Docker image" proves it on every push.
 ## Go-live
 
 GOLIVE.md is the runbook: decide the first admin, fill and rehearse the import template on
-staging, take a Neon restore point, rotate secrets, `pnpm golive:blank --confirm`, first sign-in,
-invite staff, import, check, tell the owners. Rehearsed on the staging database server on 23 Oct 2026.
+staging, take a Neon restore point, rotate secrets and set `DEMO_TRIAL` to `"false"`,
+`pnpm golive:blank --confirm`, first sign-in, invite staff, import the seven sheets (owners,
+buildings, units, tenants, shares, contracts, cheques), check, tell the owners. The blank start
+was rehearsed on a scratch database on the staging Neon server on 23 Oct 2026 (log on the dev
+machine only) and on a local scratch database during the independent check of 24 Oct 2026.
 
 ## Still open
 
