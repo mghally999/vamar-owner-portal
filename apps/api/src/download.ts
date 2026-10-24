@@ -39,8 +39,8 @@ export function downloadPage(device: Device, version: string): string {
   const android = `
     <section class="card${device === 'android' ? ' primary' : ''}">
       <h2>أندرويد</h2>
-      <p class="muted">نزّل التطبيق وافتح الملف، ثم اسمح بالتثبيت من هذا المصدر إذا طلب الهاتف ذلك.</p>
-      <p class="muted en">Android: download, open the file, allow installs from this source if asked.</p>
+      <p class="muted">نزّل التطبيق وافتح الملف، ثم اسمح بالتثبيت من هذا المصدر إذا طلب الهاتف ذلك. لهواتف أندرويد فقط (معالجات ARM 64-بت)، لا يعمل على المحاكيات أو أجهزة الكمبيوتر.</p>
+      <p class="muted en">Android: download, open the file, allow installs from this source if asked. Android phones only (64-bit ARM); not for emulators or computers.</p>
       <a class="btn" href="/download/vamar-owner-app.apk">تنزيل التطبيق · Download (APK)</a>
     </section>`;
   const ios = `
