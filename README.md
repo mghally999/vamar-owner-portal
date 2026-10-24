@@ -37,7 +37,7 @@ The download page picks the right option for the phone that opens it: the Androi
 ## What it does
 
 - **Owner app:** phone and OTP sign-in, monthly cheque overview, cheque statuses (upcoming, cleared, bounced), properties and units, shared ownership, disputes, PDF statements, update check, Arabic and English, Default and White themes.
-- **Staff dashboard:** owners, buildings, units, contracts, cheques, disputes, Excel import with a ready template, staff users with roles, two-step login (TOTP) and a full audit log.
+- **Staff dashboard:** owners, buildings, units, contracts, cheques, disputes, Excel import (owners, buildings, units, tenants, ownership shares, contracts and cheques) with a ready template, staff users with roles, two-step login (TOTP) and a full audit log.
 - **Security:** every owner only ever sees their own data, staff actions are role-checked on the server, and every change is recorded in the audit log.
 
 ## Stack

@@ -40,7 +40,10 @@ These accounts are recreated in the Firebase emulator every time `pnpm dev` star
 **During the client trial (from 14 Oct 2026) the two demo accounts sign in with email and password
 only**: 2-step login is switched off for them on the live site (`pnpm staff:reset-totp <email>
 --live --on` turns it back on; `--off` switches it off; without a flag it only resets the
-authenticator so the next sign-in shows the QR again). Real staff accounts always use 2-step login.
+authenticator so the next sign-in shows the QR again). This works only while the Worker variable
+`DEMO_TRIAL` is `"true"` (set for production and staging in `apps/api/wrangler.jsonc`) and only
+for these two e-mails (`DEMO_TRIAL_EMAILS` in `apps/api/src/config.ts`); `--off` is refused for
+admins while the trial is off. Every other staff account always uses 2-step login.
 
 **Authenticator code (TOTP), when 2-step login is on.** The first sign-in of each account shows a QR code. Scan it with
 Google Authenticator / Microsoft Authenticator / 1Password, or type the key shown under the QR

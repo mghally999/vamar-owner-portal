@@ -115,10 +115,12 @@ Staff (dashboard, Firebase email + password, then TOTP): `admin@vamar.test` (Adm
 `entry@vamar.test` (Data entry). The client has two dashboard users, so the UI shows only these two
 roles; the read-only `viewer` role stays in the API and tests. Emulator passwords are in `DEMO.md`;
 real passwords are set in the Firebase console, never in this repo. During the client trial the two
-demo accounts have 2-step login switched off (`totp_required = false`, see "Decisions"); the API
-refuses to switch it off for admins through the dashboard, so the live admin demo account keeps its
-trial setting only because it was set with `pnpm staff:reset-totp --live --off` from the dev
-machine. TOTP codes are single use: a code that signed in once is refused until the next 30 s step.
+demo accounts have 2-step login switched off (`totp_required = false`, see "Decisions"). The sign-in
+exchange lets an account skip the authenticator only when its row says so, the Worker variable
+`DEMO_TRIAL` is `"true"` and its e-mail is in `DEMO_TRIAL_EMAILS` (`apps/api/src/config.ts`);
+every other account, admins included, gets the TOTP step whatever its row says. The dashboard
+refuses to switch 2-step off for admins and outside the trial, and `pnpm staff:reset-totp --off`
+follows the same rules. TOTP codes are single use: a code that signed in once is refused until the next 30 s step.
 
 ## Data model notes
 
@@ -252,8 +254,9 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
   admin checkbox on Staff users, or `pnpm staff:reset-totp <email> --live --off`). **Trial decision
   (14 Oct 2026):** switched off for the two demo accounts `admin@vamar.test` and `entry@vamar.test`
   while Vamar tries the live dashboard, so Mr Abdallah signs in with email and password only. It
-  stays on by default for every real staff account; switch the demo accounts back on with `--on`
-  after the trial. A wrong code returns 403 `totp_invalid` (never 401, which the dashboard reserves
+  stays on by default for every real staff account. The trial ends with `DEMO_TRIAL = "false"` in
+  `apps/api/wrangler.jsonc` (GOLIVE.md): from then on the two demo accounts need the authenticator
+  too, and `--on` restores their rows. A wrong code returns 403 `totp_invalid` (never 401, which the dashboard reserves
   for an expired session and answers with a redirect to `/login?reason=expired`). A separate
   account `tester@vamar.test` (role editor, 2-step on) exists in the live Firebase Auth and
   database for Playwright checks of the TOTP flow; it is kept deactivated between runs.
@@ -312,7 +315,9 @@ strings live in `.local/neon-staging.env` on the dev machine and in the GitHub s
 
 Release: merge to `main`, wait for CI and the staging deploy, check staging, then
 `git tag v1.x.y && git push origin v1.x.y`. The production job migrates Neon `main`, deploys and
-runs `tooling/ci/smoke.mjs`; the Worker reports the tag as its release.
+runs `tooling/ci/smoke.mjs`; the Worker reports the tag as its release. Both deploy jobs need the
+`CLOUDFLARE_API_TOKEN` secret (BLOCKED.md item 6) and fail without it; until it exists every
+deploy is by hand (HANDOVER.md "How a change reaches people").
 
 ### Health, logs, errors
 
@@ -337,7 +342,8 @@ keeping 30 days. Neon also keeps 24 hours of point-in-time history on the free p
 **Restore drill, 22 Oct 2026** (`node tooling/ops/restore-drill.mjs <url> .local/backup-age-key.txt`,
 the same pg_dump/gzip/age commands as the workflow, against the staging branch): 127 KB of SQL,
 21 KB encrypted; decrypt 3 s, restore into an empty database 6 s, 0 errors; all 19 tables match
-the source row for row. The workflow itself has not run yet (R2 key, BLOCKED.md item 1).
+the source row for row. That drill restored a fresh dump of staging, not a nightly backup: the
+workflow itself has not run yet (R2 key, BLOCKED.md item 1), so no backup exists to restore.
 
 To restore production from a nightly file:
 
