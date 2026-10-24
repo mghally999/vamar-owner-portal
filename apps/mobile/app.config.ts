@@ -52,6 +52,9 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       'android.permission.USE_FINGERPRINT',
       'android.permission.POST_NOTIFICATIONS',
     ],
+    // React Native adds the overlay permission for its development menu; the app never draws over
+    // other apps, so builds leave it out.
+    blockedPermissions: ['android.permission.SYSTEM_ALERT_WINDOW'],
   },
   plugins: [
     'expo-router',
