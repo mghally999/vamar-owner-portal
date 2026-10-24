@@ -40,6 +40,9 @@ describe('download page', () => {
       expect(html).not.toContain('<script');
       const firstHeading = /<h2>([^<]+)<\/h2>/.exec(html)?.[1];
       expect(firstHeading).toBe(first);
+      // The APK is built for 64-bit ARM phones only; the page says so in both languages.
+      expect(html).toContain('Android phones only (64-bit ARM)');
+      expect(html).toContain('لهواتف أندرويد فقط');
     }
   });
 });
