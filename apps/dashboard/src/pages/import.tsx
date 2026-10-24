@@ -25,6 +25,7 @@ import {
 import type { MessageKey } from '@/lib/messages';
 import { Button, Card, Field, PageHeader, SectionTitle, Select, Toast } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function ImportPage() {
   const { t, lang } = useI18n();
@@ -288,7 +289,7 @@ export function ImportPage() {
             </span>
           </p>
           <Card className="max-h-[480px] overflow-auto">
-            <table className="w-full min-w-[720px] text-[13px]">
+            <ResponsiveTable className="w-full min-w-[720px] text-[13px]">
               <thead>
                 <tr className="row-line text-ink-soft">
                   <th className="px-3 py-2 text-start font-medium">{t('import_row')}</th>
@@ -325,7 +326,7 @@ export function ImportPage() {
                   );
                 })}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </Card>
         </section>
       ) : null}

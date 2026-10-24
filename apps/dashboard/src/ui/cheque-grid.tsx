@@ -12,6 +12,7 @@ import {
 } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import { Button, Input, Money, cx } from './primitives';
+import { ResponsiveTable } from './responsive-table';
 
 export interface GridRowDraft {
   seq: number;
@@ -63,7 +64,7 @@ export function ChequeGrid({
   return (
     <div className="flex flex-col gap-3">
       <div className="card overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[15px]">
+        <ResponsiveTable className="w-full min-w-[720px] text-[15px]">
           <thead>
             <tr className="row-line text-[13px] text-ink-soft">
               <th className="w-10 px-3 py-2 text-start font-medium">{t('contract_grid_seq')}</th>
@@ -143,7 +144,7 @@ export function ChequeGrid({
               );
             })}
           </tbody>
-        </table>
+        </ResponsiveTable>
         <datalist id="bank-names">
           {[
             'Emirates NBD',

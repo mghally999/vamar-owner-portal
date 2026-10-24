@@ -20,6 +20,7 @@ import {
   SkeletonRows,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 const STATUSES: ContractStatus[] = ['draft', 'active', 'expired', 'terminated', 'renewed'];
 
@@ -106,7 +107,7 @@ export function ContractsPage() {
         <EmptyState title={t('contracts_empty')} />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-[15px]">
+          <ResponsiveTable className="w-full min-w-[800px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
                 <th className="px-4 py-2 text-start font-medium">{t('unit')}</th>
@@ -153,7 +154,7 @@ export function ContractsPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveTable>
           {q.hasNextPage ? (
             <div className="border-t border-line p-3">
               <Button

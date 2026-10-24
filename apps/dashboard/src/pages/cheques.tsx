@@ -34,6 +34,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function ChequesPage() {
   const { t, pick, month: monthLabel } = useI18n();
@@ -195,7 +196,7 @@ export function ChequesPage() {
       ) : (
         <Card className="overflow-hidden">
           <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
-            <table className="w-full min-w-[900px] text-[15px]">
+            <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
                   {auth.hasRole('editor') ? (
@@ -296,7 +297,7 @@ export function ChequesPage() {
                   </tr>
                 ) : null}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
           {q.hasNextPage ? (
             <div className="border-t border-line p-3">

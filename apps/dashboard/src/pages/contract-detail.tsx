@@ -29,6 +29,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function ContractDetailPage() {
   const contractId = useParams({ strict: false }).contractId ?? '';
@@ -201,7 +202,7 @@ export function ContractDetailPage() {
           </>
         ) : (
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-[15px]">
+            <ResponsiveTable className="w-full min-w-[640px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
                   <th className="px-4 py-2 text-start font-medium">#</th>
@@ -236,7 +237,7 @@ export function ContractDetailPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </Card>
         )}
       </section>

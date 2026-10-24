@@ -18,6 +18,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 /** Roles the client uses: Admin and Data entry (the `editor` role). `viewer` exists in the API but is hidden here. */
 const UI_ROLES = [
@@ -63,7 +64,7 @@ export function StaffPage() {
         <EmptyState title={t('empty_generic')} />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-[15px]">
+          <ResponsiveTable className="w-full min-w-[720px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
                 <th className="px-4 py-2 text-start font-medium">{t('staff_name')}</th>
@@ -159,7 +160,7 @@ export function StaffPage() {
                 );
               })}
             </tbody>
-          </table>
+          </ResponsiveTable>
         </Card>
       )}
 

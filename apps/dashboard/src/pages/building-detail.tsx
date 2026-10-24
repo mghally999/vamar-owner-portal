@@ -27,6 +27,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 const UNIT_TYPE_LABEL: Record<(typeof UNIT_TYPES)[number], { ar: string; en: string }> = {
   apartment: { ar: 'شقة', en: 'Apartment' },
@@ -94,7 +95,7 @@ export function BuildingDetailPage() {
           />
         ) : (
           <Card className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-[15px]">
+            <ResponsiveTable className="w-full min-w-[760px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
                   <th className="px-4 py-2 text-start font-medium">{t('unit_no')}</th>
@@ -182,7 +183,7 @@ export function BuildingDetailPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </Card>
         )}
       </section>

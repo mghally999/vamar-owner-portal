@@ -151,3 +151,52 @@
 html[dir='rtl'] {
   --chev-pos: left 12px center;
 }
+
+/* Tables below 768 px: one card per row, each value under its column name, nothing scrolls off the
+   side (ui/responsive-table.tsx copies the header text into data-label). */
+@media (max-width: 767.98px) {
+  table.card-table {
+    display: block;
+    min-width: 0 !important;
+  }
+  table.card-table thead {
+    display: none;
+  }
+  table.card-table tbody {
+    display: block;
+  }
+  table.card-table tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  table.card-table tr[aria-hidden] {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  table.card-table td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 4px 0 !important;
+    text-align: end;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  table.card-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    max-width: 45%;
+    color: var(--color-ink-soft);
+    font-size: 13px;
+    text-align: start;
+  }
+  table.card-table td[data-label='']::before,
+  table.card-table td:not([data-label])::before {
+    content: none;
+  }
+}

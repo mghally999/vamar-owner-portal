@@ -37,6 +37,7 @@ import {
   Textarea,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function DisputesPage() {
   const { t, pick, lang } = useI18n();
@@ -100,7 +101,7 @@ export function DisputesPage() {
         />
       ) : (
         <Card className="overflow-x-auto">
-          <table className="w-full min-w-[800px] text-[15px]">
+          <ResponsiveTable className="w-full min-w-[800px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
                 <th className="px-4 py-2 text-start font-medium">{t('dispute_case')}</th>
@@ -147,7 +148,7 @@ export function DisputesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </ResponsiveTable>
         </Card>
       )}
       <DisputeDialog open={creating} onOpenChange={setCreating} />
