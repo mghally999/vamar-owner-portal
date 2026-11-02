@@ -22,15 +22,12 @@ export default defineConfig({
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
-      // Unit-tested modules; pages and flows are covered end to end by the Playwright suite.
-      include: [
-        'src/lib/batch.ts',
-        'src/lib/theme.ts',
-        'src/ui/cheque-grid.tsx',
-        'src/ui/primitives.tsx',
-      ],
-      // Floors measured on 23 Oct 2026; raised as tests are added, never lowered.
-      thresholds: { lines: 56, functions: 40, statements: 57, branches: 53 },
+      // The whole app source: every page, lib and ui module. Left out are the tests, the type-only
+      // modules and the createRoot bootstrap in main.tsx.
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.{ts,tsx}', 'src/vite-env.d.ts', 'src/lib/types.ts', 'src/main.tsx'],
+      // Floors measured over all of src on 25 Oct 2026; raised as tests are added, never lowered.
+      thresholds: { lines: 96, functions: 93, statements: 95, branches: 89 },
     },
   },
   build: {

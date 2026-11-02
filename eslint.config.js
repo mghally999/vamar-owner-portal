@@ -60,7 +60,14 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.test.ts', '**/test/**', '**/seed.ts', '**/scripts/**'],
+    files: [
+      '**/*.test.ts',
+      '**/*.test.tsx',
+      '**/test/**',
+      '**/__tests__/**',
+      '**/seed.ts',
+      '**/scripts/**',
+    ],
     rules: {
       'no-console': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
@@ -72,6 +79,8 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-parameters': 'off',
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       '@typescript-eslint/no-unnecessary-condition': 'off',
+      // expect(mock.fn) hands a method to the matcher on purpose.
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
   prettier,
