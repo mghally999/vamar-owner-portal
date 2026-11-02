@@ -1,19 +1,15 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef, useState } from 'react';
-import {
-  addMonthsClamped,
-  CHEQUE_STATUSES,
-  todayInDubai,
-  type ChequeStatus,
-  type PlainDate,
-} from '@vamar/shared';
+import { CHEQUE_STATUSES, type ChequeStatus } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
+import { usePeriodSearch } from '@/lib/period-search';
 import { prefetchCheque, useBuildings, useBulkChequeStatus, useCheques } from '@/lib/queries';
+import { useHolidaySet, useSettings } from '@/lib/queries-v2';
+import { PeriodBar } from '@/ui/period-bar';
 import type { ChequeRow } from '@/lib/types';
 import { OwnerPicker } from '@/ui/owner-picker';
 import { StatusDialog } from '@/ui/status-dialog';
@@ -37,14 +33,14 @@ import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function ChequesPage() {
-  const { t, pick, month: monthLabel } = useI18n();
+  const { t, pick } = useI18n();
   const auth = useAuth();
   const qc = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema yet
   const search = useSearch({ strict: false }) as { status?: string };
-  const [monthDate, setMonthDate] = useState<PlainDate | null>(
-    () => `${todayInDubai().slice(0, 7)}-01` as PlainDate,
-  );
+  const settings = useSettings();
+  const period = usePeriodSearch('this_month', settings.data?.weekStart);
+  const holidays = useHolidaySet();
   const [status, setStatus] = useState<string>(search.status ?? '');
   const [buildingId, setBuildingId] = useState('');
   const [ownerId, setOwnerId] = useState('');
@@ -54,9 +50,9 @@ export function ChequesPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const buildings = useBuildings();
-  const month = monthDate ? monthDate.slice(0, 7) : undefined;
   const q = useCheques({
-    month,
+    from: period.period.from,
+    to: period.period.to,
     buildingId: buildingId || undefined,
     ownerId: ownerId || undefined,
     status: status || undefined,
@@ -101,49 +97,9 @@ export function ChequesPage() {
         }
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
+      <PeriodBar state={period} compare={false} holidays={holidays} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex h-11 items-center rounded-md border border-line-strong bg-elevated">
-          <button
-            type="button"
-            className="flex size-11 items-center justify-center"
-            aria-label={t('prevMonth')}
-            onClick={() => {
-              setMonthDate(
-                monthDate
-                  ? addMonthsClamped(monthDate, -1)
-                  : (`${todayInDubai().slice(0, 7)}-01` as PlainDate),
-              );
-            }}
-          >
-            <ChevronRight className="size-5 ltr:hidden" />
-            <ChevronLeft className="size-5 rtl:hidden" />
-          </button>
-          <button
-            type="button"
-            className="min-w-36 px-2 text-center text-[15px] font-medium tnum"
-            onClick={() => {
-              setMonthDate(monthDate ? null : (`${todayInDubai().slice(0, 7)}-01` as PlainDate));
-            }}
-          >
-            {monthDate ? monthLabel(monthDate) : t('all')}
-          </button>
-          <button
-            type="button"
-            className="flex size-11 items-center justify-center"
-            aria-label={t('nextMonth')}
-            onClick={() => {
-              setMonthDate(
-                monthDate
-                  ? addMonthsClamped(monthDate, 1)
-                  : (`${todayInDubai().slice(0, 7)}-01` as PlainDate),
-              );
-            }}
-          >
-            <ChevronLeft className="size-5 ltr:hidden" />
-            <ChevronRight className="size-5 rtl:hidden" />
-          </button>
-        </div>
         <Select
           value={status}
           onChange={(e) => {
@@ -160,6 +116,7 @@ export function ChequesPage() {
               {t(`cheque_status_${s}` as MessageKey)}
             </option>
           ))}
+          {status.includes(',') ? <option value={status}>{status}</option> : null}
         </Select>
         <Select
           value={buildingId}

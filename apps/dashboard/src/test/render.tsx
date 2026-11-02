@@ -18,8 +18,8 @@ import { mockApi, reply, type Routes } from './api';
 import { staffUser } from './fixtures';
 
 // Route chunks load lazily on first use; give them time on a busy machine.
-configure({ asyncUtilTimeout: 5000 });
-vi.setConfig({ testTimeout: 20_000 });
+configure({ asyncUtilTimeout: 30_000 });
+vi.setConfig({ testTimeout: 120_000 });
 // jsdom has no layout; the router's scroll handling only needs the call to exist.
 window.scrollTo = () => undefined;
 

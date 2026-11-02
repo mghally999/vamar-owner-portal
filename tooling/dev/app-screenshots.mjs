@@ -1,4 +1,4 @@
-// Owner app screenshots for demo/screenshots/v2/app, from the web build of the same screens
+// Owner app screenshots for demo/screenshots/v3/app, from the web build of the same screens
 // (apps/dashboard/dist/app, `pnpm build:web`) served by the local API dev server, on an iPhone 13
 // screen, in both themes and both languages.
 //
@@ -20,7 +20,9 @@ if (!url) throw new Error('DATABASE_URL is not set');
 if (!['localhost', '127.0.0.1'].includes(new URL(url).hostname)) {
   throw new Error('Refusing to write a session into a database that is not local');
 }
-const out = resolve(import.meta.dirname, '..', '..', 'demo', 'screenshots', 'v2', 'app');
+const out = process.env.SCREENSHOT_DIR
+  ? resolve(process.env.SCREENSHOT_DIR)
+  : resolve(import.meta.dirname, '..', '..', 'demo', 'screenshots', 'v3', 'app');
 mkdirSync(out, { recursive: true });
 
 const db = new pg.Client({ connectionString: url });
@@ -45,7 +47,18 @@ const unit = await one(
 );
 const dispute = await one(
   `select d.id from disputes d join unit_ownerships u on u.unit_id = d.unit_id and u.to_date is null
-   where u.owner_id = $1 limit 1`,
+   where u.owner_id = $1 order by (d.type = 'bounced_cheque') desc limit 1`,
+  [owner.id],
+);
+const expense = await one(
+  `select x.id from expenses x join expense_allocations a on a.expense_id = x.id
+   where a.owner_id = $1 and x.status = 'posted' and x.visible_to_owner
+   order by exists (select 1 from attachments t where t.entity_type = 'expense' and t.entity_id = x.id) desc, x.invoice_date desc limit 1`,
+  [owner.id],
+);
+const workOrder = await one(
+  `select w.id from work_orders w join unit_ownerships u on u.unit_id = w.unit_id and u.to_date is null
+   where u.owner_id = $1 and w.visible_to_owner order by (w.status = 'done') desc, w.reported_on desc limit 1`,
   [owner.id],
 );
 
@@ -74,6 +87,12 @@ const SCREENS = [
   ...(cheque ? [['cheque', `/app/cheque/${cheque.id}`]] : []),
   ...(unit ? [['unit', `/app/unit/${unit.id}`]] : []),
   ...(dispute ? [['dispute', `/app/dispute/${dispute.id}`]] : []),
+  ['expenses', '/app/expenses'],
+  ...(expense ? [['expense', `/app/expense/${expense.id}`]] : []),
+  ['calendar', '/app/calendar'],
+  ['work-orders', '/app/work-orders'],
+  ...(workOrder ? [['work-order', `/app/work-order/${workOrder.id}`]] : []),
+  ['home-year', '/app/?preset=this_year'],
 ];
 
 const browser = await chromium.launch(

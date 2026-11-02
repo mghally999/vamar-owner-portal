@@ -30,7 +30,12 @@ nodeLinker: hoisted
 # Dependency advisories without an upstream fix in the parents we use (pnpm audit):
 overrides:
   '@grpc/grpc-js@<1.13.6': '>=1.13.6'
-  'decode-uri-component@<0.5.0': '>=0.5.0'
+  # GHSA for decode-uri-component (quadratic percent-decoding): fixed in 0.5.1.
+  'decode-uri-component@<0.5.1': '>=0.5.1'
+  # GHSA-gg6h-894w-4m9c (re2js lookbehind DoS, reached through firebase firestore): fixed in 2.8.7.
+  're2js@<2.8.7': '>=2.8.7'
+  # node-forge 1.4.1 fixes the PEM, PKCS#12, TLS and X.509 advisories (Expo CLI, build time).
+  'node-forge@<1.4.1': '>=1.4.1'
   # GHSA-w5hq-g745-h8pq (uuid v3/v5/v6 buffer bounds): fixed in 11.1.1; the Expo toolchain's
   # uuid 7 and 8 only use the named v4 export, which 11.x keeps.
   'uuid@<11.1.1': '11.1.1'
@@ -38,8 +43,8 @@ overrides:
   # for zod 3; it runs on zod 4 (checked with expo config and expo export).
   '@expo/cli>zod': '^4.6.6'
 
-# Advisory accepted for now (AUDIT.md section 7, FUTURE.md): no fixed node-forge release exists;
-# it is reached only through the Expo CLI at build time. (The braces advisory was withdrawn.)
+# Advisory accepted for now (AUDIT.md section 7, FUTURE.md): reached only through the Expo CLI at
+# build time. (The braces advisory was withdrawn; the other node-forge ones are fixed by the override.)
 auditConfig:
   ignoreGhsas:
     - GHSA-86w9-cpqp-85rv # node-forge: PKCS#1 v1.5 signature verification (expo cli)

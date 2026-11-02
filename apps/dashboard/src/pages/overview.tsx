@@ -1,7 +1,12 @@
 import { Link, useNavigate } from '@tanstack/react-router';
 import { diffDays, todayInDubai, type PlainDate, occupancyPct } from '@vamar/shared';
+import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { usePeriodSearch } from '@/lib/period-search';
 import { useOverview, useRenewContract } from '@/lib/queries';
+import { useHolidaySet, useReportSummary, useSettings } from '@/lib/queries-v2';
+import { BarChart } from '@/ui/bar-chart';
+import { PeriodBar } from '@/ui/period-bar';
 import {
   Button,
   Card,
@@ -13,13 +18,22 @@ import {
   PageHeader,
   SectionTitle,
   Skeleton,
-  Amount,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
-import { useAuth } from '@/lib/auth';
+import { StatCard } from '@/ui/stat-card';
 
+/**
+ * Overview: the period bar, the period's money as cards (expected, collected, outstanding, at
+ * risk, expenses fixed and variable, net) from the report summary, a rent-versus-expenses chart,
+ * then the action lists (bounced, due soon, ending soon, deletion requests). Every card links to
+ * the list behind it.
+ */
 export function OverviewPage() {
-  const { t, pick, month } = useI18n();
+  const { t, pick, lang } = useI18n();
+  const settings = useSettings();
+  const period = usePeriodSearch('this_month', settings.data?.weekStart);
+  const holidays = useHolidaySet();
+  const summary = useReportSummary(period.query);
   const q = useOverview();
   const auth = useAuth();
   const renew = useRenewContract();
@@ -28,79 +42,140 @@ export function OverviewPage() {
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const d = q.data;
+  const s = summary.data;
+  const prev = s?.previous;
+  const periodSearch = period.query;
+  const beforeFee =
+    settings.data?.showBeforeFeeLabel !== false ? t('overview_netBeforeFee') : undefined;
 
   return (
     <Page>
-      <PageHeader
-        title={t('overview_title')}
-        subtitle={d ? month(`${d.month}-01`) : <Skeleton className="h-5 w-32" />}
-      />
+      <PageHeader title={t('overview_title')} />
+      <PeriodBar state={period} holidays={holidays} />
 
-      {/* The month's money, as the hero card of the design: expected total, then paid /
-          pending / bounced tiles, then the month's cheque count and occupancy. */}
-      <section className="rounded-lg border-[0.8px] border-hero-line bg-hero p-5 text-on-hero lg:p-6">
-        <p className="text-[14px] font-bold text-on-hero-soft">{t('overview_expected')}</p>
-        {d ? (
-          <p className="mt-3 text-[35px] leading-[46px] font-extrabold tracking-[-1px]">
-            <Amount fils={d.expectedFils} currencyClassName="text-[15px]" />
-          </p>
-        ) : (
-          <div className="skeleton mt-3 h-11 w-64 opacity-30" />
-        )}
-        <div className="mt-4 grid grid-cols-1 gap-1 sm:grid-cols-3">
-          {(
-            [
-              ['overview_cleared', d?.clearedFils, null],
-              ['overview_pending', d?.pendingFils, null],
-              ['overview_bounced', d?.bouncedFils, d?.bouncedCount],
-            ] as const
-          ).map(([label, fils, count]) => (
-            <div key={label} className="rounded-sm bg-hero-tile p-3">
-              <p className="text-[12px] text-on-hero-soft">
-                {t(label)}
-                {count ? <span className="tnum"> · {count}</span> : null}
-              </p>
-              <p className="mt-1 text-[17px] font-bold">{d ? <Amount fils={fils ?? 0} /> : '…'}</p>
-            </div>
-          ))}
+      {summary.isError ? (
+        <ErrorState onRetry={() => void summary.refetch()} />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCard
+            label={t('overview_expectedPeriod')}
+            fils={s?.rent.expectedFils}
+            previousFils={prev?.rent.expectedFils}
+            tone="hero"
+            to="/cheques"
+            search={periodSearch}
+            hint={s ? t('overview_cheques_count', { n: s.rent.chequeCount }) : undefined}
+          />
+          <StatCard
+            label={t('overview_collected')}
+            fils={s?.rent.collectedFils}
+            previousFils={prev?.rent.collectedFils}
+            tone="success"
+            to="/cheques"
+            search={{ ...periodSearch, status: 'cleared' }}
+          />
+          <StatCard
+            label={t('overview_outstanding')}
+            fils={s?.rent.outstandingFils}
+            previousFils={prev?.rent.outstandingFils}
+            to="/cheques"
+            search={{ ...periodSearch, status: 'upcoming,deposited' }}
+          />
+          <StatCard
+            label={t('overview_atRisk')}
+            fils={s?.rent.atRiskFils}
+            previousFils={prev?.rent.atRiskFils}
+            tone="danger"
+            to="/cheques"
+            search={{ ...periodSearch, status: 'bounced' }}
+            hint={s ? `${s.rent.bouncedCount} ${t('overview_bounced').toLowerCase()}` : undefined}
+          />
+          <StatCard
+            label={t('overview_expenses')}
+            fils={s?.expenses.totalFils}
+            previousFils={prev?.expenses.totalFils}
+            to="/expenses"
+            search={periodSearch}
+            hint={
+              s ? (
+                <span className="tnum">
+                  {t('overview_fixed')} <Money fils={s.expenses.fixedFils} /> ·{' '}
+                  {t('overview_variable')} <Money fils={s.expenses.variableFils} />
+                </span>
+              ) : undefined
+            }
+          />
+          <StatCard
+            label={t('overview_net')}
+            fils={s?.netFils}
+            previousFils={prev?.netFils}
+            to="/reports"
+            search={periodSearch}
+            hint={beforeFee}
+          />
         </div>
-        {d ? (
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 px-1 text-[13px] text-on-hero-soft">
-            <span>{t('overview_cheques_count', { n: d.chequeCount })}</span>
-            <span className="flex min-w-48 flex-1 items-center gap-3">
-              <span className="whitespace-nowrap">
-                {t('overview_occupancy', {
-                  occupied: d.occupancy.occupied,
-                  total: d.occupancy.total,
-                })}
-              </span>
-              <span
-                role="progressbar"
-                aria-label={t('overview_occupancy', {
-                  occupied: d.occupancy.occupied,
-                  total: d.occupancy.total,
-                })}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={occupancyPct(d.occupancy.occupied, d.occupancy.total)}
-                className="h-[7px] flex-1 overflow-hidden rounded-full bg-on-hero-soft/40"
-              >
-                <span
-                  className="block h-full rounded-full bg-on-hero"
-                  style={{ width: `${occupancyPct(d.occupancy.occupied, d.occupancy.total)}%` }}
-                />
-              </span>
+      )}
+
+      {s && s.buckets.length > 1 ? (
+        <BarChart
+          title={t('overview_chart')}
+          months={s.buckets.map((b) => b.key)}
+          series={[
+            {
+              key: 'collected',
+              label: t('overview_chart_collected'),
+              values: s.buckets.map((b) => b.collectedFils),
+            },
+            {
+              key: 'expenses',
+              label: t('overview_chart_expenses'),
+              values: s.buckets.map((b) => b.totalFils),
+            },
+            {
+              key: 'expected',
+              label: t('overview_chart_expected'),
+              values: s.buckets.map((b) => b.expectedFils),
+            },
+          ]}
+        />
+      ) : null}
+
+      {d ? (
+        <p className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-ink-soft">
+          <span>{t('overview_cheques_count', { n: d.chequeCount })}</span>
+          <span className="flex min-w-48 flex-1 items-center gap-3">
+            <span className="whitespace-nowrap">
+              {t('overview_occupancy', {
+                occupied: d.occupancy.occupied,
+                total: d.occupancy.total,
+              })}
             </span>
-          </div>
-        ) : null}
-      </section>
+            <span
+              role="progressbar"
+              aria-label={t('overview_occupancy', {
+                occupied: d.occupancy.occupied,
+                total: d.occupancy.total,
+              })}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={occupancyPct(d.occupancy.occupied, d.occupancy.total)}
+              className="h-[7px] max-w-64 flex-1 overflow-hidden rounded-full bg-track"
+            >
+              <span
+                className="block h-full rounded-full bg-track-fill"
+                style={{ width: `${occupancyPct(d.occupancy.occupied, d.occupancy.total)}%` }}
+              />
+            </span>
+          </span>
+        </p>
+      ) : null}
 
       <section>
         <SectionTitle
           aside={
             <Link
               to="/cheques"
-              search={{ status: 'bounced' }}
+              search={{ status: 'bounced' } as never}
               className="text-[13px] text-ink-soft hover:text-ink"
             >
               {t('viewAll')}
@@ -142,7 +217,7 @@ export function OverviewPage() {
           aside={
             <Link
               to="/contracts"
-              search={{ endingWithinDays: 60 }}
+              search={{ endingWithinDays: 60 } as never}
               className="text-[13px] text-ink-soft hover:text-ink"
             >
               {t('viewAll')}
@@ -224,19 +299,22 @@ export function OverviewPage() {
                 <span className="tnum text-ink-soft" dir="ltr">
                   {r.phoneE164}
                 </span>
-                <span className="tnum text-ink-soft">{useI18nDate(r.at)}</span>
+                <span className="tnum text-ink-soft">
+                  <WhenText iso={r.at} />
+                </span>
               </div>
             ))}
           </Card>
         </section>
       ) : null}
+      <span className="hidden">{lang}</span>
     </Page>
   );
 }
 
-function useI18nDate(iso: string) {
+function WhenText({ iso }: { iso: string }) {
   const { dateTime } = useI18n();
-  return dateTime(iso);
+  return <>{dateTime(iso)}</>;
 }
 
 function ListSkeleton() {

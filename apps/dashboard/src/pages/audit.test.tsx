@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { auditRow, page, staffRow } from '@/test/fixtures';
@@ -69,8 +69,8 @@ describe('AuditPage', () => {
     await screen.findByText('owner.create');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Actor' }), 'stf-2');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'cheque');
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-10-01' } });
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-10-31' } });
+    await user.type(screen.getByRole('textbox', { name: 'From' }), '01/10/2026{Enter}');
+    await user.type(screen.getByRole('textbox', { name: 'To' }), '31/10/2026{Enter}');
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/audit').query).toEqual({
         actorId: 'stf-2',

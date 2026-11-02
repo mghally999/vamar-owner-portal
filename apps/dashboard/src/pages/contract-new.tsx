@@ -19,6 +19,7 @@ import {
   useTenants,
 } from '@/lib/queries';
 import { ChequeGrid, toGridRows, type GridRowDraft } from '@/ui/cheque-grid';
+import { DatePicker } from '@/ui/date-picker';
 import { Dialog } from '@/ui/dialog';
 import {
   Button,
@@ -177,13 +178,12 @@ export function ContractNewPage() {
           </div>
         </Field>
         <Field label={t('contract_start')} required>
-          <Input
-            type="date"
+          <DatePicker
             value={startDate}
-            onChange={(e) => {
-              setStartDate(e.target.value as PlainDate);
+            onChange={(d) => {
+              if (d) setStartDate(d);
             }}
-            numeric
+            aria-label={t('contract_start')}
           />
         </Field>
         <Field
@@ -191,14 +191,13 @@ export function ContractNewPage() {
           required
           error={datesValid ? undefined : t('error_generic')}
         >
-          <Input
-            type="date"
+          <DatePicker
             value={endDate}
-            onChange={(e) => {
-              setEndDate(e.target.value as PlainDate);
+            onChange={(d) => {
+              if (d) setEndDate(d);
             }}
-            numeric
             invalid={!datesValid}
+            aria-label={t('contract_end')}
           />
         </Field>
         <Field label={t('contract_rent')} required>

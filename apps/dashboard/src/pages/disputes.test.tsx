@@ -2,7 +2,7 @@
 import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
-import { building, buildingDetail, disputeDetail, disputeRow } from '@/test/fixtures';
+import { building, buildingDetail, chequeRow, disputeDetail, disputeRow } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 const ROWS = [
-  disputeRow(),
+  { ...disputeRow(), chequeNos: ['000101', '000102'] },
   disputeRow({
     id: 'dsp-2',
     caseNo: 'RDC-2026-0533',
@@ -26,7 +26,7 @@ const ROWS = [
     amountClaimedFils: null,
     nextHearingDate: null,
   }),
-];
+].map((d) => ({ chequeNos: [], ...d }));
 
 function routes(extra: Record<string, unknown> = {}) {
   return {
@@ -35,6 +35,13 @@ function routes(extra: Record<string, unknown> = {}) {
     'GET /api/staff/disputes/:id': disputeDetail(),
     'GET /api/staff/buildings': { items: [building()] },
     'GET /api/staff/buildings/bld-1': buildingDetail(),
+    'GET /api/staff/cheques': {
+      items: [
+        chequeRow({ status: 'bounced' }),
+        chequeRow({ id: 'chq-2', chequeNo: '000102', dueDate: '2027-01-05' }),
+      ],
+      nextCursor: null,
+    },
     ...extra,
   };
 }
@@ -46,6 +53,7 @@ describe('DisputesPage', () => {
     expect(link.getAttribute('href')).toBe('/disputes/dsp-1');
     const row = link.closest('tr');
     if (!row) throw new Error('no row');
+    expect(within(row).getByText('000101, 000102')).toBeTruthy();
     expect(within(row).getByText('Rent arrears')).toBeTruthy();
     expect(within(row).getByText('AED 47,500')).toBeTruthy();
     expect(within(row).getByText('12 Nov 2026')).toBeTruthy();
@@ -54,7 +62,7 @@ describe('DisputesPage', () => {
     if (!second) throw new Error('no row');
     expect(within(second).getByText('Eviction')).toBeTruthy();
     expect(within(second).getByText('Hearing scheduled')).toBeTruthy();
-    expect(within(second).getAllByText('—')).toHaveLength(3);
+    expect(within(second).getAllByText('—')).toHaveLength(4);
 
     await user.hover(link);
     await vi.waitFor(() => {
@@ -67,7 +75,19 @@ describe('DisputesPage', () => {
         'No disputes. When a case is opened, record it here so the owner can follow it in the app.',
       ),
     ).toBeTruthy();
-    expect(api.last('GET', '/api/staff/disputes').query).toEqual({ status: 'closed' });
+    expect(api.last('GET', '/api/staff/disputes').query).toEqual({
+      status: 'closed',
+      limit: '100',
+    });
+
+    await user.type(screen.getByRole('textbox', { name: 'Case or cheque number' }), '000102');
+    await vi.waitFor(() => {
+      expect(api.last('GET', '/api/staff/disputes').query).toEqual({
+        status: 'closed',
+        search: '000102',
+        limit: '100',
+      });
+    });
   });
 
   it('opens a case for a unit with its current contract', async () => {
@@ -85,6 +105,15 @@ describe('DisputesPage', () => {
     await within(unitSelect).findByRole('option', { name: '801 · Sara Khan' });
     await user.selectOptions(unitSelect, 'unit-801');
     await user.selectOptions(within(dialog).getByLabelText(/^Type/), 'bounced_cheque');
+    expect(
+      await within(dialog).findByText('A bounced-cheque case needs at least one cheque.'),
+    ).toBeTruthy();
+    expect(create).toHaveProperty('disabled', true);
+    await user.type(within(dialog).getByRole('textbox', { name: 'Find by cheque number' }), '0001');
+    await user.click(await within(dialog).findByRole('checkbox', { name: /000101/ }));
+    expect(
+      within(dialog).queryByText('A bounced-cheque case needs at least one cheque.'),
+    ).toBeNull();
     await user.type(within(dialog).getByLabelText(/Amount claimed/), '47,500');
     await user.type(within(dialog).getByLabelText(/Next hearing/), '2026-12-03');
     await user.type(within(dialog).getByLabelText(/Internal notes/), ' Cheque 000101 bounced ');
@@ -101,6 +130,7 @@ describe('DisputesPage', () => {
       amountClaimedFils: 4_750_000,
       nextHearingDate: '2026-12-03',
       notes: 'Cheque 000101 bounced',
+      chequeIds: ['chq-1'],
     });
   });
 
@@ -129,6 +159,7 @@ describe('DisputesPage', () => {
       amountClaimedFils: null,
       nextHearingDate: null,
       notes: '',
+      chequeIds: [],
     });
   });
 

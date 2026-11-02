@@ -19,6 +19,12 @@ const PAGES: { name: string; path: string; settle?: (page: Page) => Promise<void
   { name: 'staff', path: '/staff' },
   { name: 'audit', path: '/audit' },
   { name: 'import', path: '/import' },
+  // v2
+  { name: 'calendar', path: '/calendar' },
+  { name: 'vendors', path: '/vendors' },
+  { name: 'expense-categories', path: '/expense-categories' },
+  { name: 'holidays', path: '/holidays' },
+  { name: 'settings', path: '/settings' },
 ];
 
 for (const lang of ['ar', 'en'] as const) {
@@ -50,6 +56,13 @@ for (const lang of ['ar', 'en'] as const) {
       await page.waitForLoadState('networkidle');
       await page.screenshot({
         path: `${OUT}/building-detail-${lang}-${width}${SUFFIX}.png`,
+        fullPage: true,
+      });
+      // v2: the unit record behind the first unit of that building
+      await page.locator('a[href^="/units/"]').first().click();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `${OUT}/unit-detail-${lang}-${width}${SUFFIX}.png`,
         fullPage: true,
       });
       await page.goto('/contracts');

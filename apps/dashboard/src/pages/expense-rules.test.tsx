@@ -1,0 +1,173 @@
+// @vitest-environment jsdom
+import { cleanup, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { apiError, type ApiCall } from '@/test/api';
+import { building, buildingDetail } from '@/test/fixtures';
+import { rule, v2Routes } from '@/test/fixtures-v2';
+import { renderApp } from '@/test/render';
+
+vi.mock('@/lib/firebase', () => ({
+  firebaseEmailLogin: vi.fn(),
+  firebaseSendVerificationEmail: vi.fn(),
+}));
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+const routes = (extra: Record<string, unknown> = {}) =>
+  v2Routes({
+    'GET /api/staff/buildings': { items: [building()] },
+    'GET /api/staff/buildings/:id': buildingDetail(),
+    'GET /api/staff/recurring-rules': {
+      items: [
+        rule(),
+        rule({
+          id: 'rule-2',
+          reasonEn: 'Old lift contract',
+          active: false,
+          frequency: 'quarterly',
+          dayOfMonth: 1,
+        }),
+      ],
+    },
+    ...extra,
+  });
+
+describe('ExpenseRulesPage', () => {
+  it('lists the rules with the next due date, pauses and resumes', async () => {
+    const { api, user } = await renderApp('/expenses/rules', {
+      role: 'editor',
+      routes: routes({ 'PATCH /api/staff/recurring-rules/:id': rule({ active: false }) }),
+    });
+    expect(await screen.findByText('Guard salaries')).toBeTruthy();
+    expect(screen.getByText('Monthly · 25')).toBeTruthy();
+    expect(screen.getByText('Active')).toBeTruthy();
+    expect(screen.getByText('Paused')).toBeTruthy();
+    expect(screen.getByText('AED 6,500')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    await vi.waitFor(() => {
+      expect(api.last('PATCH', '/api/staff/recurring-rules/rule-1').body).toEqual({
+        active: false,
+      });
+    });
+    expect(await screen.findByText('Rule saved.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    await vi.waitFor(() => {
+      expect(api.last('PATCH', '/api/staff/recurring-rules/rule-2').body).toEqual({ active: true });
+    });
+    await user.click(screen.getByRole('checkbox', { name: 'Paused' }));
+    await vi.waitFor(() => {
+      expect(api.last('GET', '/api/staff/recurring-rules').query['includeInactive']).toBe('1');
+    });
+  });
+
+  it('creates a rule from the dialog with VAT from the vendor, and edits one', async () => {
+    const { api, user } = await renderApp('/expenses/rules', {
+      role: 'editor',
+      routes: routes({
+        'POST /api/staff/recurring-rules': rule({ id: 'rule-3' }),
+        'PATCH /api/staff/recurring-rules/:id': rule(),
+      }),
+    });
+    await screen.findByText('Guard salaries');
+    await user.click(screen.getByRole('button', { name: 'New rule' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Category/ }),
+      'cat-dewa',
+    );
+    expect(within(dialog).queryByRole('option', { name: 'Lifts (repairs)' })).toBeNull();
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Vendor/ }),
+      'ven-lifts',
+    );
+    await user.type(within(dialog).getByRole('textbox', { name: /^Reason \(Arabic\)/ }), 'ديوا');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Reason \(English\)/ }), 'DEWA');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Amount before VAT/ }), '1,850');
+    expect(within(dialog).getByRole<HTMLInputElement>('textbox', { name: /^VAT/ }).value).toBe(
+      '92.50',
+    );
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Frequency/ }),
+      'quarterly',
+    );
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^Day of month/ }), '15');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => {
+      expect(api.last('POST', '/api/staff/recurring-rules').body).toMatchObject({
+        buildingId: 'bld-1',
+        categoryId: 'cat-dewa',
+        vendorId: 'ven-lifts',
+        amountFils: 185_000,
+        vatFils: 9_250,
+        frequency: 'quarterly',
+        dayOfMonth: 15,
+      });
+    });
+    expect(await screen.findByText('Rule saved.')).toBeTruthy();
+
+    await user.click(screen.getAllByRole('button', { name: 'Edit' })[0]!);
+    const edit = await screen.findByRole('dialog');
+    await user.selectOptions(within(edit).getByRole('combobox', { name: /^Applies to/ }), 'unit');
+    await user.selectOptions(
+      await within(edit).findByRole('combobox', { name: /^Unit/ }),
+      'unit-801',
+    );
+    await user.click(within(edit).getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => {
+      expect(api.last('PATCH', '/api/staff/recurring-rules/rule-1').body).toMatchObject({
+        scope: 'unit',
+        unitId: 'unit-801',
+        allocationMethod: 'single_unit',
+      });
+    });
+  });
+
+  it('shows the API error in the dialog, hides buttons from viewers, and the empty and error states', async () => {
+    const { user } = await renderApp('/expenses/rules', {
+      role: 'editor',
+      routes: routes({
+        'POST /api/staff/recurring-rules': apiError(422, 'validation', 'Rules are for fixed costs'),
+      }),
+    });
+    await screen.findByText('Guard salaries');
+    await user.click(screen.getByRole('button', { name: 'New rule' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Category/ }),
+      'cat-sal',
+    );
+    await user.type(within(dialog).getByRole('textbox', { name: /^Reason \(Arabic\)/ }), 'x');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Reason \(English\)/ }), 'x');
+    await user.type(within(dialog).getByRole('textbox', { name: /^Amount before VAT/ }), '10');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByRole('alert')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    cleanup();
+    await renderApp('/expenses/rules', {
+      role: 'viewer',
+      routes: routes({ 'GET /api/staff/recurring-rules': { items: [] } }),
+    });
+    expect(await screen.findByText(/No recurring rules yet/)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'New rule' })).toBeNull();
+    cleanup();
+    await renderApp('/expenses/rules', {
+      routes: routes({ 'GET /api/staff/recurring-rules': apiError(500, 'internal') }),
+    });
+    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+    expect(vi.isMockFunction(fetch)).toBe(true);
+    expect(
+      ((c: ApiCall) => c.path)({
+        method: 'GET',
+        path: '/x',
+        query: {},
+        body: null,
+        headers: new Headers(),
+      }),
+    ).toBe('/x');
+  });
+});

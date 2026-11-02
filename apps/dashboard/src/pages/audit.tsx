@@ -1,12 +1,13 @@
 import { useState } from 'react';
+import type { PlainDate } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import { useAudit, useStaff } from '@/lib/queries';
+import { DatePicker } from '@/ui/date-picker';
 import {
   Button,
   Card,
   EmptyState,
   ErrorState,
-  Input,
   PageHeader,
   Select,
   SkeletonRows,
@@ -31,14 +32,14 @@ export function AuditPage() {
   const staff = useStaff();
   const [actorId, setActorId] = useState('');
   const [entityType, setEntityType] = useState('');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  const [from, setFrom] = useState<PlainDate | null>(null);
+  const [to, setTo] = useState<PlainDate | null>(null);
   const [open, setOpen] = useState<string | null>(null);
   const q = useAudit({
     actorId: actorId || undefined,
     entityType: entityType || undefined,
-    from: from || undefined,
-    to: to || undefined,
+    from: from ?? undefined,
+    to: to ?? undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -80,26 +81,14 @@ export function AuditPage() {
             </option>
           ))}
         </Select>
-        <Input
-          type="date"
+        <DatePicker
           value={from}
-          onChange={(e) => {
-            setFrom(e.target.value);
-          }}
-          numeric
-          className="w-44"
+          onChange={setFrom}
+          clearable
+          className="w-56"
           aria-label={t('from')}
         />
-        <Input
-          type="date"
-          value={to}
-          onChange={(e) => {
-            setTo(e.target.value);
-          }}
-          numeric
-          className="w-44"
-          aria-label={t('to')}
-        />
+        <DatePicker value={to} onChange={setTo} clearable className="w-56" aria-label={t('to')} />
       </div>
       {q.isPending ? (
         <SkeletonRows cols={4} rows={8} />

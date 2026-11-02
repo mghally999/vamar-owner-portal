@@ -336,6 +336,8 @@ export function useTerminateContract(id: string) {
 
 export interface ChequeFilters {
   month?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
   buildingId?: string | undefined;
   ownerId?: string | undefined;
   status?: string | undefined;

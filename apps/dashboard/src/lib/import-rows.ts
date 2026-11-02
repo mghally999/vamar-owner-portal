@@ -5,6 +5,7 @@
  */
 import { z } from 'zod';
 import {
+  buildingIdentifiersSchema,
   createBuildingSchema,
   createOwnerSchema,
   createTenantSchema,
@@ -13,7 +14,9 @@ import {
   importContractRowSchema,
   importShareRowSchema,
   parseAmountInput,
+  PAYMENT_METHODS,
   UNIT_TYPES,
+  unitIdentifiersSchema,
   unitKey,
 } from '@vamar/shared';
 import { chunk } from './batch';
@@ -26,6 +29,7 @@ export const IMPORT_TARGETS = [
   'shares',
   'contracts',
   'cheques',
+  'expenses',
 ] as const;
 export type Target = (typeof IMPORT_TARGETS)[number];
 
@@ -45,6 +49,19 @@ const unitNo: FieldSpec = {
   label: { ar: 'رقم الوحدة', en: 'Unit no.' },
   required: true,
 };
+const identifiers = {
+  titleDeedNo: { key: 'titleDeedNo', label: { ar: 'رقم الصك', en: 'Title deed no.' } },
+  plotNo: { key: 'plotNo', label: { ar: 'رقم قطعة الأرض', en: 'Plot no.' } },
+  makaniNo: { key: 'makaniNo', label: { ar: 'رقم مكاني', en: 'Makani no.' } },
+  dewaPremiseNo: {
+    key: 'dewaPremiseNo',
+    label: { ar: 'رقم حساب ديوا / سيوا', en: 'DEWA / SEWA account no.' },
+  },
+  municipalityNo: { key: 'municipalityNo', label: { ar: 'رقم البلدية', en: 'Municipality no.' } },
+  handoverDate: { key: 'handoverDate', label: { ar: 'تاريخ التسليم', en: 'Handover date' } },
+  completionYear: { key: 'completionYear', label: { ar: 'سنة الإنجاز', en: 'Completion year' } },
+  floorsCount: { key: 'floorsCount', label: { ar: 'عدد الطوابق', en: 'Floors' } },
+} satisfies Record<string, FieldSpec>;
 
 export const FIELDS: Record<Target, FieldSpec[]> = {
   owners: [
@@ -63,6 +80,11 @@ export const FIELDS: Record<Target, FieldSpec[]> = {
     },
     { key: 'area', label: { ar: 'المنطقة', en: 'Area' }, required: true },
     { key: 'address', label: { ar: 'العنوان', en: 'Address' } },
+    identifiers.plotNo,
+    identifiers.makaniNo,
+    identifiers.titleDeedNo,
+    identifiers.completionYear,
+    identifiers.floorsCount,
   ],
   units: [
     building,
@@ -70,6 +92,12 @@ export const FIELDS: Record<Target, FieldSpec[]> = {
     { key: 'type', label: { ar: 'النوع', en: 'Type' } },
     { key: 'bedrooms', label: { ar: 'غرف النوم', en: 'Bedrooms' } },
     { key: 'sizeSqft', label: { ar: 'المساحة', en: 'Size (sq ft)' } },
+    identifiers.titleDeedNo,
+    identifiers.plotNo,
+    identifiers.makaniNo,
+    identifiers.dewaPremiseNo,
+    identifiers.municipalityNo,
+    identifiers.handoverDate,
   ],
   tenants: [
     { key: 'name', label: { ar: 'الاسم', en: 'Name' }, required: true },
@@ -113,27 +141,111 @@ export const FIELDS: Record<Target, FieldSpec[]> = {
     { key: 'chequeNo', label: { ar: 'رقم الشيك', en: 'Cheque no.' }, required: true },
     { key: 'bankName', label: { ar: 'البنك', en: 'Bank' }, required: true },
   ],
+  expenses: [
+    building,
+    { key: 'unitNo', label: { ar: 'رقم الوحدة (اختياري)', en: 'Unit no. (optional)' } },
+    { key: 'category', label: { ar: 'التصنيف', en: 'Category' }, required: true },
+    { key: 'vendor', label: { ar: 'المورد', en: 'Vendor' } },
+    { key: 'reasonAr', label: { ar: 'السبب (عربي)', en: 'Reason (Arabic)' }, required: true },
+    { key: 'reasonEn', label: { ar: 'السبب (إنجليزي)', en: 'Reason (English)' }, required: true },
+    { key: 'invoiceNo', label: { ar: 'رقم الفاتورة', en: 'Invoice no.' } },
+    { key: 'invoiceDate', label: { ar: 'تاريخ الفاتورة', en: 'Invoice date' }, required: true },
+    {
+      key: 'amountAed',
+      label: { ar: 'المبلغ قبل الضريبة (درهم)', en: 'Amount before VAT (AED)' },
+      required: true,
+    },
+    { key: 'vatAed', label: { ar: 'الضريبة (درهم)', en: 'VAT (AED)' } },
+    { key: 'paidOn', label: { ar: 'تاريخ الدفع', en: 'Paid on' } },
+    { key: 'paymentMethod', label: { ar: 'طريقة الدفع', en: 'Payment method' } },
+    {
+      key: 'visibleToOwner',
+      label: { ar: 'ظاهر للملاك (نعم/لا)', en: 'Visible to owners (yes/no)' },
+    },
+  ],
 };
+
+const twoDecimals = (v: number) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6;
+const dateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
+  message: 'Expected a calendar date YYYY-MM-DD · تاريخ بصيغة YYYY-MM-DD',
+});
 
 const unitClientSchema = createUnitSchema
   .omit({ buildingId: true })
-  .extend({ building: z.string().trim().min(1), type: z.enum(UNIT_TYPES).default('apartment') });
+  .extend({ building: z.string().trim().min(1), type: z.enum(UNIT_TYPES).default('apartment') })
+  .extend(unitIdentifiersSchema.shape);
+
+const buildingClientSchema = createBuildingSchema.extend(buildingIdentifiersSchema.shape);
+
+/** The Expenses sheet as the API expects it (.local/notes/import.md): amounts in AED, names not ids. */
+export const importExpenseRowSchema = z.object({
+  building: z.string().trim().min(1),
+  unitNo: z.coerce.string().trim().min(1).max(30).optional(),
+  category: z.string().trim().min(1),
+  vendor: z.string().trim().min(1).optional(),
+  reasonAr: z.string().trim().min(1).max(500),
+  reasonEn: z.string().trim().min(1).max(500),
+  invoiceNo: z.coerce.string().trim().max(60).optional(),
+  invoiceDate: dateText,
+  amountAed: z.number().positive().max(100_000_000).refine(twoDecimals, {
+    message: 'At most two decimals (fils) · منزلتان عشريتان كحد أقصى',
+  }),
+  vatAed: z
+    .number()
+    .min(0)
+    .max(100_000_000)
+    .refine(twoDecimals, {
+      message: 'At most two decimals (fils) · منزلتان عشريتان كحد أقصى',
+    })
+    .optional(),
+  paidOn: dateText.optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+  visibleToOwner: z.boolean().optional(),
+});
 
 export const SCHEMAS: Record<Target, z.ZodType> = {
   owners: createOwnerSchema,
-  buildings: createBuildingSchema,
+  buildings: buildingClientSchema,
   units: unitClientSchema,
   tenants: createTenantSchema,
   shares: importShareRowSchema,
   contracts: importContractRowSchema,
   cheques: importChequeRowSchema,
+  expenses: importExpenseRowSchema,
 };
 
 const PHONE_KEYS = new Set(['phoneE164', 'phone', 'ownerPhone', 'tenantPhone']);
-const DATE_KEYS = new Set(['fromDate', 'startDate', 'endDate', 'contractStart', 'dueDate']);
-const AMOUNT_KEYS = new Set(['annualRentAed', 'amountAed']);
-const NUMBER_KEYS = new Set(['bedrooms', 'sizeSqft', 'chequeCount', 'seq']);
-const TEXT_KEYS = new Set(['unitNo', 'chequeNo', 'ejariNo']);
+const DATE_KEYS = new Set([
+  'fromDate',
+  'startDate',
+  'endDate',
+  'contractStart',
+  'dueDate',
+  'invoiceDate',
+  'paidOn',
+  'handoverDate',
+]);
+const AMOUNT_KEYS = new Set(['annualRentAed', 'amountAed', 'vatAed']);
+const NUMBER_KEYS = new Set([
+  'bedrooms',
+  'sizeSqft',
+  'chequeCount',
+  'seq',
+  'completionYear',
+  'floorsCount',
+]);
+const TEXT_KEYS = new Set([
+  'unitNo',
+  'chequeNo',
+  'ejariNo',
+  'invoiceNo',
+  'titleDeedNo',
+  'plotNo',
+  'makaniNo',
+  'dewaPremiseNo',
+  'municipalityNo',
+]);
+const BOOLEAN_KEYS = new Set(['visibleToOwner']);
 
 const LANGUAGES: Record<string, 'ar' | 'en'> = {
   ar: 'ar',
@@ -144,6 +256,22 @@ const LANGUAGES: Record<string, 'ar' | 'en'> = {
   english: 'en',
   إنجليزي: 'en',
   الإنجليزية: 'en',
+};
+
+const YES = new Set(['true', 'yes', 'y', '1', 'نعم']);
+const NO = new Set(['false', 'no', 'n', '0', 'لا']);
+
+const PAYMENT_WORDS: Record<string, (typeof PAYMENT_METHODS)[number]> = {
+  cash: 'cash',
+  نقدا: 'cash',
+  نقداً: 'cash',
+  cheque: 'cheque',
+  check: 'cheque',
+  شيك: 'cheque',
+  transfer: 'transfer',
+  تحويل: 'transfer',
+  card: 'card',
+  بطاقة: 'card',
 };
 
 /** Excel stores dates as days since 1899-12-30; SheetJS hands them over as numbers. */
@@ -180,6 +308,12 @@ export function coerce(key: string, raw: unknown): unknown {
   if (NUMBER_KEYS.has(key)) v = Number(v);
   if (TEXT_KEYS.has(key)) v = cellText(v);
   if (key === 'type' && typeof v === 'string') v = v.toLowerCase();
+  if (key === 'paymentMethod' && typeof v === 'string') v = PAYMENT_WORDS[v.toLowerCase()] ?? v;
+  if (BOOLEAN_KEYS.has(key)) {
+    if (typeof v === 'boolean') return v;
+    const word = cellText(v).toLowerCase();
+    v = YES.has(word) ? true : NO.has(word) ? false : v;
+  }
   // Only known spellings map to a language; anything else stays as typed so it is refused.
   if (key === 'preferredLang' && typeof v === 'string') v = LANGUAGES[v.toLowerCase()] ?? v;
   return v;

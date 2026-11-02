@@ -200,3 +200,39 @@ html[dir='rtl'] {
     content: none;
   }
 }
+
+/* react-day-picker (ui/date-picker.tsx): theme tokens, Western digits, weekend and holiday marks. */
+.rdp-root {
+  --rdp-accent-color: var(--color-primary);
+  --rdp-accent-background-color: var(--color-bg-sunken);
+  --rdp-day-height: 40px;
+  --rdp-day-width: 40px;
+  --rdp-day_button-height: 38px;
+  --rdp-day_button-width: 38px;
+  --rdp-day_button-border-radius: var(--radius-sm);
+  --rdp-selected-border: 2px solid var(--color-primary);
+  --rdp-range_middle-background-color: var(--color-chip);
+  --rdp-range_middle-color: var(--color-ink);
+  --rdp-outside-opacity: 0.4;
+  --rdp-today-color: var(--color-primary);
+  --rdp-nav_button-height: 36px;
+  --rdp-nav_button-width: 36px;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+.rdp-root .rdp-weekend:not(.rdp-selected) .rdp-day_button {
+  color: var(--color-ink-faint);
+}
+.rdp-root .rdp-holiday:not(.rdp-selected) .rdp-day_button {
+  background: var(--color-status-deposited-bg);
+  color: var(--color-status-deposited);
+}
+.rdp-root .rdp-selected .rdp-day_button {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+.rdp-root .rdp-day_button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}

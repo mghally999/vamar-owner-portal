@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail, contractDetail, page, tenant, unit } from '@/test/fixtures';
@@ -42,6 +42,16 @@ function routes(extra: Record<string, unknown> = {}) {
   };
 }
 
+async function typeDate(
+  user: Awaited<ReturnType<typeof renderApp>>['user'],
+  name: string,
+  value: string,
+) {
+  const input = screen.getByRole('textbox', { name });
+  await user.clear(input);
+  await user.type(input, `${value}{Enter}`);
+}
+
 async function fillContract(user: Awaited<ReturnType<typeof renderApp>>['user']) {
   await user.selectOptions(await screen.findByLabelText(/^Building/), 'bld-1');
   const unitSelect = screen.getByLabelText(/^Unit/);
@@ -53,8 +63,8 @@ async function fillContract(user: Awaited<ReturnType<typeof renderApp>>['user'])
   expect(within(unitSelect).getByRole('option', { name: '801 · Rented' })).toBeTruthy();
   await user.selectOptions(unitSelect, 'unit-802');
   await user.selectOptions(screen.getByLabelText(/^Tenant/), 'ten-1');
-  fireEvent.change(screen.getByLabelText(/^Start date/), { target: { value: '2026-01-01' } });
-  fireEvent.change(screen.getByLabelText(/^End date/), { target: { value: '2026-12-31' } });
+  await typeDate(user, 'Start date', '01/01/2026');
+  await typeDate(user, 'End date', '31/12/2026');
   await user.type(screen.getByLabelText(/^Annual rent/), '95,000');
 }
 
@@ -70,7 +80,9 @@ describe('ContractNewPage', () => {
     await user.type(screen.getByLabelText(/^Ejari no\./), ' 0099 ');
     await user.type(screen.getByLabelText(/^Notes/), 'Two parking bays');
 
-    expect(screen.getByLabelText<HTMLInputElement>('Due date 1').value).toBe('2026-01-01');
+    expect(screen.getByRole<HTMLInputElement>('textbox', { name: 'Due date 1' }).value).toBe(
+      '01/01/2026',
+    );
     expect(screen.getAllByLabelText(/^Due date \d/)).toHaveLength(4);
     await user.click(screen.getByRole('button', { name: 'Fill equal amounts' }));
     expect(screen.getByText('matches the annual rent')).toBeTruthy();
@@ -111,7 +123,7 @@ describe('ContractNewPage', () => {
     expect(screen.getByLabelText<HTMLInputElement>('Amount 1').value).toBe('50000');
     expect(screen.getByText('45,000 short of the annual rent')).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText(/^End date/), { target: { value: '2025-12-01' } });
+    await typeDate(user, 'End date', '01/12/2025');
     expect(screen.getByLabelText(/^End date/).getAttribute('aria-invalid')).toBe('true');
     expect(screen.getByRole('button', { name: 'Save as draft' })).toHaveProperty('disabled', true);
   });

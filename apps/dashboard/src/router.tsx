@@ -12,6 +12,7 @@ import type { AuthState } from '@/lib/auth';
 import { AppShell } from '@/ui/shell';
 import { Skeleton } from '@/ui/primitives';
 import { LoginPage } from '@/pages/login';
+import { V2_PAGES } from '@/v2';
 
 interface RouterContext {
   auth: AuthState;
@@ -119,6 +120,46 @@ const disputeRoute = createRoute({
   path: '/disputes/$disputeId',
   component: lazyPage(() => import('@/pages/dispute-detail'), 'DisputeDetailPage'),
 });
+const expensesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/expenses',
+  component: lazyPage(() => import('@/pages/expenses'), 'ExpensesPage'),
+});
+const expenseNewRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/expenses/new',
+  component: lazyPage(() => import('@/pages/expense-new'), 'ExpenseNewPage'),
+});
+const expenseRulesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/expenses/rules',
+  component: lazyPage(() => import('@/pages/expense-rules'), 'ExpenseRulesPage'),
+});
+const expenseRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/expenses/$expenseId',
+  component: lazyPage(() => import('@/pages/expense-detail'), 'ExpenseDetailPage'),
+});
+const workOrdersRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/work-orders',
+  component: lazyPage(() => import('@/pages/work-orders'), 'WorkOrdersPage'),
+});
+const workOrderNewRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/work-orders/new',
+  component: lazyPage(() => import('@/pages/work-order-detail'), 'WorkOrderDetailPage'),
+});
+const workOrderRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/work-orders/$workOrderId',
+  component: lazyPage(() => import('@/pages/work-order-detail'), 'WorkOrderDetailPage'),
+});
+const reportsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/reports',
+  component: lazyPage(() => import('@/pages/reports'), 'ReportsPage'),
+});
 const importRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/import',
@@ -133,6 +174,37 @@ const auditRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/audit',
   component: lazyPage(() => import('@/pages/audit'), 'AuditPage'),
+});
+// Part B's pages (src/v2): declared here so the route tree keeps its typed params.
+const calendarRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/calendar',
+  component: V2_PAGES.calendar,
+});
+const unitRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/units/$unitId',
+  component: V2_PAGES.unit,
+});
+const settingsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/settings',
+  component: V2_PAGES.settings,
+});
+const holidaysRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/holidays',
+  component: V2_PAGES.holidays,
+});
+const categoriesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/expense-categories',
+  component: V2_PAGES.categories,
+});
+const vendorsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/vendors',
+  component: V2_PAGES.vendors,
 });
 const catchAll = createRoute({
   getParentRoute: () => rootRoute,
@@ -155,9 +227,23 @@ const routeTree = rootRoute.addChildren([
     chequeRoute,
     disputesRoute,
     disputeRoute,
+    expensesRoute,
+    expenseNewRoute,
+    expenseRulesRoute,
+    expenseRoute,
+    workOrdersRoute,
+    workOrderNewRoute,
+    workOrderRoute,
+    reportsRoute,
     importRoute,
     staffRoute,
     auditRoute,
+    calendarRoute,
+    unitRoute,
+    settingsRoute,
+    holidaysRoute,
+    categoriesRoute,
+    vendorsRoute,
   ]),
   catchAll,
 ]);

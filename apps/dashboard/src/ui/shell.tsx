@@ -1,5 +1,6 @@
 import { Link, Outlet, useRouterState } from '@tanstack/react-router';
 import {
+  BarChart3,
   Building2,
   ClipboardList,
   FileSpreadsheet,
@@ -9,9 +10,12 @@ import {
   LogOut,
   Menu,
   Palette,
+  Receipt,
   ScrollText,
+  Search,
   Users,
   UserCog,
+  Wrench,
   X,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
@@ -21,30 +25,56 @@ import { useTheme } from '@/lib/theme';
 import type { MessageKey } from '@/lib/messages';
 import { Logo } from './logo';
 import { cx } from './primitives';
+import { SearchPalette, useSearchShortcut } from './search-palette';
+import { V2_NAV } from '@/v2';
 
-const NAV: { to: string; key: MessageKey; icon: typeof LayoutDashboard; min?: 'admin' }[] = [
+export interface NavItem {
+  to: string;
+  key: MessageKey;
+  icon: typeof LayoutDashboard;
+  min?: 'admin';
+}
+
+const NAV: NavItem[] = [
   { to: '/', key: 'nav_overview', icon: LayoutDashboard },
   { to: '/owners', key: 'nav_owners', icon: Users },
   { to: '/buildings', key: 'nav_properties', icon: Building2 },
   { to: '/contracts', key: 'nav_contracts', icon: FileText },
   { to: '/cheques', key: 'nav_cheques', icon: ClipboardList },
+  { to: '/expenses', key: 'nav_expenses', icon: Receipt },
+  { to: '/work-orders', key: 'nav_workOrders', icon: Wrench },
+  { to: '/reports', key: 'nav_reports', icon: BarChart3 },
   { to: '/disputes', key: 'nav_disputes', icon: Gavel },
   { to: '/import', key: 'nav_import', icon: FileSpreadsheet },
   { to: '/staff', key: 'nav_staff', icon: UserCog, min: 'admin' },
   { to: '/audit', key: 'nav_audit', icon: ScrollText, min: 'admin' },
 ];
 
+/** Part B's pages: the calendar sits after Cheques, the admin pages close the list. */
+type NavEntry = NavItem | (typeof V2_NAV)[number];
+const calendarEntry = V2_NAV.filter((e) => e.to === '/calendar');
+const trailingEntries = V2_NAV.filter((e) => e.to !== '/calendar');
+const ALL_NAV: NavEntry[] = [
+  ...NAV.slice(0, NAV.findIndex((n) => n.to === '/cheques') + 1),
+  ...calendarEntry,
+  ...NAV.slice(NAV.findIndex((n) => n.to === '/cheques') + 1),
+  ...trailingEntries,
+];
+
 export function AppShell() {
-  const { t, lang, setLang } = useI18n();
+  const { t, lang, setLang, pick } = useI18n();
   const auth = useAuth();
   const [theme, setTheme] = useTheme();
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  useSearchShortcut(setSearchOpen);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   const nav = (
     <nav className="flex flex-col gap-0.5" aria-label={t('nav_overview')}>
-      {NAV.filter((n) => !n.min || auth.hasRole(n.min)).map((n) => {
+      {ALL_NAV.filter((n) => !n.min || auth.hasRole(n.min)).map((n) => {
         const active = n.to === '/' ? path === '/' : path.startsWith(n.to);
+        const label = 'key' in n ? t(n.key) : pick(n.labelAr, n.labelEn);
         return (
           <Link
             key={n.to}
@@ -60,15 +90,31 @@ export function AppShell() {
             )}
           >
             <n.icon className="size-5 shrink-0" aria-hidden />
-            {t(n.key)}
+            {label}
           </Link>
         );
       })}
     </nav>
   );
 
+  const searchButton = (
+    <button
+      type="button"
+      onClick={() => {
+        setSearchOpen(true);
+      }}
+      className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+      aria-keyshortcuts="Control+K"
+    >
+      <Search className="size-5" aria-hidden />
+      {t('search_title')}
+      <kbd className="ms-auto rounded-sm border border-header-line px-1.5 text-[11px]">Ctrl K</kbd>
+    </button>
+  );
+
   const footer = (
     <div className="mt-auto flex flex-col gap-1 border-t border-header-line pt-3">
+      {searchButton}
       <div className="px-3 py-2">
         <p className="truncate text-[15px] font-medium text-on-header">{auth.user?.name}</p>
         <p className="truncate text-[13px] text-on-header-soft">
@@ -166,6 +212,7 @@ export function AppShell() {
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>
+      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
     </div>
   );
 }

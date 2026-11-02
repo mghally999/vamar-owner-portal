@@ -3,6 +3,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, reply } from '@/test/api';
 import { overview, page, staffUser } from '@/test/fixtures';
+import { reportSummary, settings } from '@/test/fixtures-v2';
 import { at, renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -19,6 +20,9 @@ afterEach(() => {
 
 const routes = {
   'GET /api/staff/overview': overview(),
+  'GET /api/staff/reports/summary': reportSummary(),
+  'GET /api/staff/settings': settings(),
+  'GET /api/staff/holidays': { items: [] },
   'GET /api/staff/owners': page([]),
 };
 
@@ -38,10 +42,18 @@ describe('AppShell', () => {
       'Buildings & units',
       'Contracts',
       'Cheques',
+      'Calendar',
+      'Expenses',
+      'Work orders',
+      'Reports',
       'Disputes',
       'Import',
       'Staff users',
       'Audit log',
+      'Vendors',
+      'Expense categories',
+      'Holidays',
+      'Settings',
     ]);
     expect(within(nav).getByRole('link', { name: 'Overview' }).className).toContain('bg-on-header');
     expect(screen.getByText('Admin')).toBeTruthy();
@@ -156,6 +168,6 @@ describe('AppShell', () => {
     await vi.waitFor(() => {
       expect(router.state.location.pathname).toBe('/');
     });
-    expect(await screen.findByText('Expected this month')).toBeTruthy();
+    expect(await screen.findByText('Expected rent')).toBeTruthy();
   });
 });

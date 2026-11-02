@@ -10,6 +10,16 @@ import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { useBuilding, useCreateUnit, useOwners, useSetUnitOwners } from '@/lib/queries';
 import type { BuildingUnit } from '@/lib/types';
+import { useV2 } from '@/v2/messages';
+import { useBuildingTimeline, useSetBuildingIdentifiers } from '@/v2/queries';
+import {
+  RouteLink,
+  TimelineKindFilter,
+  TimelineList,
+  UnitStatusChip,
+  useTimelinePages,
+} from '@/v2/shared';
+import type { BuildingIdentifiers, BuildingUnitRecord, TimelineEntry } from '@/v2/types';
 import { Dialog } from '@/ui/dialog';
 import {
   Button,
@@ -41,14 +51,17 @@ const UNIT_TYPE_LABEL: Record<(typeof UNIT_TYPES)[number], { ar: string; en: str
 export function BuildingDetailPage() {
   const buildingId = useParams({ strict: false }).buildingId ?? '';
   const { t, pick } = useI18n();
+  const { t: tv2 } = useV2();
   const auth = useAuth();
   const q = useBuilding(buildingId);
   const [addingUnit, setAddingUnit] = useState(false);
   const [sharesFor, setSharesFor] = useState<BuildingUnit | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [tab, setTab] = useState<'units' | 'history'>('units');
+  const [editingIds, setEditingIds] = useState(false);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
-  const b = q.data;
+  const b = q.data as (typeof q.data & Partial<BuildingIdentifiers>) | undefined;
 
   return (
     <Page>
@@ -74,7 +87,69 @@ export function BuildingDetailPage() {
         }
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
+
       <section>
+        <SectionTitle
+          aside={
+            auth.hasRole('editor') && b ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setEditingIds(true);
+                }}
+              >
+                {tv2('records_editIdentifiers')}
+              </Button>
+            ) : null
+          }
+        >
+          {tv2('records_identifiers')}
+        </SectionTitle>
+        {!b ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <Card className="grid gap-x-6 gap-y-4 px-6 py-5 sm:grid-cols-2 lg:grid-cols-5">
+            {(
+              [
+                ['records_plot', b.plotNo],
+                ['records_makani', b.makaniNo],
+                ['records_titleDeed', b.titleDeedNo],
+                ['records_completionYear', b.completionYear],
+                ['records_floors', b.floorsCount],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label}>
+                <p className="text-[13px] text-ink-soft">{tv2(label)}</p>
+                <p className="text-[15px] tnum" dir="auto">
+                  {value ?? '—'}
+                </p>
+              </div>
+            ))}
+          </Card>
+        )}
+      </section>
+
+      <div role="tablist" className="flex gap-1 border-b border-line">
+        {(['units', 'history'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            onClick={() => {
+              setTab(id);
+            }}
+            className={`h-11 border-b-2 px-4 text-[15px] font-medium ${tab === id ? 'border-primary text-ink' : 'border-transparent text-ink-soft hover:text-ink'}`}
+          >
+            {id === 'units' ? t('units_title') : tv2('records_history')}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'history' ? <BuildingHistory buildingId={buildingId} /> : null}
+
+      <section hidden={tab !== 'units'}>
         <SectionTitle>{t('units_title')}</SectionTitle>
         {!b ? (
           <Skeleton className="h-48 w-full" />
@@ -110,7 +185,20 @@ export function BuildingDetailPage() {
               <tbody>
                 {b.units.map((u) => (
                   <tr key={u.id} className="row-line last:border-b-0">
-                    <td className="px-4 py-3 font-medium tnum">{u.unitNo}</td>
+                    <td className="px-4 py-3 font-medium tnum">
+                      <RouteLink
+                        to="/units/$unitId"
+                        params={{ unitId: u.id }}
+                        className="hover:underline"
+                      >
+                        {u.unitNo}
+                      </RouteLink>
+                      {(u as BuildingUnitRecord).titleDeedNo ? (
+                        <span className="block text-[13px] font-normal text-ink-faint">
+                          {(u as BuildingUnitRecord).titleDeedNo}
+                        </span>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 text-ink-soft">
                       {pick(UNIT_TYPE_LABEL[u.type].ar, UNIT_TYPE_LABEL[u.type].en)}
                       {u.bedrooms ? (
@@ -156,9 +244,12 @@ export function BuildingDetailPage() {
                       )}
                     </td>
                     <td className="px-4 py-3">
-                      <span className={u.occupied ? 'text-status-cleared' : 'text-ink-soft'}>
-                        {u.occupied ? t('unit_occupied') : t('unit_vacant')}
-                      </span>
+                      <UnitStatusChip
+                        status={
+                          (u as BuildingUnitRecord).effectiveStatus ??
+                          (u.occupied ? 'occupied' : 'vacant_ready')
+                        }
+                      />
                     </td>
                     <td className="px-4 py-3 text-end">
                       {u.contract ? (
@@ -189,6 +280,18 @@ export function BuildingDetailPage() {
       </section>
 
       <UnitDialog buildingId={buildingId} open={addingUnit} onOpenChange={setAddingUnit} />
+      {b && editingIds ? (
+        <BuildingIdentifiersDialog
+          building={b}
+          onClose={() => {
+            setEditingIds(false);
+          }}
+          onSaved={() => {
+            setEditingIds(false);
+            setNotice(tv2('records_identifiersSaved'));
+          }}
+        />
+      ) : null}
       {sharesFor ? (
         <SharesDialog
           buildingId={buildingId}
@@ -203,6 +306,168 @@ export function BuildingDetailPage() {
         />
       ) : null}
     </Page>
+  );
+}
+
+function BuildingHistory({ buildingId }: { buildingId: string }) {
+  const { t } = useV2();
+  const pages = useTimelinePages();
+  const cursor = pages.cursors.at(-1);
+  const q = useBuildingTimeline(buildingId, { ...pages.filter, cursor });
+  const [shown, setShown] = useState<{ key: string; items: TimelineEntry[] }>({
+    key: '',
+    items: [],
+  });
+  const key = `${pages.kinds.join(',')}|${pages.cursors.length}`;
+  const current = q.data?.items ?? [];
+  const items =
+    pages.cursors.length === 0
+      ? current
+      : shown.key === key
+        ? shown.items
+        : [...shown.items, ...current];
+  if (shown.key !== key && q.data)
+    setShown({ key, items: pages.cursors.length === 0 ? current : items });
+  const seen = new Set<string>();
+  const unique = items.filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
+  if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
+  return (
+    <section className="flex flex-col gap-3">
+      <TimelineKindFilter value={pages.kinds} onChange={pages.setKinds} />
+      <TimelineList
+        items={unique}
+        loading={q.isPending || q.isFetching}
+        hasMore={q.data?.nextCursor !== null && q.data?.nextCursor !== undefined}
+        onMore={() => {
+          if (q.data?.nextCursor) pages.pushCursor(q.data.nextCursor);
+        }}
+        emptyText={t('records_timelineEmpty')}
+      />
+    </section>
+  );
+}
+
+function BuildingIdentifiersDialog({
+  building,
+  onClose,
+  onSaved,
+}: {
+  building: { id: string } & Partial<BuildingIdentifiers>;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useV2();
+  const save = useSetBuildingIdentifiers(building.id);
+  const [plotNo, setPlotNo] = useState(building.plotNo ?? '');
+  const [makaniNo, setMakaniNo] = useState(building.makaniNo ?? '');
+  const [titleDeedNo, setTitleDeedNo] = useState(building.titleDeedNo ?? '');
+  const [completionYear, setCompletionYear] = useState(
+    building.completionYear ? String(building.completionYear) : '',
+  );
+  const [floorsCount, setFloorsCount] = useState(
+    building.floorsCount !== null && building.floorsCount !== undefined
+      ? String(building.floorsCount)
+      : '',
+  );
+  const makaniOk = makaniNo.trim() === '' || /^\d{10}$/.test(makaniNo.trim());
+  const yearOk =
+    completionYear.trim() === '' || /^(19[5-9]\d|20\d\d|2100)$/.test(completionYear.trim());
+  const floorsOk = floorsCount.trim() === '' || /^\d{1,3}$/.test(floorsCount.trim());
+  const valid = makaniOk && yearOk && floorsOk;
+  const text = (v: string) => (v.trim() === '' ? null : v.trim());
+  const num = (v: string) => (v.trim() === '' ? null : Number(v.trim()));
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => {
+        if (!o) onClose();
+      }}
+      title={t('records_editIdentifiers')}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {t('cancel')}
+          </Button>
+          <Button
+            disabled={!valid}
+            loading={save.isPending}
+            onClick={() =>
+              void save
+                .mutateAsync({
+                  plotNo: text(plotNo),
+                  makaniNo: text(makaniNo),
+                  titleDeedNo: text(titleDeedNo),
+                  completionYear: num(completionYear),
+                  floorsCount: num(floorsCount),
+                })
+                .then(onSaved)
+            }
+          >
+            {t('save')}
+          </Button>
+        </>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t('records_plot')}>
+          <Input
+            value={plotNo}
+            onChange={(e) => {
+              setPlotNo(e.target.value);
+            }}
+            numeric
+          />
+        </Field>
+        <Field
+          label={t('records_makani')}
+          hint={t('records_makaniHint')}
+          error={makaniOk ? undefined : t('records_makaniHint')}
+        >
+          <Input
+            value={makaniNo}
+            onChange={(e) => {
+              setMakaniNo(e.target.value);
+            }}
+            numeric
+            invalid={!makaniOk}
+          />
+        </Field>
+        <Field label={t('records_titleDeed')}>
+          <Input
+            value={titleDeedNo}
+            onChange={(e) => {
+              setTitleDeedNo(e.target.value);
+            }}
+            numeric
+          />
+        </Field>
+        <Field label={t('records_completionYear')} error={yearOk ? undefined : t('error_generic')}>
+          <Input
+            value={completionYear}
+            onChange={(e) => {
+              setCompletionYear(e.target.value);
+            }}
+            numeric
+            inputMode="numeric"
+            invalid={!yearOk}
+          />
+        </Field>
+        <Field label={t('records_floors')} error={floorsOk ? undefined : t('error_generic')}>
+          <Input
+            value={floorsCount}
+            onChange={(e) => {
+              setFloorsCount(e.target.value);
+            }}
+            numeric
+            inputMode="numeric"
+            invalid={!floorsOk}
+          />
+        </Field>
+        {save.isError ? (
+          <p className="text-[13px] text-danger sm:col-span-2">{t('error_generic')}</p>
+        ) : null}
+      </div>
+    </Dialog>
   );
 }
 

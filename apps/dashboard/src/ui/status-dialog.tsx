@@ -16,6 +16,8 @@ import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useChangeChequeStatus, type StatusChangeInput } from '@/lib/queries';
+import { useHolidaySet } from '@/lib/queries-v2';
+import { DatePicker } from './date-picker';
 import { Dialog } from './dialog';
 import { Button, ChequeStatusChip, Field, Input, Select, Textarea } from './primitives';
 
@@ -49,6 +51,7 @@ export function StatusDialog({
   const { t } = useI18n();
   const auth = useAuth();
   const change = useChangeChequeStatus();
+  const holidays = useHolidaySet();
   const terminal = isTerminalChequeStatus(cheque.status);
   const override = terminal && auth.hasRole('admin');
   const options: ChequeStatus[] = override
@@ -168,13 +171,14 @@ export function StatusDialog({
                 {t('cheque_replacement')}
               </legend>
               <Field label={t('dueDate')} required>
-                <Input
-                  type="date"
+                <DatePicker
                   value={rep.dueDate}
-                  onChange={(e) => {
-                    setRep({ ...rep, dueDate: e.target.value as PlainDate });
+                  onChange={(d) => {
+                    if (d) setRep({ ...rep, dueDate: d });
                   }}
-                  numeric
+                  holidays={holidays}
+                  warnNonWorking
+                  aria-label={t('dueDate')}
                 />
               </Field>
               <Field label={`${t('amount')} (${t('aed')})`} required>

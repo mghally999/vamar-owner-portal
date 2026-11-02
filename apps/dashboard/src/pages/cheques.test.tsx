@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
-import { addMonthsClamped, todayInDubai, type PlainDate } from '@vamar/shared';
+import { monthPeriod, previousPeriod, todayInDubai } from '@vamar/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, chequeRow, owner, page } from '@/test/fixtures';
@@ -52,8 +52,8 @@ function routes(extra: Record<string, unknown> = {}) {
 }
 
 describe('ChequesPage', () => {
-  it("lists this month's cheques and moves between months", async () => {
-    const { api, user } = await renderApp('/cheques', { routes: routes() });
+  it("lists this month's cheques and moves between periods", async () => {
+    const { api, router, user } = await renderApp('/cheques', { routes: routes() });
     const link = await screen.findByRole('link', { name: '5 Oct 2026' });
     const row = link.closest('tr');
     if (!row) throw new Error('no row');
@@ -61,43 +61,33 @@ describe('ChequesPage', () => {
     expect(within(row).getByText('000101')).toBeTruthy();
     expect(within(row).getByText('AED 23,750')).toBeTruthy();
     expect(within(row).getByText('Upcoming')).toBeTruthy();
-    expect(api.last('GET', '/api/staff/cheques').query).toEqual({ month: thisMonth, limit: '50' });
-
-    const monthStart = `${thisMonth}-01` as PlainDate;
-    await user.click(screen.getByRole('button', { name: 'Previous month' }));
-    await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query['month']).toBe(
-        addMonthsClamped(monthStart, -1).slice(0, 7),
-      );
-    });
-    await user.click(screen.getByRole('button', { name: 'Next month' }));
-    await user.click(screen.getByRole('button', { name: 'Next month' }));
-    await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query['month']).toBe(
-        addMonthsClamped(monthStart, 1).slice(0, 7),
-      );
+    const month = monthPeriod(Number(thisMonth.slice(0, 4)), Number(thisMonth.slice(5, 7)));
+    expect(api.last('GET', '/api/staff/cheques').query).toEqual({
+      from: month.from,
+      to: month.to,
+      limit: '50',
     });
 
-    // The month label toggles between one month and every month.
-    const label = screen.getByRole('button', { name: /\d{4}$/ });
-    await user.click(label);
+    // The period bar: a preset chip, then a typed custom range, both kept in the URL.
+    await user.click(screen.getByRole('radio', { name: 'Last month' }));
+    const last = previousPeriod(month);
     await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query).toEqual({ limit: '50' });
+      expect(api.last('GET', '/api/staff/cheques').query).toMatchObject({
+        from: last.from,
+        to: last.to,
+      });
     });
-    await user.click(screen.getByRole('button', { name: 'All' }));
+    expect(router.state.location.search).toMatchObject({ preset: 'last_month' });
+    await user.click(screen.getByRole('button', { name: 'Custom range' }));
+    await user.type(screen.getByRole('textbox', { name: 'From' }), '01/01/2026');
+    await user.type(screen.getByRole('textbox', { name: 'To' }), '31/03/2026{Enter}');
     await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query['month']).toBe(thisMonth);
+      expect(api.last('GET', '/api/staff/cheques').query).toMatchObject({
+        from: '2026-01-01',
+        to: '2026-03-31',
+      });
     });
-    await user.click(screen.getByRole('button', { name: /\d{4}$/ }));
-    await user.click(screen.getByRole('button', { name: 'Previous month' }));
-    await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query['month']).toBe(thisMonth);
-    });
-    await user.click(screen.getByRole('button', { name: /\d{4}$/ }));
-    await user.click(screen.getByRole('button', { name: 'Next month' }));
-    await vi.waitFor(() => {
-      expect(api.last('GET', '/api/staff/cheques').query['month']).toBe(thisMonth);
-    });
+    expect(router.state.location.search).toMatchObject({ from: '2026-01-01', to: '2026-03-31' });
 
     await user.hover(screen.getByText('Liam Carter'));
     await vi.waitFor(() => {

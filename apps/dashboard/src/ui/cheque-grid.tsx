@@ -11,6 +11,7 @@ import {
   type PlainDate,
 } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
+import { DatePicker } from './date-picker';
 import { Button, Input, Money, cx } from './primitives';
 import { ResponsiveTable } from './responsive-table';
 
@@ -88,15 +89,13 @@ export function ChequeGrid({
                 <tr key={r.seq} className="row-line last:border-b-0">
                   <td className="px-3 py-2 tnum text-ink-soft">{r.seq}</td>
                   <td className="px-3 py-2">
-                    <Input
-                      type="date"
+                    <DatePicker
                       value={r.dueDate}
-                      onChange={(e) => {
-                        update(i, { dueDate: e.target.value as PlainDate });
+                      onChange={(d) => {
+                        if (d) update(i, { dueDate: d });
                       }}
-                      numeric
                       disabled={disabled}
-                      className="h-10 w-44"
+                      className="w-56"
                       aria-label={`${t('dueDate')} ${r.seq}`}
                     />
                   </td>

@@ -58,10 +58,14 @@ describe('BuildingDetailPage', () => {
         .getByRole('link', { name: /Sara Khan/ })
         .getAttribute('href'),
     ).toBe('/contracts/con-1');
-    expect(within(first).getByText('Rented')).toBeTruthy();
+    expect(within(first).getByText('Occupied')).toBeTruthy();
     expect(within(first).getByText('AED 95,000')).toBeTruthy();
     expect(within(second).getByText('No owner assigned')).toBeTruthy();
-    expect(within(second).getByText('Vacant')).toBeTruthy();
+    expect(within(second).getByText('Vacant, ready')).toBeTruthy();
+    expect(within(first).getByText('Occupied')).toBeTruthy();
+    expect(within(first).getByRole('link', { name: '801' }).getAttribute('href')).toBe(
+      '/units/unit-801',
+    );
   });
 
   it('shows shares when a unit has several owners, in Arabic too', async () => {

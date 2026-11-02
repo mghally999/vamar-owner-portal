@@ -1,0 +1,59 @@
+/* FullCalendar inside the dashboard: the tokens drive colours so both themes and RTL work. */
+.vamar-calendar {
+  --fc-border-color: var(--color-border);
+  --fc-page-bg-color: var(--color-bg-elevated);
+  --fc-neutral-bg-color: var(--color-bg-sunken);
+  --fc-neutral-text-color: var(--color-ink-soft);
+  --fc-today-bg-color: var(--color-chip);
+  --fc-event-text-color: #fff;
+  --fc-more-link-bg-color: var(--color-chip);
+  --fc-more-link-text-color: var(--color-ink);
+  --fc-list-event-hover-bg-color: var(--color-bg-sunken);
+  --fc-small-font-size: 12px;
+  font-family: var(--font-sans);
+}
+.vamar-calendar .fc {
+  font-size: 13px;
+}
+.vamar-calendar .fc .fc-daygrid-day-number,
+.vamar-calendar .fc .fc-col-header-cell-cushion,
+.vamar-calendar .fc .fc-list-day-text,
+.vamar-calendar .fc .fc-list-day-side-text {
+  color: var(--color-ink);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+.vamar-calendar .fc .fc-daygrid-day.vc-weekend,
+.vamar-calendar .fc .fc-timegrid-col.vc-weekend {
+  background: var(--color-bg-sunken);
+}
+.vamar-calendar .fc .fc-daygrid-day.vc-holiday,
+.vamar-calendar .fc .fc-timegrid-col.vc-holiday {
+  background: var(--color-status-cancelled-bg);
+}
+.vamar-calendar .fc .fc-event {
+  border-radius: 4px;
+  font-size: 12px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+.vamar-calendar .fc .fc-event:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.vamar-calendar .fc .fc-multimonth-title {
+  color: var(--color-ink);
+  font-weight: 700;
+}
+.vamar-calendar .fc .fc-list-event-title a {
+  color: var(--color-ink);
+}
+.vamar-calendar .fc .fc-popover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card);
+}
+.vamar-calendar .fc .fc-popover-header {
+  background: var(--color-bg-sunken);
+  color: var(--color-ink);
+}
