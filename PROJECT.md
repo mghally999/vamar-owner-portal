@@ -158,6 +158,34 @@ follows the same rules. TOTP codes are single use: a code that signed in once is
 
 Lists use keyset pagination on `(due_date, id)` or `(created_at, id)`; never OFFSET.
 
+#### v2 indexes (expenses, work orders, records, calendar)
+
+| Index                                                                    | Why                                                                                                                                      |
+| ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `expenses (building_id, invoice_date)`                                   | Building P&L, expenses by category and the staff list all cut by building and period.                                                    |
+| `expenses (unit_id, invoice_date) WHERE unit_id IS NOT NULL`             | Unit-scoped expenses on the unit page and timeline.                                                                                      |
+| `expenses (status, invoice_date DESC, id DESC)`                          | The staff list is keyset-paged newest first within a status (the drafts queue, posted lists).                                            |
+| `expenses (category_id, invoice_date)`                                   | The 12-month category average behind the outlier warning, and the category report.                                                       |
+| `expenses (vendor_id, invoice_no) WHERE invoice_no IS NOT NULL`          | Duplicate-invoice warning: same vendor, same number.                                                                                     |
+| `expenses (recurring_rule_id, invoice_date) WHERE rule IS NOT NULL`      | The cron checks whether a rule already produced the expense of a due date before creating a draft.                                       |
+| `expenses (dispute_id) WHERE dispute_id IS NOT NULL`                     | Legal fees on a case.                                                                                                                    |
+| `expense_allocations (owner_id, on_date)`                                | Every owner total, bucket and list starts here: the owner's share rows by invoice date, no join to expenses needed for the range filter. |
+| `expense_allocations (expense_id)`, `(unit_id, on_date)`                 | Expense detail; the unit timeline.                                                                                                       |
+| `expense_categories (kind, sort)`                                        | Pickers in display order.                                                                                                                |
+| `recurring_expense_rules (active, start_date)`, `(building_id)`          | The cron and the projections read active rules only; the rules page lists per building.                                                  |
+| `work_orders (unit_id, status)`, `(building_id, status)`                 | Owner unit screen and timeline; the staff board per building.                                                                            |
+| `work_orders (scheduled_for) WHERE scheduled_for IS NOT NULL`            | The calendar.                                                                                                                            |
+| `work_orders (reported_on DESC, id DESC)`                                | Staff list newest first (keyset).                                                                                                        |
+| `unit_status_events (unit_id, at DESC)`                                  | Status history and the timeline.                                                                                                         |
+| `units (title_deed_no)`, `(makani_no)`                                   | Dashboard search by the two identifiers owners quote most.                                                                               |
+| `dispute_cheques (cheque_id)`                                            | Search a case by cheque number; the cheque page's "in a case" link.                                                                      |
+| `disputes (next_hearing_date) WHERE NOT NULL`                            | The hearing reminder and the calendar.                                                                                                   |
+| `calendar_events (starts_at)`, `(unit_id, starts_at)`, `(owner_id, ...)` | Every calendar range query; the owner's own events.                                                                                      |
+
+`expense_allocations` and `unit_status_events` are append-only for the runtime role, like the audit
+log. The unit timeline is one `UNION ALL` of per-kind branches, each an index scan on the unit,
+keyset-paged on `(at, id)`.
+
 ## Business rules (all in `packages/shared`, all unit tested)
 
 - **Cheque schedule** (`schedule.ts`): if 12 is divisible by n, due dates are
@@ -176,6 +204,50 @@ Lists use keyset pagination on `(due_date, id)` or `(created_at, id)`; never OFF
   yesterday's contracts, `dedupeKey = type:entityId:date`, Expo batches of 100.
 - **Money and dates** (`money.ts`, `dates.ts`): `12,500 درهم` / `AED 12,500`,
   `15 أكتوبر 2026` / `15 Oct 2026`, Western digits always, month names fixed (not ICU dependent).
+
+### v2 rules: periods, expenses, rent, calendar (`periods.ts`, `expenses.ts`, `rent.ts`, `calendar.ts`)
+
+- **Periods** are pairs of Asia/Dubai calendar dates `[from, to]`, inclusive. Presets: today, this
+  week, last week, this month, last month, next month, last 3 months, last 6 months, next 6 months,
+  this quarter, this year, last year, next 12 months, custom. "This year" is the current calendar
+  year in Dubai, so every screen reflects the current year by default. "Last N months" are the N
+  calendar months ending with the current one; "next N months" start on the 1st of next month. The
+  comparison period has the same length immediately before; whole months compare with the same
+  number of whole months (March with February, a year with the previous year). Monthly buckets are
+  at most 24, the latest kept. The week starts on Monday (the UAE work week since 2022), a setting.
+- **Expected rent in a period** = the owner's share of cheques whose `due_date` falls in the period
+  with status upcoming, deposited, cleared or bounced. A replaced cheque counts once, through its
+  replacement; cancelled cheques are excluded. **Collected** = the cleared ones. **At risk** = the
+  bounced ones, shown on their own. **Outstanding** = expected − collected − at risk. So
+  expected = collected + outstanding + at risk always holds (property-tested). The brief's wording
+  left bounced out of "expected" and in "outstanding = expected − collected − bounced" at once; the
+  definition above is the one that makes both the cards and the identity consistent.
+- **Expenses in a period** = the owner's posted, visible allocations with `on_date` (the invoice
+  date) in the period, split into fixed and variable by the category's kind (snapshotted on the
+  expense). **Expected fixed expenses** for the future = due dates of active recurring rules after
+  today × the owner's share (today's ownership, same allocation method). Variable costs are never
+  projected. **Net** = collected − expenses. **Projected net** = expected − fixed (actual + projected),
+  labelled "before Vamar's management fee" while the setting is on; commission is never shown.
+- **Allocation.** A building expense is split across the building's active units by the method
+  (`by_area` by size in sqft, the default when every unit has a size; `equal_units`; `by_ownership`
+  = an equal part per owner of the building, spread over that owner's units; `single_unit` for a
+  unit expense), then each unit's part across its owners by `share_bp` using the ownership valid on
+  the invoice date (`from_date <= d < to_date`; a unit nobody held that day falls back to its current
+  owners). Every split uses the largest-remainder method (floor, then one fils each to the largest
+  remainders, ties by id), so the parts always add up exactly (property-tested over random
+  buildings). Allocations are written once when the expense is posted and never updated: a posted
+  expense is corrected by voiding it with a reason and posting a copy that points back at it.
+- **VAT** is 5 % of the amount, rounded half up, defaulted when the vendor has a TRN and editable to
+  0; it is its own field and the total is a checked sum.
+- **Recurring rules** fire monthly, quarterly or yearly on a day of the month clamped to the month
+  end (31 → 28/29 Feb). The daily cron turns due dates of the last 7 days that have no expense yet
+  into drafts (idempotent per rule and date) for staff to check and post.
+- **Calendar.** Weekends are Saturday and Sunday; holidays live in a table admins edit because the
+  religious ones move with the moon sighting (2026 and 2027 are seeded, tentative where announced
+  dates are not final). The optional Hijri line uses `Intl` with `islamic-umalqura` and Western
+  digits and is empty where the runtime lacks the calendar.
+- **Dates** stay `YYYY-MM-DD` strings end to end; nothing creates a JS `Date` at UTC midnight for a
+  business date. Tests cover 1 Jan, 31 Dec, 29 Feb, month ends and the RTL labels.
 
 ## Design tokens and brand
 
@@ -294,6 +366,32 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
   by rules the brief does specify (rate limiting, case numbers).
 - **Fixed Arabic/English month names** instead of `Intl.DateTimeFormat` so dates render
   identically on every phone and browser.
+
+### v2 decisions (2 Nov 2026, to confirm with the client)
+
+- **Building expenses split by area** (sqft) when every unit of the building has a size, otherwise
+  equally per unit; staff can pick equal-per-unit, equal-per-owner or area on each expense and rule.
+- **Owners see invoice images and PDFs** of expenses marked visible to them (`owners_see_invoice_files`
+  setting, on by default); internal expenses are hidden with the `visible_to_owner` switch.
+- **VAT** is shown as its own line when it is more than zero; totals include it.
+- **"Before Vamar's management fee"** is shown under net amounts while `show_before_fee_label` is on.
+- **Week starts on Monday**; the Hijri date is off by default; both are settings.
+- **Large-expense alert** at AED 5,000 (`large_expense_alert_fils`), a setting.
+- **Expected rent includes bounced cheques** (shown separately as "at risk") so that
+  expected = collected + outstanding + at risk; see the rules above.
+- **Drafts** can be edited and deleted by editors; **voiding a posted expense is admin only** and
+  keeps the allocations as history.
+- **Unit status** `occupied` is derived from an active contract and shown over the manual status;
+  staff set vacant/ready, under maintenance, reserved or not available with a reason that is kept.
+- **Imported expenses are posted** (allocations exist from day one); the Expenses sheet comes after
+  Cheques in the template.
+- **Calendars in the app are built in-house** on the shared month-grid helpers (RTL, Arabic month
+  names, Western digits, theming) instead of a calendar library; the dashboard uses FullCalendar v6
+  standard plugins (MIT) and react-day-picker v9 for date pickers.
+- **PDF exports in the dashboard** are a print view in the browser (Arabic shaping is correct);
+  Excel exports use SheetJS.
+- **Settings** live in `app_settings` (one row per key) rather than Worker variables so admins change
+  them from the dashboard; every change is audited.
 
 ## Operations
 
