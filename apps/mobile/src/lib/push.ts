@@ -7,9 +7,13 @@
 import Constants from 'expo-constants';
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { request } from './api';
+import { routeForNotification, type PushHref } from './push-routes';
 import { deviceId, getItem, setItem } from './storage';
+
+export { routeForNotification } from './push-routes';
 
 Notifications.setNotificationHandler({
   handleNotification: () =>
@@ -82,4 +86,22 @@ export async function setNotifications(on: boolean): Promise<PushState> {
     if (__DEV__) console.warn('[push] could not remove the token now', e);
   }
   return remember('off');
+}
+
+/**
+ * Opens the screen behind a tapped notification: the one that launched the app (cold start) and
+ * any tapped while it runs. Called once from the root layout once the owner is signed in.
+ */
+export function usePushNavigation(navigate: (href: PushHref) => void, enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    const launched = Notifications.getLastNotificationResponse();
+    if (launched) navigate(routeForNotification(launched.notification.request.content.data));
+    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+      navigate(routeForNotification(response.notification.request.content.data));
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [enabled, navigate]);
 }

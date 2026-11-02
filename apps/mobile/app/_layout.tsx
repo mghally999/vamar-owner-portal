@@ -1,15 +1,18 @@
 import NetInfo from '@react-native-community/netinfo';
 import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useRouter } from 'expo-router';
 import { Platform, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
+import { PeriodProvider } from '@/lib/period';
+import { usePushNavigation } from '@/lib/push';
+import type { PushHref } from '@/lib/push-routes';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
 import { OfflineBanner } from '@/ui/offline-banner';
@@ -80,7 +83,9 @@ export default function RootLayout() {
           <ThemeProvider>
             <QueryClientProvider client={queryClient}>
               <AuthProvider>
-                <Root />
+                <PeriodProvider>
+                  <Root />
+                </PeriodProvider>
               </AuthProvider>
             </QueryClientProvider>
           </ThemeProvider>
@@ -96,6 +101,15 @@ function Root() {
   const { ready, isRTL, t: tr } = useI18n();
   const themeChoice = useThemeChoice();
   const update = useUpdateState();
+  const router = useRouter();
+  // A tapped notification opens its screen once the owner is signed in.
+  const openFromPush = useCallback(
+    (href: PushHref) => {
+      router.push(href);
+    },
+    [router],
+  );
+  usePushNavigation(openFromPush, auth.stage === 'authenticated');
   const [fontsLoaded, fontError] = useFonts({
     'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
     'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
@@ -135,6 +149,10 @@ function Root() {
           <Stack.Screen name="unit/[id]" options={stackHeader(tr('unit'))} />
           <Stack.Screen name="dispute/[id]" options={stackHeader(tr('dispute_case'))} />
           <Stack.Screen name="settings" options={stackHeader(tr('settings'))} />
+          <Stack.Screen name="expense/[id]" options={stackHeader(tr('expense_detail'))} />
+          <Stack.Screen name="calendar" options={stackHeader(tr('calendar_title'))} />
+          <Stack.Screen name="work-orders" options={stackHeader(tr('workOrders_title'))} />
+          <Stack.Screen name="work-order/[id]" options={stackHeader(tr('workOrder_detail'))} />
         </Stack.Protected>
         <Stack.Protected guard={auth.stage !== 'authenticated'}>
           <Stack.Screen name="(auth)" />

@@ -14,6 +14,9 @@ const ICONS = {
   chevronNext: require('../../../../packages/tokens/assets/figma/chevron-next.svg'),
   chevronRow: require('../../../../packages/tokens/assets/figma/chevron-row.svg'),
   scale: require('../../../../packages/tokens/assets/figma/disputes-row.svg'),
+  // Drawn in the same stroke style for the v2 screens (apps/mobile/assets/icons).
+  expenses: require('../../assets/icons/tab-expenses.svg'),
+  calendar: require('../../assets/icons/calendar.svg'),
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -29,6 +32,8 @@ const SIZE: Record<IconName, number> = {
   chevronNext: 19,
   chevronRow: 19,
   scale: 21,
+  expenses: 24,
+  calendar: 24,
 };
 
 export function Icon({

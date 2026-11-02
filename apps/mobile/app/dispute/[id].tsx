@@ -1,5 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
-import { ScrollView, View } from 'react-native';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { Pressable, ScrollView, View } from 'react-native';
 import { DISPUTE_STATUS_LABEL, DISPUTE_TYPE_LABEL } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 import { useDispute } from '@/lib/queries';
@@ -13,10 +13,12 @@ import {
   SectionTitle,
   Separator,
   Skeleton,
+  StatusChip,
   Text,
   layout,
 } from '@/ui';
 
+/** One case: case number and the cheque number(s), bank, amount, due and bounce dates and reason, then the updates. */
 export default function DisputeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t: tr, pick, lang, date } = useI18n();
@@ -35,6 +37,11 @@ export default function DisputeDetailScreen() {
             <Text variant="title" weight="semibold">
               {DISPUTE_TYPE_LABEL[d.type][lang]}
             </Text>
+            {d.chequeNos.length ? (
+              <Text variant="secondary" weight="medium" tnum>
+                {tr('dispute_chequeNos', { nos: d.chequeNos.join(lang === 'ar' ? '، ' : ', ') })}
+              </Text>
+            ) : null}
             <Text variant="secondary" color="soft">
               {pick(d.buildingNameAr, d.buildingNameEn)} {d.unitNo}
               {d.tenantName ? ` · ${d.tenantName}` : ''}
@@ -82,6 +89,46 @@ export default function DisputeDetailScreen() {
       ) : (
         <Skeleton height={140} radius={12} />
       )}
+
+      {d && d.cheques.length > 0 ? (
+        <View>
+          <SectionTitle>{tr('dispute_cheques')}</SectionTitle>
+          <Card style={{ paddingHorizontal: 16 }}>
+            {d.cheques.map((c, i) => (
+              <View key={c.id}>
+                {i > 0 ? <Separator /> : null}
+                <Link href={{ pathname: '/cheque/[id]', params: { id: c.id } }} asChild>
+                  <Pressable accessibilityRole="button" style={{ paddingVertical: 12, gap: 4 }}>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Text weight="medium" tnum>
+                        {tr('dispute_chequeNo')} {c.chequeNo ?? '—'}
+                      </Text>
+                      <StatusChip status={c.status} />
+                    </Row>
+                    <Row style={{ justifyContent: 'space-between' }}>
+                      <Text variant="caption" color="soft">
+                        {tr('dispute_bank')}: {c.bankName ?? '—'}
+                      </Text>
+                      <Money fils={c.amountFils} variant="secondary" />
+                    </Row>
+                    <Text variant="caption" color="faint" tnum>
+                      {tr('dispute_dueDate')}: {date(c.dueDate)}
+                      {c.bouncedAt
+                        ? ` · ${tr('dispute_bouncedOn')}: ${date(c.bouncedAt.slice(0, 10))}`
+                        : ''}
+                    </Text>
+                    {c.bounceReason ? (
+                      <Text variant="caption" color="danger">
+                        {tr('dispute_bounceReason')}: {c.bounceReason}
+                      </Text>
+                    ) : null}
+                  </Pressable>
+                </Link>
+              </View>
+            ))}
+          </Card>
+        </View>
+      ) : null}
 
       <View>
         <SectionTitle>{tr('dispute_updates')}</SectionTitle>

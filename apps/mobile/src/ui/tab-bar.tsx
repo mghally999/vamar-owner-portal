@@ -13,6 +13,7 @@ const ICON_FOR: Record<string, IconName> = {
   cheques: 'cheques',
   properties: 'properties',
   disputes: 'disputes',
+  expenses: 'expenses',
 };
 
 /** Floating pill tab bar from the design; the active tab is a filled rounded button. */
@@ -73,7 +74,8 @@ export function FloatingTabBar({ state, descriptors, navigation }: TabBarProps) 
                 variant="caption"
                 weight={focused ? 'medium' : 'regular'}
                 numberOfLines={1}
-                style={{ color: fg, lineHeight: 14, paddingEnd: 0 }}
+                // Five tabs on a 360 px phone: 11 px keeps every label on one line in both languages.
+                style={{ color: fg, fontSize: 11, lineHeight: 14, paddingEnd: 0 }}
               >
                 {label}
               </Text>

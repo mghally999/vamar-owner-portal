@@ -62,6 +62,13 @@ export const netInfo = {
   useNetInfo: stub((): { isConnected: boolean | null } => ({ isConnected: true })),
 };
 
+export interface PushResponse {
+  notification: { request: { content: { data: unknown } } };
+}
+type PushListener = (r: PushResponse) => void;
+/** The notification that opened the app (tests set `last`) and the tap listeners the app added. */
+export const pushResponses = { last: null as PushResponse | null, listeners: [] as PushListener[] };
+
 export const notifications = {
   __esModule: true,
   AndroidImportance: { DEFAULT: 3 },
@@ -74,6 +81,15 @@ export const notifications = {
   getExpoPushTokenAsync: stub((_options?: { projectId: string }) =>
     Promise.resolve({ data: 'ExponentPushToken[device-1]' }),
   ),
+  getLastNotificationResponse: stub(() => pushResponses.last),
+  addNotificationResponseReceivedListener: stub((listener: PushListener) => {
+    pushResponses.listeners.push(listener);
+    return {
+      remove: () => {
+        pushResponses.listeners = pushResponses.listeners.filter((l) => l !== listener);
+      },
+    };
+  }),
 };
 
 export const constants = {
@@ -141,6 +157,8 @@ export function resetNative(): void {
   device.isDevice = true;
   device.modelName = 'Pixel 8';
   constants.expoConfig = { extra: { eas: { projectId: 'eas-project-1' } } };
+  pushResponses.last = null;
+  pushResponses.listeners = [];
   fileSystem.cacheDirectory = 'file:///cache/';
   fontAsset.localUri = 'file:///assets/Almarai-Regular.ttf';
 }

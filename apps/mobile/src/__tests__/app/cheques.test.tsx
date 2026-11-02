@@ -1,12 +1,14 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
-import { todayInDubai } from '@vamar/shared';
+import { resolvePreset, todayInDubai } from '@vamar/shared';
 import ChequesScreen from '../../../app/(tabs)/cheques';
 import { mockApi, sent } from '@/test/api';
-import { building, cheque } from '@/test/fixtures';
+import { building, calendarItem, cheque } from '@/test/fixtures';
 import { pullToRefresh, renderApp } from '@/test/render';
-import { router } from '@/test/router';
+import { routeState, router } from '@/test/router';
 
-const thisMonth = todayInDubai().slice(0, 7);
+const today = todayInDubai();
+const thisMonth = resolvePreset('this_month', today);
+const periodQuery = { from: thisMonth.from, to: thisMonth.to, limit: '50' };
 
 const page = [
   cheque(),
@@ -28,6 +30,12 @@ beforeEach(() => {
       body: { items: [building(), building({ id: 'bld-2', nameEn: 'Al Nada Villa' })] },
     },
     'GET /api/owner/cheques': { body: { items: page, nextCursor: null } },
+    'GET /api/owner/calendar': {
+      body: {
+        items: [calendarItem({ date: thisMonth.from, endDate: thisMonth.from })],
+        holidays: [],
+      },
+    },
   });
 });
 
@@ -40,7 +48,7 @@ describe('Cheques', () => {
   it("lists this month's cheques grouped by due date", async () => {
     await renderApp(<ChequesScreen />);
     expect(await screen.findByText('5 Oct 2026')).toBeTruthy();
-    expect(lastQuery()).toEqual({ month: thisMonth, limit: '50' });
+    expect(lastQuery()).toEqual(periodQuery);
     expect(screen.getByText('20 Oct 2026')).toBeTruthy();
     expect(screen.getAllByText('AED 25,000')).toHaveLength(2);
     expect(screen.getByText('AED 12,500')).toBeTruthy();
@@ -85,19 +93,46 @@ describe('Cheques', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'All statuses' }));
     await fireEvent.press(screen.getByRole('button', { name: 'All properties' }));
     await waitFor(() => {
-      expect(lastQuery()).toEqual({ month: thisMonth, limit: '50' });
+      expect(lastQuery()).toEqual(periodQuery);
     });
   });
 
-  it('moves to the next month', async () => {
+  it('moves to the next month from the period chips, and seeds the status from the link', async () => {
     await renderApp(<ChequesScreen />);
     await screen.findByText('5 Oct 2026');
     await fireEvent.press(screen.getByRole('button', { name: 'Next month' }));
-    const [y, m] = thisMonth.split('-').map(Number) as [number, number];
-    const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
+    const next = resolvePreset('next_month', today);
     await waitFor(() => {
-      expect(lastQuery()).toMatchObject({ month: next });
+      expect(lastQuery()).toMatchObject({ from: next.from, to: next.to });
     });
+    routeState.params = { status: 'bounced' };
+    await renderApp(<ChequesScreen />);
+    await waitFor(() => {
+      expect(lastQuery()).toMatchObject({ status: 'bounced' });
+    });
+  });
+
+  it('shows the cheques on a calendar with the List | Calendar toggle', async () => {
+    await renderApp(<ChequesScreen />);
+    await screen.findByText('5 Oct 2026');
+    await fireEvent.press(screen.getByRole('tab', { name: 'Calendar' }));
+    expect(await screen.findByText('Cheque due')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'All properties' })).toBeNull();
+    const all = sent('GET /api/owner/calendar');
+    expect(Object.fromEntries(all[all.length - 1]!.query)).toEqual({
+      from: thisMonth.from,
+      to: thisMonth.to,
+      kinds: 'cheque_due,holiday',
+    });
+    await fireEvent.press(screen.getByLabelText(new RegExp(`^1 .*1 items`)));
+    expect(await screen.findByText('Cheque 000123 · Oasis Tower 1204')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Cheque 000123 · Oasis Tower 1204'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/cheque/[id]',
+      params: { id: 'chq-1' },
+    });
+    await fireEvent.press(screen.getByRole('tab', { name: 'List' }));
+    expect(await screen.findByRole('button', { name: 'All properties' })).toBeTruthy();
   });
 
   it('loads the next page when the list reaches its end', async () => {

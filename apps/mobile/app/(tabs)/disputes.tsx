@@ -63,6 +63,9 @@ export default function DisputesScreen() {
               <Row style={{ justifyContent: 'space-between' }}>
                 <Text variant="caption" color="faint" tnum>
                   {tr('dispute_case')} {d.caseNo}
+                  {d.chequeNos.length
+                    ? ` · ${tr('dispute_chequeNos', { nos: d.chequeNos.join(lang === 'ar' ? '، ' : ', ') })}`
+                    : ''}
                 </Text>
                 {d.nextHearingDate ? (
                   <Text variant="caption" color="faint" tnum>

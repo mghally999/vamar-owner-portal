@@ -24,12 +24,19 @@ async function fontBase64(): Promise<string> {
 }
 
 export async function shareStatement(input: StatementInput): Promise<void> {
-  const html = statementHtml(
-    input,
-    `url(data:font/ttf;base64,${await fontBase64()}) format('truetype')`,
-  );
-  const { uri } = await Print.printToFileAsync({ html, base64: false });
-  const name = `vamar-statement-${input.periodLabel.replace(/\s+/g, '-')}.pdf`;
+  await sharePeriodStatementHtml((fontSrc) => statementHtml(input, fontSrc), input.periodLabel);
+}
+
+/** Renders the HTML with the embedded font to a PDF and opens the share sheet. */
+export async function sharePeriodStatementHtml(
+  html: (fontSrc: string) => string,
+  label: string,
+): Promise<void> {
+  const { uri } = await Print.printToFileAsync({
+    html: html(`url(data:font/ttf;base64,${await fontBase64()}) format('truetype')`),
+    base64: false,
+  });
+  const name = `vamar-statement-${label.replace(/[\s–]+/g, '-')}.pdf`;
   const dest = `${FileSystem.cacheDirectory ?? ''}${name}`;
   try {
     await FileSystem.moveAsync({ from: uri, to: dest });

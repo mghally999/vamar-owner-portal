@@ -6,7 +6,7 @@ import { pullToRefresh, renderApp } from '@/test/render';
 import { router } from '@/test/router';
 
 const items = [
-  dispute(),
+  dispute({ chequeNos: ['000123', '000124'] }),
   dispute({
     id: 'dsp-2',
     caseNo: 'RDC-2026-0050',
@@ -29,7 +29,7 @@ describe('Disputes', () => {
     expect(await screen.findByText('Rent arrears')).toBeTruthy();
     expect(screen.getByText('Hearing scheduled')).toBeTruthy();
     expect(screen.getByText('Oasis Tower 1204 · Ahmed Rahman')).toBeTruthy();
-    expect(screen.getByText('Case RDC-2026-0042')).toBeTruthy();
+    expect(screen.getByText('Case RDC-2026-0042 · Cheque 000123, 000124')).toBeTruthy();
     expect(screen.getByText('Next hearing 12 Nov 2026')).toBeTruthy();
     expect(screen.getByText('AED 45,000')).toBeTruthy();
 
@@ -43,6 +43,7 @@ describe('Disputes', () => {
     await renderApp(<DisputesScreen />, { lang: 'ar' });
     expect(await screen.findByText('متأخرات إيجار')).toBeTruthy();
     expect(screen.getByText('برج الواحة 1204 · Ahmed Rahman')).toBeTruthy();
+    expect(screen.getByText('القضية RDC-2026-0042 · شيك 000123، 000124')).toBeTruthy();
   });
 
   it('opens a dispute', async () => {

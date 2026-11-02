@@ -1,8 +1,16 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChequeStatus } from '@vamar/shared';
+import type { ChequeStatus, ExpenseKind, TimelineKind, WorkOrderStatus } from '@vamar/shared';
+import type { PeriodQuery } from './period';
 import { qs, request } from './api';
 import type {
   BuildingItem,
+  CalendarResponse,
+  ExpenseDetail,
+  ExpenseItem,
+  Summary,
+  TimelineEntry,
+  WorkOrderDetail,
+  WorkOrderItem,
   ChequeDetail,
   ChequeItem,
   DeviceItem,
@@ -29,6 +37,8 @@ export function useHome(month: string) {
 
 export interface ChequeFilters {
   month?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
   buildingId?: string | undefined;
   unitId?: string | undefined;
   status?: ChequeStatus | undefined;
@@ -123,5 +133,85 @@ export function useSetLang() {
   return useMutation({
     mutationFn: (preferredLang: 'ar' | 'en') =>
       request('/api/owner/me', { method: 'PATCH', body: JSON.stringify({ preferredLang }) }),
+  });
+}
+
+// v2 -------------------------------------------------------------------------------------------
+
+/** Everything Home shows for the chosen period, in one request. */
+export function useSummary(period: PeriodQuery, options: { buildingId?: string | undefined } = {}) {
+  return useQuery({
+    queryKey: ['summary', period, options.buildingId ?? ''],
+    queryFn: () => request<Summary>(`/api/owner/summary${qs({ ...period, ...options })}`),
+    staleTime: 60_000,
+  });
+}
+
+export type ExpenseFilters = PeriodQuery & {
+  buildingId?: string | undefined;
+  unitId?: string | undefined;
+  categoryId?: string | undefined;
+  kind?: ExpenseKind | undefined;
+};
+
+export function useExpenses(filters: ExpenseFilters) {
+  return useInfiniteQuery({
+    queryKey: ['expenses', filters],
+    queryFn: ({ pageParam }) =>
+      request<Page<ExpenseItem>>(
+        `/api/owner/expenses${qs({ ...filters, cursor: pageParam, limit: 50 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export function useExpense(id: string) {
+  return useQuery({
+    queryKey: ['expense', id],
+    queryFn: () => request<ExpenseDetail>(`/api/owner/expenses/${id}`),
+  });
+}
+
+export function useWorkOrders(
+  filters: { unitId?: string | undefined; status?: WorkOrderStatus | undefined } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ['work-orders', filters],
+    queryFn: ({ pageParam }) =>
+      request<Page<WorkOrderItem>>(
+        `/api/owner/work-orders${qs({ ...filters, cursor: pageParam, limit: 50 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+export function useWorkOrder(id: string) {
+  return useQuery({
+    queryKey: ['work-order', id],
+    queryFn: () => request<WorkOrderDetail>(`/api/owner/work-orders/${id}`),
+  });
+}
+
+export function useUnitTimeline(unitId: string, kinds: TimelineKind[] | undefined) {
+  return useInfiniteQuery({
+    queryKey: ['timeline', unitId, kinds ?? []],
+    queryFn: ({ pageParam }) =>
+      request<Page<TimelineEntry>>(
+        `/api/owner/units/${unitId}/timeline${qs({ kinds: kinds?.join(','), cursor: pageParam, limit: 30 })}`,
+      ),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
+  });
+}
+
+/** One request per visible range; the range is the cache key. */
+export function useCalendar(from: string, to: string, kinds?: string[]) {
+  return useQuery({
+    queryKey: ['calendar', from, to, kinds ?? []],
+    queryFn: () =>
+      request<CalendarResponse>(`/api/owner/calendar${qs({ from, to, kinds: kinds?.join(',') })}`),
+    staleTime: 5 * 60_000,
   });
 }

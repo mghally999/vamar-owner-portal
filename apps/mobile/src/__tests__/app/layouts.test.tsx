@@ -60,10 +60,19 @@ describe('Root layout', () => {
     await render(<RootLayout />);
     expect(await screen.findByTestId('screen:(tabs)')).toBeTruthy();
     expect(screen.queryByTestId('screen:(auth)')).toBeNull();
-    for (const title of ['Cheque', 'Unit', 'Case', 'Settings'])
+    for (const title of [
+      'Cheque',
+      'Unit',
+      'Case',
+      'Settings',
+      'Expense',
+      'Calendar',
+      'Maintenance',
+      'Maintenance job',
+    ])
       expect(screen.getByRole('header', { name: title })).toBeTruthy();
     const backs = screen.getAllByRole('button', { name: 'Back' });
-    expect(backs).toHaveLength(4);
+    expect(backs).toHaveLength(8);
     await fireEvent.press(backs[0]!);
     expect(router.back).toHaveBeenCalledTimes(1);
   });
@@ -182,13 +191,14 @@ describe('Root layout', () => {
 });
 
 describe('Tabs layout', () => {
-  it('shows the current tab title and a tab bar with the four tabs', async () => {
+  it('shows the current tab title and a tab bar with the five tabs', async () => {
     await renderApp(<TabsLayout />, { signedIn: false });
     expect(await screen.findByRole('header', { name: 'Home' })).toBeTruthy();
     const tabs = screen.getAllByRole('tab');
     expect(tabs.map((t) => t.props.accessibilityLabel as string)).toEqual([
       'Home',
       'Cheques',
+      'Expenses',
       'Properties',
       'Disputes',
     ]);
@@ -218,7 +228,7 @@ describe('Tabs layout', () => {
   });
 
   it('titles the header after the selected tab, in Arabic too', async () => {
-    routeState.tabIndex = 2;
+    routeState.tabIndex = 3;
     await renderApp(<TabsLayout />, { lang: 'ar', signedIn: false });
     expect(await screen.findByRole('header', { name: 'العقارات' })).toBeTruthy();
     expect(screen.getByRole('tab', { name: 'العقارات' }).props.accessibilityState).toMatchObject({

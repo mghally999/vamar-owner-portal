@@ -1,17 +1,20 @@
 import { FlashList } from '@shopify/flash-list';
-import { Link } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import {
   CHEQUE_STATUSES,
+  isChequeStatus,
   todayInDubai,
   type ChequeStatus,
   type PlainDate,
   sharePct,
 } from '@vamar/shared';
+import { groupByDay } from '@/lib/calendar';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { useBuildings, useCheques } from '@/lib/queries';
+import { usePeriod } from '@/lib/period';
+import { useBuildings, useCalendar, useCheques, useMe } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import type { ChequeItem } from '@/lib/types';
 import {
@@ -25,21 +28,34 @@ import {
   StatusChip,
   Text,
 } from '@/ui';
-import { MonthSwitcher } from '@/ui/month-switcher';
+import { Agenda, Legend, MonthGrid } from '@/ui/calendar';
+import { PeriodSwitcher } from '@/ui/period-switcher';
+import { Segmented } from '@/ui/segmented';
 
 type Section = { kind: 'header'; date: string } | { kind: 'cheque'; cheque: ChequeItem };
 
-/** Cheques tab: month switcher, property + status filters, grouped by due date. */
+/**
+ * Cheques tab: the shared period switcher, property and status filters, a List | Calendar toggle.
+ * Home's tiles open it with a status (`?status=cleared`), which seeds the status filter.
+ */
 export default function ChequesScreen() {
   const t = useTheme();
   const { t: tr, pick, date } = useI18n();
-  const [monthStart, setMonthStart] = useState<PlainDate | null>(
-    `${todayInDubai().slice(0, 7)}-01` as PlainDate,
-  );
+  const params = useLocalSearchParams<{ status?: string }>();
+  const { selection, setSelection, period } = usePeriod();
+  const settings = useMe().data?.settings;
+  const [view, setView] = useState<'list' | 'calendar'>('list');
   const [buildingId, setBuildingId] = useState<string | undefined>();
-  const [status, setStatus] = useState<ChequeStatus | undefined>();
+  const [status, setStatus] = useState<ChequeStatus | undefined>(
+    isChequeStatus(params.status) ? params.status : undefined,
+  );
+  useEffect(() => {
+    if (isChequeStatus(params.status)) setStatus(params.status);
+  }, [params.status]);
   const buildings = useBuildings();
-  const q = useCheques({ month: monthStart?.slice(0, 7), buildingId, status });
+  const q = useCheques({ from: period.from, to: period.to, buildingId, status });
+  const cal = useCalendar(period.from, period.to, ['cheque_due', 'holiday']);
+  const [selectedDay, setSelectedDay] = useState<PlainDate | null>(null);
 
   const rows = useMemo<Section[]>(() => {
     const items = q.data?.pages.flatMap((p) => p.items) ?? [];
@@ -81,45 +97,98 @@ export default function ChequesScreen() {
     </Pressable>
   );
 
+  const header = (
+    <View style={{ paddingHorizontal: 16, gap: 8 }}>
+      <PeriodSwitcher value={selection} onChange={setSelection} weekStart={settings?.weekStart} />
+      <Segmented
+        options={[
+          { value: 'list', label: tr('cheques_view_list') },
+          { value: 'calendar', label: tr('cheques_view_calendar') },
+        ]}
+        value={view}
+        onChange={setView}
+      />
+      {view === 'list' ? (
+        <>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+          >
+            {chip(tr('cheques_filter_all'), buildingId === undefined, () => {
+              setBuildingId(undefined);
+            })}
+            {buildings.data?.map((b) =>
+              chip(pick(b.nameAr, b.nameEn), buildingId === b.id, () => {
+                setBuildingId(b.id);
+              }),
+            )}
+          </ScrollView>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+          >
+            {chip(tr('cheques_filter_status'), status === undefined, () => {
+              setStatus(undefined);
+            })}
+            {CHEQUE_STATUSES.map((s) =>
+              chip(tr(`status_${s}` as MessageKey), status === s, () => {
+                setStatus(s);
+              }),
+            )}
+          </ScrollView>
+        </>
+      ) : null}
+    </View>
+  );
+
+  if (view === 'calendar') {
+    const items = cal.data?.items ?? [];
+    const byDay = groupByDay(items.filter((i) => i.kind === 'cheque_due'));
+    const holidays = new Set(cal.data?.holidays ?? []);
+    const months = monthsOf(period.from, period.to);
+    const today = todayInDubai();
+    return (
+      <ScrollView contentContainerStyle={{ paddingBottom: 32, gap: 12 }}>
+        {header}
+        <View style={{ paddingHorizontal: 16, gap: 12 }}>
+          {cal.isError ? <ErrorState onRetry={() => void cal.refetch()} /> : null}
+          {cal.isPending ? <Skeleton height={260} radius={24} /> : null}
+          {months.map(([y, m]) => (
+            <Card key={`${y}-${m}`} style={{ padding: 12, gap: 6 }}>
+              <Text variant="secondary" weight="medium" tnum>
+                {date(`${y}-${String(m).padStart(2, '0')}-01`).replace(/^1 /, '')}
+              </Text>
+              <MonthGrid
+                year={y}
+                month={m}
+                weekStart={settings?.weekStart ?? 'monday'}
+                today={today}
+                selected={selectedDay}
+                byDay={byDay}
+                holidays={holidays}
+                onSelect={setSelectedDay}
+              />
+            </Card>
+          ))}
+          <Legend kinds={['cheque_due', 'holiday']} />
+          {selectedDay ? (
+            <Agenda
+              items={items}
+              from={selectedDay}
+              to={selectedDay}
+              emptyText={tr('calendar_dayEmpty')}
+            />
+          ) : null}
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ paddingHorizontal: 16, gap: 8 }}>
-        <MonthSwitcher
-          value={monthStart ?? (`${todayInDubai().slice(0, 7)}-01` as PlainDate)}
-          onChange={(m) => {
-            setMonthStart(m);
-          }}
-        />
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-        >
-          {chip(tr('cheques_filter_all'), buildingId === undefined, () => {
-            setBuildingId(undefined);
-          })}
-          {buildings.data?.map((b) =>
-            chip(pick(b.nameAr, b.nameEn), buildingId === b.id, () => {
-              setBuildingId(b.id);
-            }),
-          )}
-        </ScrollView>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-        >
-          {chip(tr('cheques_filter_status'), status === undefined, () => {
-            setStatus(undefined);
-          })}
-          {CHEQUE_STATUSES.map((s) =>
-            chip(tr(`status_${s}` as MessageKey), status === s, () => {
-              setStatus(s);
-            }),
-          )}
-        </ScrollView>
-      </View>
-
+      {header}
       {q.isPending ? (
         <View style={{ padding: 16, gap: 12 }}>
           <Skeleton width={120} height={14} />
@@ -189,4 +258,20 @@ export default function ChequesScreen() {
       <DateText date={null} style={{ display: 'none' }} />
     </View>
   );
+}
+
+/** The [year, month] pairs a period touches, at most twelve (the calendar view shows a year at most). */
+function monthsOf(from: string, to: string): [number, number][] {
+  const out: [number, number][] = [];
+  let [y, m] = from.split('-').map(Number) as [number, number];
+  const [ty, tm] = to.split('-').map(Number) as [number, number];
+  while ((y < ty || (y === ty && m <= tm)) && out.length < 12) {
+    out.push([y, m]);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
 }

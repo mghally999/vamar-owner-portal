@@ -1,15 +1,15 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
 import { Linking, Text } from 'react-native';
-import { todayInDubai } from '@vamar/shared';
+import { formatPeriod, resolvePreset, todayInDubai } from '@vamar/shared';
 import HomeScreen from '../../../app/(tabs)/index';
 import { useAuth, type AuthState } from '@/lib/auth';
 import { mockApi, sent } from '@/test/api';
-import { home } from '@/test/fixtures';
-import { localAuth } from '@/test/native';
+import { cheque, expense, summary } from '@/test/fixtures';
+import { localAuth, print, sharing } from '@/test/native';
 import { pullToRefresh, renderApp } from '@/test/render';
-import { router } from '@/test/router';
+import { routeState, router } from '@/test/router';
 
-const thisMonth = todayInDubai().slice(0, 7);
+const today = todayInDubai();
 
 let auth: AuthState | undefined;
 function AuthHandle() {
@@ -17,21 +17,41 @@ function AuthHandle() {
   return <Text>{auth.stage}</Text>;
 }
 
+function lastQuery() {
+  const all = sent('GET /api/owner/summary');
+  return Object.fromEntries(all[all.length - 1]?.query ?? []);
+}
+
+const me = (showBeforeFeeLabel = true) => ({
+  body: {
+    id: 'owner-1',
+    settings: {
+      weekStart: 'monday',
+      hijriDisplay: false,
+      showBeforeFeeLabel,
+      ownersSeeInvoiceFiles: true,
+    },
+  },
+});
+
 beforeEach(() => {
   auth = undefined;
-  mockApi({ 'GET /api/owner/home': { body: home() } });
+  mockApi({ 'GET /api/owner/summary': { body: summary() }, 'GET /api/owner/me': me() });
 });
 
 describe('Home', () => {
-  it("shows this month's money, the next cheque, occupancy and disputes", async () => {
+  it("shows this month's rent, expenses and net, the rows and the occupancy", async () => {
     await renderApp(<HomeScreen />);
     expect(await screen.findByText('75,000')).toBeTruthy();
-    expect(sent('GET /api/owner/home')[0]?.query.get('month')).toBe(thisMonth);
-    expect(screen.getByText('Expected this month')).toBeTruthy();
-    expect(screen.getByText('25,000')).toBeTruthy();
-    expect(screen.getByText('40,000')).toBeTruthy();
-    expect(screen.getByText('10,000')).toBeTruthy();
-    expect(screen.getByText('18,000')).toBeTruthy();
+    expect(lastQuery()).toEqual({ preset: 'this_month' });
+    expect(screen.getByText('Expected rent')).toBeTruthy();
+    expect(screen.getByText('25,000')).toBeTruthy(); // collected
+    expect(screen.getByText('40,000')).toBeTruthy(); // outstanding
+    expect(screen.getByText('10,000')).toBeTruthy(); // at risk
+    expect(screen.getByText('7,500')).toBeTruthy(); // expenses
+    expect(screen.getByText('Fixed 6,000 · Variable 1,500')).toBeTruthy();
+    expect(screen.getByText('17,500')).toBeTruthy(); // net
+    expect(screen.getByText("Net: Before Vamar's management fee")).toBeTruthy();
 
     expect(screen.getByText('Next cheque')).toBeTruthy();
     expect(screen.getByText('30,000')).toBeTruthy();
@@ -39,104 +59,262 @@ describe('Home', () => {
     expect(screen.getByText('28 Oct 2026')).toBeTruthy();
     expect(screen.getByText('Upcoming')).toBeTruthy();
 
+    expect(screen.getByText('Contracts ending soon')).toBeTruthy();
+    expect(screen.getByText('Oasis Tower 305')).toBeTruthy();
+    expect(screen.getByText('15 Dec 2026')).toBeTruthy();
+    expect(screen.getByText('2 open maintenance jobs')).toBeTruthy();
+    expect(screen.getByText('Calendar')).toBeTruthy();
     expect(screen.getByText('3 of 4 units rented')).toBeTruthy();
     expect(screen.getByRole('progressbar').props.accessibilityValue).toMatchObject({ now: 75 });
-    expect(screen.getByText('Vacant units')).toBeTruthy();
-    expect(screen.getByText('Vacant since 1 Aug 2026')).toBeTruthy();
-    expect(screen.getByText('Al Nada Villa')).toBeTruthy();
-    expect(screen.getByText('Never rented')).toBeTruthy();
     expect(screen.getByText('2 open disputes')).toBeTruthy();
+    expect(screen.getByText('Statement (PDF)')).toBeTruthy();
   });
 
-  it('opens the next cheque, a vacant unit and the disputes tab', async () => {
+  it('every number opens the list behind it', async () => {
     await renderApp(<HomeScreen />);
-    await fireEvent.press(await screen.findByText('Next cheque'));
+    await fireEvent.press(await screen.findByText('Collected'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/(tabs)/cheques',
+      params: { status: 'cleared' },
+    });
+    await fireEvent.press(screen.getByText('At risk (bounced)'));
+    expect(router.push).toHaveBeenLastCalledWith({
+      pathname: '/(tabs)/cheques',
+      params: { status: 'bounced' },
+    });
+    await fireEvent.press(screen.getByText('Expenses'));
+    expect(router.push).toHaveBeenLastCalledWith({ pathname: '/(tabs)/expenses', params: {} });
+    await fireEvent.press(screen.getByText('Next cheque'));
     expect(router.push).toHaveBeenLastCalledWith({
       pathname: '/cheque/[id]',
       params: { id: 'chq-9' },
     });
-    await fireEvent.press(screen.getByText('Al Nada Villa'));
+    await fireEvent.press(screen.getByText('Oasis Tower 305'));
     expect(router.push).toHaveBeenLastCalledWith({
       pathname: '/unit/[id]',
-      params: { id: 'unit-8' },
+      params: { id: 'unit-3' },
     });
+    await fireEvent.press(screen.getByText('2 open maintenance jobs'));
+    expect(router.push).toHaveBeenLastCalledWith('/work-orders');
+    await fireEvent.press(screen.getByText('Calendar'));
+    expect(router.push).toHaveBeenLastCalledWith('/calendar');
     await fireEvent.press(screen.getByText('2 open disputes'));
     expect(router.push).toHaveBeenLastCalledWith('/(tabs)/disputes');
   });
 
-  it('shows placeholders while loading', async () => {
-    mockApi({ 'GET /api/owner/home': () => new Promise(() => undefined) });
+  it('switches period with the chips and the More sheet; the year is one tap away', async () => {
     await renderApp(<HomeScreen />);
-    expect(await screen.findByText('Expected this month')).toBeTruthy();
+    await screen.findByText('75,000');
+    await fireEvent.press(screen.getByRole('button', { name: 'This year' }));
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'this_year' });
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'Next 6 months' }));
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'next_6_months' });
+    });
+    await fireEvent.press(screen.getByRole('button', { name: 'More' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Last year' }));
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'last_year' });
+    });
+    // The active choice replaces the "More" chip.
+    expect(screen.getByRole('button', { name: 'Last year' })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Last year' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Pick a year' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Previous' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Apply' }));
+    const lastYear = Number(today.slice(0, 4)) - 1;
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ from: `${lastYear}-01-01`, to: `${lastYear}-12-31` });
+    });
+  });
+
+  it('picks a month and a custom range from the sheet', async () => {
+    await renderApp(<HomeScreen />);
+    await screen.findByText('75,000');
+    await fireEvent.press(screen.getByRole('button', { name: 'More' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Pick a month' }));
+    await fireEvent.press(await screen.findByText('March'));
+    await fireEvent.press(screen.getByRole('button', { name: 'Apply' }));
+    const year = today.slice(0, 4);
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ from: `${year}-03-01`, to: `${year}-03-31` });
+    });
+    await fireEvent.press(screen.getByRole('button', { name: `March ${year}` }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Custom range' }));
+    await fireEvent.press(await screen.findByRole('button', { name: /^From:/ }));
+    const thisMonth = resolvePreset('this_month', today);
+    await fireEvent.press(await screen.findByLabelText(thisMonth.from));
+    await fireEvent.press(screen.getByRole('button', { name: 'Apply' }));
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ from: thisMonth.from, to: today });
+    });
+  });
+
+  it('labels a future period as projected and hides the fee note when the setting is off', async () => {
+    mockApi({
+      'GET /api/owner/summary': {
+        body: summary({
+          isFuture: true,
+          preset: 'next_month',
+          rent: { ...summary().rent, collectedFils: 0 },
+          expenses: {
+            ...summary().expenses,
+            totalFils: 0,
+            fixedFils: 0,
+            variableFils: 0,
+            projectedFixedFils: 420_000,
+          },
+          projectedNetFils: 7_080_000,
+        }),
+      },
+      'GET /api/owner/me': me(false),
+    });
+    await renderApp(<HomeScreen />);
+    expect(await screen.findByText('Projected net')).toBeTruthy();
+    expect(screen.getByText('70,800')).toBeTruthy();
+    expect(screen.getByText(/Expected fixed costs to come: 4,200/)).toBeTruthy();
+    expect(screen.queryByText(/management fee/)).toBeNull();
+  });
+
+  it('shows placeholders while loading', async () => {
+    mockApi({ 'GET /api/owner/summary': () => new Promise(() => undefined) });
+    await renderApp(<HomeScreen />);
+    expect(await screen.findByText('Expected rent')).toBeTruthy();
     expect(screen.queryByText('AED')).toBeNull();
     expect(screen.queryByText('Next cheque')).toBeNull();
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
 
-  it('says so when a month has no cheques and nothing is coming', async () => {
+  it('says so when a period has nothing in it', async () => {
     mockApi({
-      'GET /api/owner/home': {
-        body: home({
-          expectedFils: 0,
-          clearedFils: 0,
-          pendingFils: 0,
-          bouncedFils: 0,
+      'GET /api/owner/summary': {
+        body: summary({
+          rent: {
+            expectedFils: 0,
+            collectedFils: 0,
+            outstandingFils: 0,
+            atRiskFils: 0,
+            chequeCount: 0,
+            bouncedCount: 0,
+          },
+          expenses: {
+            fixedFils: 0,
+            variableFils: 0,
+            totalFils: 0,
+            count: 0,
+            projectedFixedFils: 0,
+          },
+          netFils: 0,
+          buckets: [],
           nextCheque: null,
-          vacantUnits: [],
+          contractsEnding: [],
+          openWorkOrders: 0,
           openDisputes: 0,
         }),
       },
     });
     await renderApp(<HomeScreen />);
-    expect(await screen.findByText('No cheques this month')).toBeTruthy();
+    expect(await screen.findByText('Nothing recorded for this period')).toBeTruthy();
     expect(screen.getByText('No upcoming cheques.')).toBeTruthy();
+    expect(screen.getByText('No contracts end in the next 90 days.')).toBeTruthy();
+    expect(screen.getByText('No open maintenance jobs')).toBeTruthy();
     expect(screen.getByText('No open disputes')).toBeTruthy();
-    expect(screen.queryByText('Vacant units')).toBeNull();
   });
 
-  it('counts one open dispute in the singular', async () => {
-    mockApi({ 'GET /api/owner/home': { body: home({ openDisputes: 1 }) } });
+  it('opens on the period a notification asks for', async () => {
+    routeState.params = { preset: 'last_month' };
+    await renderApp(<HomeScreen />);
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'last_month' });
+    });
+  });
+
+  it('counts one open dispute and one job in the singular', async () => {
+    mockApi({
+      'GET /api/owner/summary': { body: summary({ openDisputes: 1, openWorkOrders: 1 }) },
+    });
     await renderApp(<HomeScreen />);
     expect(await screen.findByText('1 open dispute')).toBeTruthy();
+    expect(screen.getByText('1 open maintenance job')).toBeTruthy();
   });
 
-  it('shows an error with a retry that loads the month again', async () => {
-    mockApi({ 'GET /api/owner/home': { status: 500, body: {} } });
+  it('shows an error with a retry that loads the period again, and reloads when pulled down', async () => {
+    mockApi({ 'GET /api/owner/summary': { status: 500, body: {} } });
     await renderApp(<HomeScreen />);
     expect(
       await screen.findByText('Something went wrong. Pull to refresh or try again.'),
     ).toBeTruthy();
-    mockApi({ 'GET /api/owner/home': { body: home() } });
+    mockApi({ 'GET /api/owner/summary': { body: summary() } });
     await fireEvent.press(screen.getByRole('button', { name: 'Retry' }));
     expect(await screen.findByText('75,000')).toBeTruthy();
-  });
-
-  it('reloads the month when pulled down', async () => {
-    await renderApp(<HomeScreen />);
-    await screen.findByText('75,000');
-    mockApi({ 'GET /api/owner/home': { body: home({ expectedFils: 8_000_000 }) } });
+    mockApi({
+      'GET /api/owner/summary': {
+        body: summary({ rent: { ...summary().rent, expectedFils: 8_000_000 } }),
+      },
+    });
     await pullToRefresh();
     expect(await screen.findByText('80,000')).toBeTruthy();
   });
 
-  it('loads the previous month from the month switcher', async () => {
+  it('draws the twelve-month chart for a year with a spoken label per month', async () => {
+    const buckets = Array.from({ length: 12 }, (_, i) => ({
+      ...summary().buckets[0]!,
+      key: `2026-${String(i + 1).padStart(2, '0')}`,
+      expectedFils: (i + 1) * 100_000,
+      fixedFils: 50_000,
+      variableFils: 0,
+      projectedFixedFils: 0,
+    }));
+    mockApi({ 'GET /api/owner/summary': { body: summary({ preset: 'this_year', buckets }) } });
     await renderApp(<HomeScreen />);
-    await screen.findByText('75,000');
-    await fireEvent.press(screen.getByRole('button', { name: 'Previous month' }));
-    await waitFor(() => {
-      expect(sent('GET /api/owner/home')).toHaveLength(2);
+    expect(await screen.findByText('Rent and expenses by month')).toBeTruthy();
+    expect(screen.getByLabelText('March 2026: rent AED 3,000, expenses AED 500')).toBeTruthy();
+    expect(screen.getByText('Rent')).toBeTruthy();
+  });
+
+  it('makes a statement PDF for the period from the summary, cheques and expenses', async () => {
+    mockApi({
+      'GET /api/owner/cheques': {
+        body: { items: [cheque({ status: 'cleared' })], nextCursor: null },
+      },
+      'GET /api/owner/expenses': { body: { items: [expense()], nextCursor: null } },
     });
-    const [y, m] = thisMonth.split('-').map(Number) as [number, number];
-    const previous = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
-    expect(sent('GET /api/owner/home')[1]?.query.get('month')).toBe(previous);
+    await renderApp(<HomeScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Statement (PDF)' }));
+    await waitFor(() => {
+      expect(sharing.shareAsync).toHaveBeenCalled();
+    });
+    const [options] = print.printToFileAsync.mock.calls[0]!;
+    const thisMonth = resolvePreset('this_month', today);
+    expect(options.html).toContain(`Salem Al Kaabi · ${formatPeriod(thisMonth, 'en')}`);
+    expect(options.html).toContain('Lift 2 repair');
+    expect(options.html).toContain('GL-2026-0417');
+    expect(options.html).toContain("Before Vamar's management fee");
+    expect(Object.fromEntries(sent('GET /api/owner/cheques')[0]!.query)).toEqual({
+      from: thisMonth.from,
+      to: thisMonth.to,
+      limit: '100',
+    });
+  });
+
+  it('shows the error line when the statement cannot be made', async () => {
+    mockApi({ 'GET /api/owner/cheques': { status: 500, body: {} } });
+    await renderApp(<HomeScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Statement (PDF)' }));
+    expect(
+      await screen.findByText('Something went wrong. Pull to refresh or try again.'),
+    ).toBeTruthy();
   });
 
   it('shows Arabic labels and amounts in Arabic', async () => {
     await renderApp(<HomeScreen />, { lang: 'ar' });
-    expect(await screen.findByText('المتوقع هذا الشهر')).toBeTruthy();
+    expect(await screen.findByText('الإيجار المتوقع')).toBeTruthy();
     expect(await screen.findByText('75,000')).toBeTruthy();
     expect(screen.getAllByText('درهم').length).toBeGreaterThan(0);
-    expect(screen.getByText('فيلا الندى')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'هذه السنة' })).toBeTruthy();
+    expect(screen.getByText('التقويم')).toBeTruthy();
   });
 
   it('offers a newer app version once, until dismissed', async () => {
@@ -198,7 +376,9 @@ describe('Home', () => {
     it('can be put off', async () => {
       await signInFresh();
       await fireEvent.press(screen.getByRole('button', { name: 'Not now' }));
-      expect(screen.queryByText('Unlock with Face ID or fingerprint?')).toBeNull();
+      await waitFor(() => {
+        expect(screen.queryByText('Unlock with Face ID or fingerprint?')).toBeNull();
+      });
       expect(auth?.biometricsEnabled).toBe(false);
     });
   });

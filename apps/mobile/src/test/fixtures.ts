@@ -1,7 +1,14 @@
 /** API payloads shaped like the owner endpoints return them. */
 import type {
   BuildingItem,
+  CalendarItem,
   ChequeDetail,
+  ExpenseDetail,
+  ExpenseItem,
+  Summary,
+  TimelineEntry,
+  WorkOrderDetail,
+  WorkOrderItem,
   ChequeItem,
   DeviceItem,
   DisputeDetail,
@@ -176,6 +183,7 @@ export function dispute(over: Partial<DisputeItem> = {}): DisputeItem {
     buildingNameAr: 'برج الواحة',
     buildingNameEn: 'Oasis Tower',
     tenantName: 'Ahmed Rahman',
+    chequeNos: [],
     ...over,
   };
 }
@@ -191,6 +199,7 @@ export function disputeDetail(over: Partial<DisputeDetail> = {}): DisputeDetail 
       },
       { id: 'up-2', note: 'First hearing set for 12 November.', at: '2026-10-01T10:00:00Z' },
     ],
+    cheques: [],
     ...over,
   };
 }
@@ -205,6 +214,212 @@ export function deviceItem(over: Partial<DeviceItem> = {}): DeviceItem {
     lastSeen: '2026-10-20T10:00:00Z',
     revokedAt: null,
     current: true,
+    ...over,
+  };
+}
+
+// v2 -------------------------------------------------------------------------------------------
+
+export function summary(over: Partial<Summary> = {}): Summary {
+  return {
+    preset: 'this_month',
+    period: { from: '2026-10-01', to: '2026-10-31' },
+    comparison: null,
+    isFuture: false,
+    rent: {
+      expectedFils: 7_500_000,
+      collectedFils: 2_500_000,
+      outstandingFils: 4_000_000,
+      atRiskFils: 1_000_000,
+      chequeCount: 3,
+      bouncedCount: 1,
+    },
+    expenses: {
+      fixedFils: 600_000,
+      variableFils: 150_000,
+      totalFils: 750_000,
+      count: 4,
+      projectedFixedFils: 0,
+    },
+    netFils: 1_750_000,
+    projectedNetFils: 6_900_000,
+    previous: null,
+    buckets: [
+      {
+        key: '2026-10',
+        expectedFils: 7_500_000,
+        collectedFils: 2_500_000,
+        outstandingFils: 4_000_000,
+        atRiskFils: 1_000_000,
+        chequeCount: 3,
+        bouncedCount: 1,
+        fixedFils: 600_000,
+        variableFils: 150_000,
+        totalFils: 750_000,
+        count: 4,
+        projectedFixedFils: 0,
+        netFils: 1_750_000,
+      },
+    ],
+    nextCheque: home().nextCheque,
+    contractsEnding: [
+      {
+        id: 'ctr-2',
+        unitId: 'unit-3',
+        unitNo: '305',
+        buildingNameAr: 'برج الواحة',
+        buildingNameEn: 'Oasis Tower',
+        tenantName: 'Lina Haddad',
+        endDate: '2026-12-15',
+      },
+    ],
+    openWorkOrders: 2,
+    openDisputes: 2,
+    occupancy: { occupied: 3, total: 4, pct: 75 },
+    ...over,
+  };
+}
+
+export function expense(over: Partial<ExpenseItem> = {}): ExpenseItem {
+  return {
+    id: 'exp-1',
+    scope: 'building',
+    buildingId: 'bld-1',
+    buildingNameAr: 'برج الواحة',
+    buildingNameEn: 'Oasis Tower',
+    unitId: null,
+    unitNo: null,
+    unitIds: ['unit-1'],
+    categoryId: 'cat-lift',
+    categoryNameAr: 'إصلاح المصاعد',
+    categoryNameEn: 'Lifts (repairs)',
+    kind: 'variable',
+    vendorName: 'Gulf Lifts Technical Services',
+    reasonAr: 'إصلاح المصعد رقم 2',
+    reasonEn: 'Lift 2 repair',
+    invoiceNo: 'GL-2026-0417',
+    invoiceDate: '2026-10-12',
+    coversFrom: null,
+    coversTo: null,
+    grossAmountFils: 1_240_000,
+    grossVatFils: 62_000,
+    grossTotalFils: 1_302_000,
+    amountFils: 1_302_000,
+    shared: false,
+    paidOn: '2026-10-19',
+    hasAttachments: true,
+    ...over,
+  };
+}
+
+export function expenseDetail(over: Partial<ExpenseDetail> = {}): ExpenseDetail {
+  const { hasAttachments: _h, ...base } = expense();
+  return {
+    ...base,
+    paymentMethod: 'transfer',
+    allocationMethod: 'by_area',
+    disputeId: null,
+    disputeCaseNo: null,
+    attachments: [
+      {
+        id: 'att-1',
+        fileName: 'invoice-GL-2026-0417.jpg',
+        mime: 'image/jpeg',
+        sizeBytes: 14_000,
+        createdAt: '2026-10-12T08:00:00Z',
+      },
+    ],
+    workOrder: {
+      id: 'wo-1',
+      titleAr: 'توقف المصعد رقم 2',
+      titleEn: 'Lift 2 out of service',
+      status: 'done',
+      completedAt: '2026-10-12T08:00:00Z',
+    },
+    ...over,
+  };
+}
+
+export function workOrder(over: Partial<WorkOrderItem> = {}): WorkOrderItem {
+  return {
+    id: 'wo-1',
+    buildingId: 'bld-1',
+    buildingNameAr: 'برج الواحة',
+    buildingNameEn: 'Oasis Tower',
+    unitId: 'unit-1',
+    unitNo: '1204',
+    titleAr: 'عطل في التكييف',
+    titleEn: 'AC not cooling',
+    description: 'Compressor replaced.',
+    priority: 'urgent',
+    status: 'done',
+    reportedOn: '2026-10-01',
+    scheduledFor: '2026-10-02',
+    completedAt: '2026-10-03T09:00:00Z',
+    vendorName: 'Cool Breeze AC Services',
+    expenseId: 'exp-1',
+    photoCount: 2,
+    ...over,
+  };
+}
+
+export function workOrderDetail(over: Partial<WorkOrderDetail> = {}): WorkOrderDetail {
+  return {
+    ...workOrder(),
+    expenseTotalFils: 330_750,
+    attachments: [
+      {
+        id: 'ph-1',
+        fileName: 'ac-before.jpg',
+        mime: 'image/jpeg',
+        sizeBytes: 1,
+        createdAt: '2026-10-02T08:00:00Z',
+      },
+      {
+        id: 'ph-2',
+        fileName: 'ac-after.jpg',
+        mime: 'image/jpeg',
+        sizeBytes: 1,
+        createdAt: '2026-10-03T08:00:00Z',
+      },
+    ],
+    ...over,
+  };
+}
+
+export function timelineEntry(over: Partial<TimelineEntry> = {}): TimelineEntry {
+  return {
+    kind: 'cheque',
+    id: 'cheque:ev-9',
+    at: '2026-10-05T05:00:00.000Z',
+    date: '2026-10-05',
+    titleAr: 'cheque_cleared',
+    titleEn: '000123',
+    detailAr: '',
+    detailEn: '',
+    entityType: 'cheque',
+    entityId: 'chq-1',
+    amountFils: 2_500_000,
+    status: 'cleared',
+    ...over,
+  };
+}
+
+export function calendarItem(over: Partial<CalendarItem> = {}): CalendarItem {
+  return {
+    kind: 'cheque_due',
+    id: 'cheque:chq-1',
+    date: '2026-10-05',
+    endDate: '2026-10-05',
+    titleAr: 'شيك 000123 · برج الواحة 1204',
+    titleEn: 'Cheque 000123 · Oasis Tower 1204',
+    entityType: 'cheque',
+    entityId: 'chq-1',
+    amountFils: 2_500_000,
+    status: 'upcoming',
+    unitId: 'unit-1',
+    buildingId: 'bld-1',
+    allDay: true,
     ...over,
   };
 }

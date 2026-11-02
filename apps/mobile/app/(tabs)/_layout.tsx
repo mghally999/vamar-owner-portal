@@ -25,6 +25,7 @@ export default function TabsLayout() {
       >
         <Tabs.Screen name="index" options={{ title: tr('tab_home') }} />
         <Tabs.Screen name="cheques" options={{ title: tr('tab_cheques') }} />
+        <Tabs.Screen name="expenses" options={{ title: tr('tab_expenses') }} />
         <Tabs.Screen name="properties" options={{ title: tr('tab_properties') }} />
         <Tabs.Screen name="disputes" options={{ title: tr('tab_disputes') }} />
       </Tabs>

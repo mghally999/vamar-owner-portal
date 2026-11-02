@@ -1,11 +1,13 @@
-import { Link } from 'expo-router';
-import { useState } from 'react';
+import { Link, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { todayInDubai, type PlainDate } from '@vamar/shared';
+import { isPeriodPreset } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { useHome } from '@/lib/queries';
+import { usePeriod } from '@/lib/period';
+import { useMe, useSummary } from '@/lib/queries';
+import { shareStatementForPeriod } from '@/lib/statement-period';
 import { useTheme } from '@/lib/theme';
 import {
   Amount,
@@ -22,26 +24,78 @@ import {
   Text,
   layout,
 } from '@/ui';
+import { BarChart } from '@/ui/bar-chart';
 import { Icon } from '@/ui/icon';
-import { MonthSwitcher } from '@/ui/month-switcher';
+import { PeriodSwitcher } from '@/ui/period-switcher';
 import { UpdateBanner } from '@/screens/update';
 import { useUpdateState } from '@/lib/version';
 
+interface Href {
+  pathname: string;
+  params: Record<string, string>;
+}
+
 /**
- * Owner home, as designed (Figma "Vamar" Page 2, frame "test"): month switcher; the month's money
- * card (expected total, then paid / pending / bounced tiles, then next month); the next cheque;
- * occupancy with the vacant units; open disputes.
+ * Owner home (Figma "Vamar" Page 2, Home frame 25:171): the period switcher, the period's money
+ * card (expected rent, then collected / outstanding / at risk tiles, then expenses and net), a
+ * small rent-versus-expenses chart, the next cheque, contracts ending soon, open maintenance,
+ * the calendar row, occupancy and open disputes. Every number opens the list behind it.
  */
 export default function HomeScreen() {
   const t = useTheme();
-  const { t: tr, pick, isRTL } = useI18n();
+  const { t: tr, pick, isRTL, lang, num } = useI18n();
   const auth = useAuth();
-  const [monthStart, setMonthStart] = useState<PlainDate>(
-    `${todayInDubai().slice(0, 7)}-01` as PlainDate,
-  );
-  const q = useHome(monthStart.slice(0, 7));
+  const { selection, setSelection, query, period } = usePeriod();
+  // A push notification (the monthly summary) can open Home on a period.
+  const params = useLocalSearchParams<{ preset?: string }>();
+  useEffect(() => {
+    if (isPeriodPreset(params.preset) && params.preset !== 'custom')
+      setSelection({ kind: 'preset', preset: params.preset });
+  }, [params.preset, setSelection]);
+  const me = useMe();
+  const settings = me.data?.settings;
+  const q = useSummary(query);
   const update = useUpdateState();
   const d = q.data;
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState(false);
+  const projected = d?.isFuture === true;
+  const netLabel = tr(projected ? 'home_projectedNet' : 'home_net');
+  const nothing = d
+    ? d.rent.expectedFils === 0 && d.expenses.totalFils === 0 && d.expenses.projectedFixedFils === 0
+    : false;
+
+  const tile = (
+    label: string,
+    fils: number | undefined,
+    href: Href,
+    wide = false,
+    extra?: React.ReactNode,
+  ) => (
+    <Link key={label} href={href} asChild>
+      <Pressable
+        accessibilityRole="button"
+        style={{
+          flex: wide ? 2 : 1,
+          minWidth: wide ? '60%' : '30%',
+          backgroundColor: t.colors.heroTile,
+          borderRadius: t.radius.sm,
+          padding: 12,
+          gap: 4,
+        }}
+      >
+        <Text variant="caption" color="onHeroSoft" numberOfLines={1}>
+          {label}
+        </Text>
+        {d ? (
+          <Amount fils={fils ?? 0} size="body" weight="medium" color="onHero" />
+        ) : (
+          <Skeleton width={60} height={20} />
+        )}
+        {d ? extra : null}
+      </Pressable>
+    </Link>
+  );
 
   return (
     <ScrollView
@@ -55,13 +109,13 @@ export default function HomeScreen() {
       }
     >
       {update.kind === 'available' ? <UpdateBanner state={update} /> : null}
-      <MonthSwitcher value={monthStart} onChange={setMonthStart} />
+      <PeriodSwitcher value={selection} onChange={setSelection} weekStart={settings?.weekStart} />
 
       {q.isError ? (
         <ErrorState onRetry={() => void q.refetch()} />
       ) : (
         <>
-          {/* The month's money */}
+          {/* The period's money */}
           <View
             style={{
               backgroundColor: t.colors.hero,
@@ -71,57 +125,84 @@ export default function HomeScreen() {
               padding: 16,
             }}
           >
-            <Text variant="secondary" weight="medium" color="onHeroSoft">
-              {tr('home_expected')}
-            </Text>
-            <View style={{ paddingVertical: 12 }}>
-              {d ? (
-                <Amount fils={d.expectedFils} size="hero" color="onHero" />
-              ) : (
-                <Skeleton width={200} height={46} />
-              )}
-            </View>
-            <Row style={{ gap: 4 }}>
-              {(
-                [
-                  ['home_cleared', d?.clearedFils],
-                  ['home_pending', d?.pendingFils],
-                  ['home_bounced', d?.bouncedFils],
-                ] as [MessageKey, number | undefined][]
-              ).map(([label, fils]) => (
-                <View
-                  key={label}
-                  style={{
-                    flex: 1,
-                    backgroundColor: t.colors.heroTile,
-                    borderRadius: t.radius.sm,
-                    padding: 12,
-                    gap: 4,
-                  }}
-                >
-                  <Text variant="caption" color="onHeroSoft" numberOfLines={1}>
-                    {tr(label)}
-                  </Text>
+            <Link href={{ pathname: '/(tabs)/cheques', params: {} }} asChild>
+              <Pressable accessibilityRole="button">
+                <Text variant="secondary" weight="medium" color="onHeroSoft">
+                  {tr('home_expectedRent')}
+                </Text>
+                <View style={{ paddingVertical: 12 }}>
                   {d ? (
-                    <Amount fils={fils ?? 0} size="body" weight="medium" color="onHero" />
+                    <Amount fils={d.rent.expectedFils} size="hero" color="onHero" />
                   ) : (
-                    <Skeleton width={60} height={20} />
+                    <Skeleton width={200} height={46} />
                   )}
                 </View>
-              ))}
-            </Row>
-            <Row style={{ justifyContent: 'space-between', paddingTop: 16, paddingHorizontal: 4 }}>
-              <Text variant="caption" color="onHeroSoft">
-                {tr('home_nextMonthLabel')}
+              </Pressable>
+            </Link>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
+              {tile(tr('home_collected'), d?.rent.collectedFils, {
+                pathname: '/(tabs)/cheques',
+                params: { status: 'cleared' },
+              })}
+              {tile(tr('home_outstanding'), d?.rent.outstandingFils, {
+                pathname: '/(tabs)/cheques',
+                params: { status: 'upcoming' },
+              })}
+              {tile(tr('home_atRisk'), d?.rent.atRiskFils, {
+                pathname: '/(tabs)/cheques',
+                params: { status: 'bounced' },
+              })}
+            </View>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {tile(
+                tr('home_expenses'),
+                d?.expenses.totalFils,
+                { pathname: '/(tabs)/expenses', params: {} },
+                true,
+                d ? (
+                  <Text variant="caption" color="onHeroSoft" tnum numberOfLines={2}>
+                    {tr('home_fixed')} {num(d.expenses.fixedFils)} · {tr('home_variable')}{' '}
+                    {num(d.expenses.variableFils)}
+                    {d.expenses.projectedFixedFils > 0
+                      ? `\n${tr('home_projected')}: ${num(d.expenses.projectedFixedFils)}`
+                      : ''}
+                  </Text>
+                ) : null,
+              )}
+              {tile(netLabel, d ? (projected ? d.projectedNetFils : d.netFils) : undefined, {
+                pathname: '/(tabs)/expenses',
+                params: {},
+              })}
+            </View>
+            {settings?.showBeforeFeeLabel !== false ? (
+              <Text
+                variant="caption"
+                color="onHeroSoft"
+                style={{ paddingTop: 10, paddingHorizontal: 4 }}
+              >
+                {netLabel}: {tr('home_beforeFee')}
               </Text>
-              {d ? (
-                <Amount fils={d.nextMonthFils} size="body" weight="medium" color="onHero" />
-              ) : null}
-            </Row>
+            ) : null}
           </View>
 
-          {d?.expectedFils === 0 && !d.nextCheque ? (
-            <EmptyState title={tr('home_empty_title')} body={tr('home_empty_body')} />
+          {nothing ? (
+            <EmptyState title={tr('home_empty_period_title')} body={tr('home_empty_period_body')} />
+          ) : null}
+
+          {/* Rent vs expenses by month */}
+          {d && d.buckets.length > 1 ? (
+            <Card style={{ padding: 16, gap: 10 }}>
+              <Text variant="secondary" weight="medium">
+                {tr('home_chart')}
+              </Text>
+              <BarChart
+                points={d.buckets.map((b) => ({
+                  key: b.key,
+                  rentFils: b.expectedFils,
+                  expensesFils: b.fixedFils + b.variableFils + b.projectedFixedFils,
+                }))}
+              />
+            </Card>
           ) : null}
 
           {/* Next cheque */}
@@ -161,9 +242,87 @@ export default function HomeScreen() {
             <EmptyState title={tr('home_next_empty')} />
           )}
 
+          {/* Contracts ending soon */}
+          {d ? (
+            <Card style={{ padding: 16, gap: 8 }}>
+              <Text weight="medium">{tr('home_endingSoon')}</Text>
+              {d.contractsEnding.length === 0 ? (
+                <Text variant="secondary" color="soft">
+                  {tr('home_endingSoon_empty')}
+                </Text>
+              ) : (
+                d.contractsEnding.map((c) => (
+                  <Link
+                    key={c.id}
+                    href={{ pathname: '/unit/[id]', params: { id: c.unitId } }}
+                    asChild
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      style={{
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        minHeight: 44,
+                        gap: 8,
+                      }}
+                    >
+                      <View style={{ flex: 1, gap: 2 }}>
+                        <Text variant="secondary" weight="medium" numberOfLines={1}>
+                          {pick(c.buildingNameAr, c.buildingNameEn)} {c.unitNo}
+                        </Text>
+                        <Text variant="caption" color="soft" numberOfLines={1}>
+                          {c.tenantName}
+                        </Text>
+                      </View>
+                      <DateText date={c.endDate} variant="caption" />
+                    </Pressable>
+                  </Link>
+                ))
+              )}
+            </Card>
+          ) : null}
+
+          {/* Open maintenance and the calendar */}
+          {d ? (
+            <Row style={{ gap: 12, alignItems: 'stretch' }}>
+              <Link href="/work-orders" asChild>
+                <Pressable accessibilityRole="button" style={{ flex: 1 }}>
+                  <Card
+                    style={{ padding: 14, minHeight: 92, justifyContent: 'space-between', flex: 1 }}
+                  >
+                    <Text variant="secondary" weight="medium">
+                      {d.openWorkOrders === 0
+                        ? tr('home_workOrders_none')
+                        : d.openWorkOrders === 1
+                          ? tr('home_workOrders_one')
+                          : tr('home_workOrders', { n: d.openWorkOrders })}
+                    </Text>
+                    <Icon name="chevronRow" color={t.colors.ink} flip={!isRTL} />
+                  </Card>
+                </Pressable>
+              </Link>
+              <Link href="/calendar" asChild>
+                <Pressable accessibilityRole="button" style={{ flex: 1 }}>
+                  <Card
+                    style={{ padding: 14, minHeight: 92, justifyContent: 'space-between', flex: 1 }}
+                  >
+                    <Row style={{ gap: 8 }}>
+                      <Icon name="calendar" color={t.colors.ink} />
+                      <Text variant="secondary" weight="medium">
+                        {tr('home_calendar')}
+                      </Text>
+                    </Row>
+                    <Icon name="chevronRow" color={t.colors.ink} flip={!isRTL} />
+                  </Card>
+                </Pressable>
+              </Link>
+            </Row>
+          ) : null}
+
           {/* Occupancy */}
           {!d ? (
-            <Skeleton height={180} radius={24} />
+            <Skeleton height={120} radius={24} />
           ) : (
             <Card style={{ padding: 16 }}>
               <Text tnum>
@@ -179,47 +338,6 @@ export default function HomeScreen() {
               <View style={{ paddingTop: 13 }}>
                 <ProgressBar pct={d.occupancy.pct} />
               </View>
-              {d.vacantUnits.length > 0 ? (
-                <View style={{ marginTop: 20 }}>
-                  <Separator />
-                  <Text variant="caption" weight="medium" style={{ marginTop: 8 }}>
-                    {tr('home_vacant')}
-                  </Text>
-                  {d.vacantUnits.map((u) => (
-                    <Link
-                      key={u.unitId}
-                      href={{ pathname: '/unit/[id]', params: { id: u.unitId } }}
-                      asChild
-                    >
-                      <Pressable
-                        accessibilityRole="button"
-                        style={{
-                          flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-end',
-                          paddingVertical: 8,
-                          minHeight: 44,
-                        }}
-                      >
-                        <View style={{ gap: 5 }}>
-                          <Text weight="medium">{pick(u.buildingNameAr, u.buildingNameEn)}</Text>
-                          <Text variant="caption" tnum>
-                            {tr('unit')} {u.unitNo}
-                          </Text>
-                        </View>
-                        {u.vacantSince ? (
-                          <Text variant="caption" color="soft" tnum>
-                            {tr('unit_vacantSince', { date: '' })}
-                            <DateText date={u.vacantSince} variant="caption" />
-                          </Text>
-                        ) : (
-                          <Chip label={tr('unit_neverRented')} />
-                        )}
-                      </Pressable>
-                    </Link>
-                  ))}
-                </View>
-              ) : null}
             </Card>
           )}
 
@@ -250,6 +368,40 @@ export default function HomeScreen() {
                 </Card>
               </Pressable>
             </Link>
+          ) : null}
+
+          {d ? (
+            <View style={{ gap: 6 }}>
+              <Button
+                title={tr('home_statement')}
+                variant="secondary"
+                loading={sharing}
+                onPress={() => {
+                  setSharing(true);
+                  setShareError(false);
+                  const ownerName = auth.owner ? pick(auth.owner.nameAr, auth.owner.nameEn) : '';
+                  void shareStatementForPeriod({
+                    ownerName,
+                    lang,
+                    period,
+                    query,
+                    summary: d,
+                    beforeFeeLabel: settings?.showBeforeFeeLabel !== false,
+                  })
+                    .catch(() => {
+                      setShareError(true);
+                    })
+                    .finally(() => {
+                      setSharing(false);
+                    });
+                }}
+              />
+              {shareError ? (
+                <Text variant="caption" color="danger">
+                  {tr('error_generic')}
+                </Text>
+              ) : null}
+            </View>
           ) : null}
 
           {auth.justSignedIn && auth.biometricsAvailable && !auth.biometricsEnabled ? (
