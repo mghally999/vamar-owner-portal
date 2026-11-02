@@ -14,14 +14,15 @@ starts empty.
    must be able to receive mail: the first sign-in sends a verification link.
 2. **Fill the import template.** Download it from the dashboard (Import page, "Download the
    template") or take `apps/dashboard/public/vamar-import-template.xlsx`. The sheet "اقرأني"
-   explains every column in Arabic, with an example per sheet. Seven sheets: Owners, Buildings,
+   explains every column in Arabic, with an example per sheet. Eight sheets: Owners, Buildings,
    Units, Tenants, Shares (one row per owner of a unit; a unit's shares add up to 100 %), Contracts
    (no two may overlap on a unit) and Cheques (each names its contract by building, unit and
    start date; amounts in AED). Excel itself refuses wrong languages, unit types, counts, shares
    and dates; the dashboard checks everything again and lists each bad row with its reason (in
    Arabic and English) before anything is saved. Owner phones must be UAE mobile numbers.
 3. **Rehearse the import on staging** with the real file: sign in to the staging dashboard, import
-   the sheets in this order: Owners, Buildings, Units, Tenants, Shares, Contracts, Cheques, and fix
+   the sheets in this order: Owners, Buildings, Units, Tenants, Shares, Contracts, Cheques,
+   Expenses, and fix
    what the report lists. A contract is created as a draft and becomes active when its last cheque
    arrives and the cheques add up to the annual rent; when they do not, it stays a draft (the
    report says so) and is activated on its page with a reason. Re-importing is safe: each batch of
@@ -98,7 +99,8 @@ connection string of the production Neon branch (`.local/neon.env`, `DATABASE_UR
    through the same first sign-in. Two-step login is required for every account and cannot be
    switched off for admins.
 8. **Import** the real file, sheet by sheet: Owners, Buildings, Units, Tenants, Shares, Contracts,
-   Cheques. Then, in the dashboard: activate any contract the report left as a draft (its cheques
+   Cheques, Expenses (last: each expense row is posted at once and split between the owners of
+   the building or unit). Then, in the dashboard: activate any contract the report left as a draft (its cheques
    do not add up to the rent), and set the status of cheques that were already deposited,
    cleared or bounced (Cheques page, bulk status).
 9. **Check.** `curl https://vamar-owner-portal.vamar-api.workers.dev/readyz` answers

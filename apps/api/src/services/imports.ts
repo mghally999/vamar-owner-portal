@@ -6,27 +6,32 @@
  * rows of a unit must add up to 100 %, so they are checked and saved together, in one savepoint
  * per unit. The per-row report is stored on the import row and returned again when the same
  * idempotency key is committed twice; rows imported earlier under another key are refused as
- * duplicates, never inserted twice.
+ * duplicates, never inserted twice. Expenses are created and posted through the expense
+ * service, so their owner allocations exist as soon as the row lands.
  */
 import { and, asc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { schema } from '@vamar/db';
 import {
   aedAmountToFils,
+  buildingIdentifiersSchema,
   createBuildingSchema,
   createOwnerSchema,
   createTenantSchema,
   createUnitSchema,
   importChequeRowSchema,
   importContractRowSchema,
+  importExpenseRowSchema,
   importShareRowSchema,
   sharePctToBp,
   TOTAL_SHARE_BP,
   UNIT_TYPES,
+  unitIdentifiersSchema,
   unitKey,
   validateChequeGrid,
   type ImportChequeRow,
   type ImportContractRow,
+  type ImportExpenseRow,
   type ImportShareRow,
   type PlainDate,
 } from '@vamar/shared';
@@ -35,6 +40,7 @@ import { ApiError } from '../errors.js';
 import { log } from '../util/log.js';
 import { audit, type AuditActor } from './audit.js';
 import { activateContract, createContract } from './contracts.js';
+import { createExpense, postExpense } from './expenses.js';
 import { setUnitOwners } from './properties.js';
 
 export const IMPORT_TARGETS = [
@@ -45,14 +51,24 @@ export const IMPORT_TARGETS = [
   'shares',
   'contracts',
   'cheques',
+  'expenses',
 ] as const;
 export type ImportTarget = (typeof IMPORT_TARGETS)[number];
 
+/** Imported expenses never trigger the large-expense push: they are history being loaded. */
+const NO_LARGE_EXPENSE_ALERT = Number.MAX_SAFE_INTEGER;
+
 /** Units are matched to buildings by English or Arabic name (or id) so sheets need no uuids. */
-const unitImportRow = createUnitSchema.omit({ buildingId: true }).extend({
-  building: z.string().trim().min(1),
-  type: z.enum(UNIT_TYPES).default('apartment'),
-});
+const unitImportRow = createUnitSchema
+  .omit({ buildingId: true })
+  .extend({
+    building: z.string().trim().min(1),
+    type: z.enum(UNIT_TYPES).default('apartment'),
+  })
+  .extend(unitIdentifiersSchema.shape);
+
+/** Buildings carry their land-department identifiers when the sheet has them. */
+const buildingImportRow = createBuildingSchema.extend(buildingIdentifiersSchema.shape);
 
 export const importCommitSchema = z.object({
   target: z.enum(IMPORT_TARGETS),
@@ -96,11 +112,12 @@ function issues(err: z.ZodError): RowError {
 
 type Prepared =
   | { target: 'owners'; data: z.infer<typeof createOwnerSchema> }
-  | { target: 'buildings'; data: z.infer<typeof createBuildingSchema> }
+  | { target: 'buildings'; data: z.infer<typeof buildingImportRow> }
   | { target: 'units'; data: z.infer<typeof unitImportRow> }
   | { target: 'tenants'; data: z.infer<typeof createTenantSchema> }
   | { target: 'contracts'; data: ImportContractRow }
-  | { target: 'cheques'; data: ImportChequeRow };
+  | { target: 'cheques'; data: ImportChequeRow }
+  | { target: 'expenses'; data: ImportExpenseRow };
 
 function parse<T>(rowSchema: z.ZodType<T>, data: Record<string, unknown>): T {
   const p = rowSchema.safeParse(data);
@@ -113,7 +130,7 @@ function prepare(target: Exclude<ImportTarget, 'shares'>, data: Record<string, u
     case 'owners':
       return { target, data: parse(createOwnerSchema, data) };
     case 'buildings':
-      return { target, data: parse(createBuildingSchema, data) };
+      return { target, data: parse(buildingImportRow, data) };
     case 'units':
       return { target, data: parse(unitImportRow, data) };
     case 'tenants':
@@ -122,6 +139,8 @@ function prepare(target: Exclude<ImportTarget, 'shares'>, data: Record<string, u
       return { target, data: parse(importContractRowSchema, data) };
     case 'cheques':
       return { target, data: parse(importChequeRowSchema, data) };
+    case 'expenses':
+      return { target, data: parse(importExpenseRowSchema, data) };
   }
 }
 
@@ -172,6 +191,9 @@ export async function commitImport(
       input.target === 'owners' || input.target === 'tenants'
         ? new Map<string, string>()
         : await buildingLookup(db),
+    categoriesByName:
+      input.target === 'expenses' ? await categoryLookup(db) : new Map<string, string>(),
+    vendorsByName: input.target === 'expenses' ? await vendorLookup(db) : new Map<string, string>(),
   };
   const results =
     input.target === 'shares' ? await importShares(ctx, input.rows) : await importRows(ctx, input);
@@ -216,6 +238,10 @@ interface RowContext {
   today: PlainDate;
   createdBy: string | null;
   buildingsByName: Map<string, string>;
+  /** Active expense categories by lower-cased English name and by Arabic name. */
+  categoriesByName: Map<string, string>;
+  /** Vendors by lower-cased name. */
+  vendorsByName: Map<string, string>;
 }
 
 /** A savepoint around one unit of work; a refusal becomes the row's messages. */
@@ -342,6 +368,8 @@ async function saveRow(
       return saveContract(ctx, sp, prepared.data);
     case 'cheques':
       return saveCheque(ctx, sp, prepared.data);
+    case 'expenses':
+      return saveExpense(ctx, sp, prepared.data);
   }
 }
 
@@ -485,6 +513,60 @@ async function saveCheque(
 }
 
 /**
+ * An expense row: the building (and unit) by name, the category by its English or Arabic name,
+ * the vendor by name; created as a draft and posted at once so the owners' shares exist. VAT
+ * left blank follows the vendor's TRN (5 %) or is 0.
+ */
+async function saveExpense(
+  ctx: RowContext,
+  sp: Tx,
+  row: ImportExpenseRow,
+): Promise<{ id: string; note?: string }> {
+  const buildingId = findBuilding(ctx, row.building);
+  const unitId =
+    row.unitNo === undefined ? null : await findUnit(ctx, sp, row.building, row.unitNo);
+  const categoryId =
+    ctx.categoriesByName.get(row.category.toLowerCase()) ?? ctx.categoriesByName.get(row.category);
+  if (!categoryId)
+    throw new RowError([
+      `category: no active expense category named "${row.category}" · لا يوجد تصنيف مصروفات فعّال بهذا الاسم`,
+    ]);
+  let vendorId: string | null = null;
+  if (row.vendor !== undefined) {
+    vendorId = ctx.vendorsByName.get(row.vendor.toLowerCase()) ?? null;
+    if (!vendorId)
+      throw new RowError([
+        `vendor: no vendor named "${row.vendor}" (add it on the Expenses page first) · لا يوجد مورّد بهذا الاسم`,
+      ]);
+  }
+  const draft = await createExpense(sp, ctx.actor, {
+    scope: unitId ? 'unit' : 'building',
+    buildingId,
+    unitId,
+    categoryId,
+    vendorId,
+    reasonAr: row.reasonAr,
+    reasonEn: row.reasonEn,
+    invoiceNo: row.invoiceNo ?? null,
+    invoiceDate: row.invoiceDate,
+    coversFrom: null,
+    coversTo: null,
+    amountFils: aedAmountToFils(row.amountAed),
+    ...(row.vatAed === undefined ? {} : { vatFils: aedAmountToFils(row.vatAed) }),
+    paidOn: row.paidOn ?? null,
+    paymentMethod: row.paymentMethod ?? null,
+    visibleToOwner: row.visibleToOwner ?? true,
+    disputeId: null,
+    workOrderId: null,
+  });
+  const posted = await postExpense(sp, ctx.actor, draft.id, NO_LARGE_EXPENSE_ALERT);
+  return {
+    id: posted.expense.id,
+    note: `posted, ${String(posted.allocations.length)} owner shares`,
+  };
+}
+
+/**
  * Shares: the rows of one unit are one unit of work. They must name existing owners, each once,
  * and add up to exactly 100 %. A unit that already has these owners and shares is left as it is
  * (re-import); a unit with different current owners is refused, so an import never silently
@@ -594,6 +676,31 @@ async function buildingLookup(db: Dbx): Promise<Map<string, string>> {
     m.set(b.nameAr, b.id);
   }
   return m;
+}
+
+async function categoryLookup(db: Dbx): Promise<Map<string, string>> {
+  const rows = await db
+    .select({
+      id: schema.expenseCategories.id,
+      nameAr: schema.expenseCategories.nameAr,
+      nameEn: schema.expenseCategories.nameEn,
+    })
+    .from(schema.expenseCategories)
+    .where(eq(schema.expenseCategories.active, true));
+  const m = new Map<string, string>();
+  for (const c of rows) {
+    m.set(c.nameEn.toLowerCase(), c.id);
+    m.set(c.nameAr, c.id);
+  }
+  return m;
+}
+
+async function vendorLookup(db: Dbx): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ id: schema.vendors.id, name: schema.vendors.name })
+    .from(schema.vendors)
+    .where(eq(schema.vendors.active, true));
+  return new Map(rows.map((v) => [v.name.toLowerCase(), v.id]));
 }
 
 function isUuid(s: string): boolean {

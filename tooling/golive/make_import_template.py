@@ -27,6 +27,7 @@ HEADER_FILL = PatternFill("solid", fgColor=SLATE)
 NOTE_FONT = Font(name="Almarai", italic=True, color="4C575E", size=10)
 BODY_FONT = Font(name="Almarai")
 UNIT_TYPES = ["apartment", "villa", "shop", "office", "warehouse", "other"]
+PAYMENT_METHODS = ["cash", "cheque", "transfer", "card"]
 ROWS = 5000  # validation applies to this many rows
 
 SHEETS = {
@@ -42,13 +43,24 @@ SHEETS = {
         ("nameEn", "Building name in English", "مطلوب", 28),
         ("area", "المنطقة، مثل ديرة", "مطلوب", 20),
         ("address", "العنوان", "اختياري", 36),
+        ("plotNo", "رقم قطعة الأرض", "اختياري", 16),
+        ("makaniNo", "رقم مكاني (10 أرقام)", "اختياري", 16),
+        ("titleDeedNo", "رقم سند الملكية", "اختياري", 18),
+        ("completionYear", "سنة الإنجاز، مثل 2016", "اختياري", 14),
+        ("floorsCount", "عدد الطوابق", "اختياري", 12),
     ],
     "Units": [
         ("building", "اسم المبنى كما في ورقة المباني (عربي أو إنجليزي)", "مطلوب", 30),
         ("unitNo", "رقم الوحدة، مثل 1204 أو G-02", "مطلوب، لا يتكرر في نفس المبنى", 18),
         ("type", "النوع: apartment / villa / shop / office / warehouse / other", "اختياري، apartment إذا ترك فارغاً", 22),
         ("bedrooms", "عدد غرف النوم (0 إلى 20)", "اختياري", 16),
-        ("sizeSqft", "المساحة بالقدم المربع", "اختياري", 16),
+        ("sizeSqft", "المساحة بالقدم المربع", "اختياري، تُستخدم لتوزيع مصروفات المبنى حسب المساحة", 16),
+        ("titleDeedNo", "رقم سند الملكية", "اختياري", 18),
+        ("plotNo", "رقم قطعة الأرض", "اختياري", 16),
+        ("makaniNo", "رقم مكاني (10 أرقام)", "اختياري", 16),
+        ("dewaPremiseNo", "رقم حساب ديوا / سيوا", "اختياري", 18),
+        ("municipalityNo", "رقم البلدية", "اختياري", 16),
+        ("handoverDate", "تاريخ التسليم YYYY-MM-DD", "اختياري", 16),
     ],
     "Tenants": [
         ("name", "اسم المستأجر أو الشركة", "مطلوب", 30),
@@ -84,19 +96,35 @@ SHEETS = {
         ("chequeNo", "رقم الشيك", "مطلوب", 16),
         ("bankName", "اسم البنك", "مطلوب", 22),
     ],
+    "Expenses": [
+        ("building", "اسم المبنى كما في ورقة المباني", "مطلوب", 28),
+        ("unitNo", "رقم الوحدة إذا كان المصروف على وحدة بعينها", "اختياري، فارغ يعني مصروف على المبنى كله", 16),
+        ("category", "التصنيف كما في صفحة المصروفات (عربي أو إنجليزي)، مثل سباكة أو Plumbing", "مطلوب", 30),
+        ("vendor", "اسم المورّد كما في صفحة المصروفات", "اختياري، يجب أن يكون مضافاً من قبل", 28),
+        ("reasonAr", "سبب المصروف بالعربي (يظهر للمالك)", "مطلوب", 32),
+        ("reasonEn", "Reason in English (shown to the owner)", "مطلوب", 32),
+        ("invoiceNo", "رقم الفاتورة", "اختياري", 16),
+        ("invoiceDate", "تاريخ الفاتورة YYYY-MM-DD", "مطلوب", 16),
+        ("amountAed", "المبلغ قبل الضريبة بالدرهم، مثل 1250.50", "مطلوب، منزلتان عشريتان كحد أقصى", 16),
+        ("vatAed", "ضريبة القيمة المضافة بالدرهم", "اختياري، فارغ يعني 5% إذا كان للمورّد رقم ضريبي وإلا صفر", 14),
+        ("paidOn", "تاريخ الدفع YYYY-MM-DD", "اختياري", 16),
+        ("paymentMethod", "طريقة الدفع: cash / cheque / transfer / card", "اختياري", 16),
+        ("visibleToOwner", "يظهر للمالك؟ نعم أو لا", "اختياري، نعم إذا ترك فارغاً", 14),
+    ],
 }
 
 EXAMPLES = {
     "Owners": ["خالد المنصوري", "Khalid Al Mansoori", "+971501234567", "khalid@example.com", "ar"],
-    "Buildings": ["برج النور", "Al Noor Tower", "ديرة", "شارع المطار، دبي"],
-    "Units": ["برج النور", "1204", "apartment", 2, 1150],
+    "Buildings": ["برج النور", "Al Noor Tower", "ديرة", "شارع المطار، دبي", "346-1180", "2735894120", "BB-2015-0346", 2016, 24],
+    "Units": ["برج النور", "1204", "apartment", 2, 1150, "TD-1-0004", "346-1180", "2010003711", "300001003", "1004-1204", "2016-06-01"],
     "Tenants": ["سارة خليل", "+971559876543", "", ""],
     "Shares": ["برج النور", "1204", "+971501234567", 100, "2026-01-01"],
     "Contracts": ["برج النور", "1204", "سارة خليل", "+971559876543", "2026-01-01", "2026-12-31", 63000, 4, ""],
     "Cheques": ["برج النور", "1204", "2026-01-01", 1, "2026-01-01", 15750, "836466", "Emirates NBD"],
+    "Expenses": ["برج النور", "", "رواتب موظفي المبنى (حارس، نظافة، فني)", "Al Hamad Facilities Management LLC", "رواتب أكتوبر", "October salaries", "AH-2026-1041", "2026-10-25", 6500, 325, "2026-10-30", "transfer", "نعم"],
 }
 
-DATE_COLUMNS = {"fromDate", "startDate", "endDate", "contractStart", "dueDate"}
+DATE_COLUMNS = {"fromDate", "startDate", "endDate", "contractStart", "dueDate", "invoiceDate", "paidOn", "handoverDate"}
 
 
 def instructions(ws):
@@ -106,7 +134,7 @@ def instructions(ws):
         ("نموذج استيراد بيانات فامار", Font(name="Almarai", bold=True, size=16, color=SLATE)),
         ("", None),
         ("طريقة الاستخدام", Font(name="Almarai", bold=True, size=13, color=SLATE)),
-        ("1. املأ الأوراق واستوردها بالترتيب: الملاك، المباني، الوحدات، المستأجرون، الحصص، العقود، ثم الشيكات. صف واحد لكل سجل، ابتداءً من الصف الثاني.", BODY_FONT),
+        ("1. املأ الأوراق واستوردها بالترتيب: الملاك، المباني، الوحدات، المستأجرون، الحصص، العقود، الشيكات، ثم المصروفات. صف واحد لكل سجل، ابتداءً من الصف الثاني.", BODY_FONT),
         ("2. لا تغيّر الصف الأول (أسماء الأعمدة) ولا تحذفه. مرّر المؤشر على اسم العمود لرؤية شرحه، والشرح نفسه في الأسفل.", BODY_FONT),
         ("3. في لوحة التحكم افتح «استيراد»، اختر الملف، ثم اختر الورقة ونوع البيانات. تُطابق الأعمدة تلقائياً.", BODY_FONT),
         ("4. راجع نتيجة الفحص: الصفوف السليمة تُستورد، والصفوف التي فيها أخطاء تظهر مع السبب لتصحيحها ثم رفعها مرة أخرى.", BODY_FONT),
@@ -120,6 +148,8 @@ def instructions(ws):
         ("• الشيكات: كل شيك يتبع عقداً موجوداً (نفس المبنى والوحدة وتاريخ بداية العقد). عندما يكتمل آخر شيك ومجموع الشيكات يساوي الإيجار السنوي يصبح العقد سارياً تلقائياً؛ إن اختلف المجموع يبقى مسودة لتفعيله من لوحة التحكم مع ذكر السبب.", BODY_FONT),
         ("• المبالغ بالدرهم (مثل 63000 أو 15750.50) وتُحفظ بالفلس. التواريخ بصيغة YYYY-MM-DD أو تاريخ Excel.", BODY_FONT),
         ("• حالة الشيكات (مودَع، تم الصرف، مرتجع) تُحدّث من لوحة التحكم بعد الاستيراد (تحديث جماعي في شاشة الشيكات).", BODY_FONT),
+        ("• المصروفات: التصنيف والمورّد يجب أن يكونا موجودين في صفحة المصروفات قبل الاستيراد. كل صف يُرحَّل مباشرة وتُحسب حصة كل مالك منه (حسب المساحة إذا كانت مساحات الوحدات مسجلة، وإلا بالتساوي). اترك رقم الوحدة فارغاً للمصروف المشترك على المبنى.", BODY_FONT),
+        ("• أرقام العقار (سند الملكية، قطعة الأرض، مكاني، حساب ديوا/سيوا، البلدية) اختيارية في ورقتي المباني والوحدات وتظهر للمالك في التطبيق.", BODY_FONT),
         ("• حتى 5,000 صف في كل ورقة. الملف الأكبر يقسّم إلى ملفات.", BODY_FONT),
         ("", None),
         ("شرح الأعمدة", Font(name="Almarai", bold=True, size=13, color=SLATE)),
@@ -184,6 +214,16 @@ def data_sheet(wb, name, cols):
     if name == "Buildings":
         add(required_text("الاسم"), "nameAr")
         add(required_text("Name"), "nameEn")
+        add(DataValidation(type="whole", operator="between", formula1="1950", formula2="2100",
+                           allow_blank=True, showErrorMessage=True, errorTitle="سنة الإنجاز",
+                           error="سنة من 1950 إلى 2100."), "completionYear")
+        add(DataValidation(type="whole", operator="between", formula1="0", formula2="300",
+                           allow_blank=True, showErrorMessage=True, errorTitle="الطوابق",
+                           error="رقم صحيح من 0 إلى 300."), "floorsCount")
+    if name in ("Buildings", "Units"):
+        add(DataValidation(type="textLength", operator="equal", formula1="10",
+                           allow_blank=True, showErrorMessage=True, errorTitle="مكاني",
+                           error="رقم مكاني 10 أرقام."), "makaniNo")
     if name == "Units":
         add(DataValidation(type="list", formula1='"' + ",".join(UNIT_TYPES) + '"', allow_blank=True,
                            showErrorMessage=True, errorTitle="النوع", error="اختر نوعاً من القائمة."),
@@ -196,8 +236,22 @@ def data_sheet(wb, name, cols):
                            error="رقم صحيح أكبر من صفر."), "sizeSqft")
     if name == "Tenants":
         add(required_text("الاسم"), "name")
-    if name in ("Shares", "Contracts", "Cheques"):
+    if name in ("Shares", "Contracts", "Cheques", "Expenses"):
         add(required_text("المبنى"), "building")
+    if name == "Expenses":
+        add(required_text("التصنيف"), "category")
+        add(DataValidation(type="decimal", operator="greaterThan", formula1="0",
+                           allow_blank=True, showErrorMessage=True, errorTitle="المبلغ",
+                           error="مبلغ بالدرهم أكبر من صفر."), "amountAed")
+        add(DataValidation(type="decimal", operator="greaterThanOrEqual", formula1="0",
+                           allow_blank=True, showErrorMessage=True, errorTitle="الضريبة",
+                           error="مبلغ بالدرهم، صفر أو أكثر."), "vatAed")
+        add(DataValidation(type="list", formula1='"' + ",".join(PAYMENT_METHODS) + '"', allow_blank=True,
+                           showErrorMessage=True, errorTitle="طريقة الدفع", error="اختر طريقة من القائمة."),
+            "paymentMethod")
+        add(DataValidation(type="list", formula1='"نعم,لا"', allow_blank=True,
+                           showErrorMessage=True, errorTitle="يظهر للمالك", error="اختر نعم أو لا."),
+            "visibleToOwner")
     if name == "Shares":
         add(DataValidation(type="decimal", operator="between", formula1="0.01", formula2="100",
                            allow_blank=True, showErrorMessage=True, errorTitle="الحصة",

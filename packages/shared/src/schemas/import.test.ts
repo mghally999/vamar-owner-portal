@@ -5,7 +5,9 @@ import {
   createOwnerSchema,
   importChequeRowSchema,
   importContractRowSchema,
+  importExpenseRowSchema,
   importShareRowSchema,
+  yesNoCellSchema,
   ownerPhoneSchema,
   parseCountryList,
   phoneInCountries,
@@ -122,5 +124,75 @@ describe('import rows for shares, contracts and cheques', () => {
       false,
     );
     expect(importChequeRowSchema.safeParse({ ...q, bankName: '' }).success).toBe(false);
+  });
+});
+
+describe('import rows for expenses', () => {
+  const row = {
+    building: 'Al Noor Tower',
+    category: 'Plumbing',
+    reasonAr: 'إصلاح',
+    reasonEn: 'Repair',
+    invoiceDate: '2026-10-07',
+    amountAed: 1250.5,
+  };
+  it('accepts a minimal row and fills nothing by itself', () => {
+    const ok = importExpenseRowSchema.safeParse(row);
+    expect(ok.success).toBe(true);
+    expect(ok.data).toEqual({ ...row });
+    expect(ok.data?.vatAed).toBeUndefined();
+    expect(ok.data?.visibleToOwner).toBeUndefined();
+  });
+  it('coerces cells: numeric unit and invoice numbers, yes/no in both languages, blank vendor', () => {
+    const full = importExpenseRowSchema.parse({
+      ...row,
+      unitNo: 1204,
+      invoiceNo: 4521,
+      vendor: '  Cool Breeze ',
+      vatAed: 0,
+      paidOn: '2026-10-10',
+      paymentMethod: 'transfer',
+      visibleToOwner: 'لا',
+    });
+    expect(full).toMatchObject({
+      unitNo: '1204',
+      invoiceNo: '4521',
+      vendor: 'Cool Breeze',
+      vatAed: 0,
+      paymentMethod: 'transfer',
+      visibleToOwner: false,
+    });
+    expect(importExpenseRowSchema.parse({ ...row, vendor: '', invoiceNo: '' })).toMatchObject({
+      vendor: undefined,
+      invoiceNo: undefined,
+    });
+    for (const [cell, value] of [
+      ['yes', true],
+      ['No', false],
+      ['1', true],
+      [0, false],
+      ['نعم', true],
+      [true, true],
+      ['', undefined],
+      [undefined, undefined],
+    ] as const) {
+      expect(yesNoCellSchema.parse(cell)).toBe(value);
+    }
+    const bad = yesNoCellSchema.safeParse('maybe');
+    expect(bad.success).toBe(false);
+    expect(bad.error?.issues[0]?.message).toContain('نعم');
+  });
+  it('refuses bad amounts, VAT, dates, methods and reasons', () => {
+    expect(importExpenseRowSchema.safeParse({ ...row, amountAed: 0 }).success).toBe(false);
+    expect(importExpenseRowSchema.safeParse({ ...row, amountAed: 10.123 }).success).toBe(false);
+    expect(importExpenseRowSchema.safeParse({ ...row, vatAed: -1 }).success).toBe(false);
+    expect(importExpenseRowSchema.safeParse({ ...row, invoiceDate: '2026-02-30' }).success).toBe(
+      false,
+    );
+    expect(importExpenseRowSchema.safeParse({ ...row, paymentMethod: 'bitcoin' }).success).toBe(
+      false,
+    );
+    expect(importExpenseRowSchema.safeParse({ ...row, reasonAr: '' }).success).toBe(false);
+    expect(importExpenseRowSchema.safeParse({ ...row, category: '' }).success).toBe(false);
   });
 });
