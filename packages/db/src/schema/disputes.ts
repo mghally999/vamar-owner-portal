@@ -1,8 +1,18 @@
 import { sql } from 'drizzle-orm';
-import { bigint, boolean, check, index, integer, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import {
+  bigint,
+  boolean,
+  check,
+  index,
+  integer,
+  pgTable,
+  primaryKey,
+  text,
+  uuid,
+} from 'drizzle-orm/pg-core';
 import { createdAt, fils, id, instant, plainDate } from './_common.js';
 import { attachmentEntityType, disputeStatus, disputeType } from './enums.js';
-import { contracts } from './contracts.js';
+import { cheques, contracts } from './contracts.js';
 import { tenants, units } from './properties.js';
 import { staffUsers } from './staff.js';
 
@@ -31,10 +41,32 @@ export const disputes = pgTable(
     index('disputes_unit_status_idx').on(t.unitId, t.status),
     /** Dispute lists: newest first. */
     index('disputes_opened_idx').on(t.openedAt.desc(), t.id.desc()),
+    /** Hearing reminders and the calendar. */
+    index('disputes_hearing_idx')
+      .on(t.nextHearingDate)
+      .where(sql`${t.nextHearingDate} IS NOT NULL`),
     check(
       'disputes_amount_non_negative',
       sql`${t.amountClaimedFils} IS NULL OR ${t.amountClaimedFils} >= 0`,
     ),
+  ],
+);
+
+/** The cheques a case is about (a bounced-cheque case covers one or more). */
+export const disputeCheques = pgTable(
+  'dispute_cheques',
+  {
+    disputeId: uuid()
+      .notNull()
+      .references(() => disputes.id),
+    chequeId: uuid()
+      .notNull()
+      .references(() => cheques.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.disputeId, t.chequeId] }),
+    /** Search a dispute by cheque, and the cheque page's "in a case" link. */
+    index('dispute_cheques_cheque_idx').on(t.chequeId),
   ],
 );
 
