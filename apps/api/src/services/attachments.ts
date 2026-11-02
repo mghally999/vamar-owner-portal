@@ -58,6 +58,8 @@ async function assertEntityExists(db: Dbx, type: AttachmentEntityType, id: strin
     dispute: schema.disputes,
     contract: schema.contracts,
     unit: schema.units,
+    expense: schema.expenses,
+    work_order: schema.workOrders,
   }[type];
   const [row] = await db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
   if (!row) throw notFound(type.charAt(0).toUpperCase() + type.slice(1));

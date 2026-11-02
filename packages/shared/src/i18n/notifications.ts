@@ -2,7 +2,7 @@
  * Push notification copy in Arabic and English. Western digits in both. The owner's
  * preferred language picks the variant. Kept here so the API and the tests share one source.
  */
-import { formatDate, type Lang, type PlainDate } from '../dates.js';
+import { formatDate, formatMonth, type Lang, type PlainDate } from '../dates.js';
 import { formatAmount } from '../money.js';
 import type { NotificationType } from '../alerts.js';
 
@@ -35,8 +35,47 @@ export interface NewDeviceLoginParams {
   deviceLabel: string;
 }
 
+/** Sent on the 1st for the month that just ended. */
+export interface MonthlySummaryParams {
+  type: 'monthly_summary';
+  /** First day of the month summarised. */
+  month: PlainDate;
+  collectedFils: number;
+  expensesFils: number;
+  netFils: number;
+}
+
+export interface HearingSoonParams {
+  type: 'hearing_soon';
+  caseNo: string;
+  chequeNos: string[];
+  hearingDate: PlainDate;
+  unitLabel: string;
+}
+
+export interface WorkOrderDoneParams {
+  type: 'work_order_done';
+  title: string;
+  unitLabel: string;
+  costFils: number | null;
+}
+
+export interface LargeExpenseParams {
+  type: 'large_expense';
+  reason: string;
+  totalFils: number;
+  placeLabel: string;
+}
+
 export type NotificationParams =
-  ChequeDueSoonParams | ChequeBouncedParams | ContractEndingParams | NewDeviceLoginParams;
+  | ChequeDueSoonParams
+  | ChequeBouncedParams
+  | ContractEndingParams
+  | NewDeviceLoginParams
+  | MonthlySummaryParams
+  | HearingSoonParams
+  | WorkOrderDoneParams
+  | LargeExpenseParams;
 
 export function notificationCopy(params: NotificationParams, lang: Lang): NotificationCopy {
   switch (params.type) {
@@ -89,6 +128,59 @@ export function notificationCopy(params: NotificationParams, lang: Lang): Notifi
             title: 'New device sign-in',
             body: `Your account was signed in from ${params.deviceLabel}. If this was not you, review devices in Settings.`,
           };
+    case 'monthly_summary': {
+      const month = formatMonth(params.month, lang);
+      const collected = formatAmount(params.collectedFils, lang);
+      const expenses = formatAmount(params.expensesFils, lang);
+      const net = formatAmount(params.netFils, lang);
+      return lang === 'ar'
+        ? {
+            title: `ملخص ${month}`,
+            body: `المحصّل ${collected}، المصروفات ${expenses}، الصافي ${net}. التفاصيل في التطبيق.`,
+          }
+        : {
+            title: `${month} summary`,
+            body: `Collected ${collected}, expenses ${expenses}, net ${net}. Details in the app.`,
+          };
+    }
+    case 'hearing_soon': {
+      const date = formatDate(params.hearingDate, lang);
+      const cheques = params.chequeNos.join(lang === 'ar' ? '، ' : ', ');
+      const withCheques = params.chequeNos.length > 0;
+      return lang === 'ar'
+        ? {
+            title: 'جلسة بعد 3 أيام',
+            body: `القضية ${params.caseNo}${withCheques ? ` (شيك رقم ${cheques})` : ''} للوحدة ${params.unitLabel}: الجلسة بتاريخ ${date}.`,
+          }
+        : {
+            title: 'Hearing in 3 days',
+            body: `Case ${params.caseNo}${withCheques ? ` (cheque ${cheques})` : ''} for ${params.unitLabel}: hearing on ${date}.`,
+          };
+    }
+    case 'work_order_done': {
+      const cost = params.costFils === null ? null : formatAmount(params.costFils, lang);
+      return lang === 'ar'
+        ? {
+            title: 'تم إنجاز أعمال الصيانة',
+            body: `${params.title} في ${params.unitLabel} تم إنجازها${cost ? ` بتكلفة ${cost}` : ''}.`,
+          }
+        : {
+            title: 'Maintenance completed',
+            body: `${params.title} at ${params.unitLabel} is done${cost ? ` at a cost of ${cost}` : ''}.`,
+          };
+    }
+    case 'large_expense': {
+      const total = formatAmount(params.totalFils, lang);
+      return lang === 'ar'
+        ? {
+            title: 'مصروف كبير',
+            body: `تم تسجيل مصروف بقيمة ${total} على ${params.placeLabel}: ${params.reason}. الفاتورة في التطبيق.`,
+          }
+        : {
+            title: 'Large expense recorded',
+            body: `An expense of ${total} was recorded for ${params.placeLabel}: ${params.reason}. The invoice is in the app.`,
+          };
+    }
   }
 }
 
@@ -98,4 +190,8 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, Record<Lang, stri
   contract_ending_60: { ar: 'عقد ينتهي بعد 60 يوماً', en: 'Contract ending in 60 days' },
   contract_ending_30: { ar: 'عقد ينتهي بعد 30 يوماً', en: 'Contract ending in 30 days' },
   new_device_login: { ar: 'جهاز جديد', en: 'New device' },
+  monthly_summary: { ar: 'ملخص شهري', en: 'Monthly summary' },
+  hearing_soon: { ar: 'تذكير بجلسة', en: 'Hearing reminder' },
+  work_order_done: { ar: 'صيانة منجزة', en: 'Maintenance done' },
+  large_expense: { ar: 'مصروف كبير', en: 'Large expense' },
 };

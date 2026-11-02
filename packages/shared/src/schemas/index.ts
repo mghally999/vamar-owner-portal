@@ -3,3 +3,4 @@ export * from './common.js';
 export * from './entities.js';
 export * from './auth.js';
 export * from './import.js';
+export * from './v2.js';
