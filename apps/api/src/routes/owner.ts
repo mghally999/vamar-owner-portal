@@ -8,6 +8,7 @@ import {
   langSchema,
   monthKeySchema,
   paginationQuerySchema,
+  plainDateSchema,
   ownerVisibleSettings,
   registerPushTokenSchema,
   uuidSchema,
@@ -78,6 +79,8 @@ export const ownerRoutes = new Hono<AppEnv>()
       'query',
       paginationQuerySchema.extend({
         month: monthKeySchema.optional(),
+        from: plainDateSchema.optional(),
+        to: plainDateSchema.optional(),
         buildingId: uuidSchema.optional(),
         unitId: uuidSchema.optional(),
         status: statusList,

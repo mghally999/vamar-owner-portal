@@ -138,6 +138,28 @@ describe('summary', () => {
     expect(bad.status).toBe(422);
   });
 
+  it('cheques filter by from/to, and units carry the status and identifiers', async () => {
+    const list = await w.json<{ items: { dueDate: string }[] }>(
+      '/api/owner/cheques?from=2026-10-01&to=2026-10-31&limit=100',
+      { token: khalid },
+    );
+    expect(list.body.items.length).toBeGreaterThan(0);
+    expect(
+      list.body.items.every((c) => c.dueDate >= '2026-10-01' && c.dueDate <= '2026-10-31'),
+    ).toBe(true);
+    const units = await w.json<{
+      items: {
+        effectiveStatus: string;
+        status: string;
+        titleDeedNo: string | null;
+        makaniNo: string | null;
+      }[];
+    }>('/api/owner/units', { token: khalid });
+    expect(units.body.items.every((u) => u.titleDeedNo && u.makaniNo)).toBe(true);
+    expect(units.body.items.some((u) => u.effectiveStatus === 'occupied')).toBe(true);
+    expect(units.body.items.every((u) => u.status !== 'occupied')).toBe(true);
+  });
+
   it('carries the rows under the cards and the settings on the profile', async () => {
     const s = await w.json<Summary>('/api/owner/summary', { token: khalid });
     expect(s.body.nextCheque).not.toBeNull();

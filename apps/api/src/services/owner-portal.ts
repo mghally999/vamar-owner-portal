@@ -187,6 +187,8 @@ export async function ownerHome(
 
 export interface OwnerChequeQuery {
   month?: string | undefined;
+  from?: PlainDate | undefined;
+  to?: PlainDate | undefined;
   buildingId?: string | undefined;
   unitId?: string | undefined;
   status?: ChequeStatus[] | undefined;
@@ -237,6 +239,8 @@ export async function ownerCheques(db: Dbx, ownerId: string, q: OwnerChequeQuery
     const r = monthRange(y, m);
     conditions.push(sql`${cheques.dueDate} between ${r.start} and ${r.end}`);
   }
+  if (q.from) conditions.push(sql`${cheques.dueDate} >= ${q.from}`);
+  if (q.to) conditions.push(sql`${cheques.dueDate} <= ${q.to}`);
   if (q.buildingId) conditions.push(eq(units.buildingId, q.buildingId));
   if (q.unitId) conditions.push(eq(units.id, q.unitId));
   if (q.status?.length) conditions.push(inArray(cheques.status, q.status));
@@ -344,6 +348,13 @@ export async function ownerUnits(
       type: units.type,
       bedrooms: units.bedrooms,
       sizeSqft: units.sizeSqft,
+      status: units.status,
+      titleDeedNo: units.titleDeedNo,
+      plotNo: units.plotNo,
+      makaniNo: units.makaniNo,
+      dewaPremiseNo: units.dewaPremiseNo,
+      municipalityNo: units.municipalityNo,
+      handoverDate: units.handoverDate,
       shareBp: unitOwnerships.shareBp,
       buildingId: buildings.id,
       buildingNameAr: buildings.nameAr,
@@ -374,6 +385,7 @@ export async function ownerUnits(
   const items = rows.slice(0, OWNER_UNITS_LIMIT).map((r) => ({
     ...r,
     occupied: r.contractId !== null,
+    effectiveStatus: r.contractId !== null ? ('occupied' as const) : r.status,
     annualRentFils:
       r.annualRentFils === null ? null : ownerShareAmount(r.annualRentFils, r.shareBp),
   }));
