@@ -3,7 +3,8 @@
 //   node tooling/load/run.mjs <baseUrl> <tokens.json> [scenario] [connections] [seconds] [--max-p95 <ms>]
 //
 // Scenarios: mixed (1 staff request for every 3 owner requests, rotating owners; the default),
-// overview (staff overview only), cheques, ownerhome, office (staff only, all from one IP).
+// overview (staff overview only), cheques, ownerhome, summary (the owner period summary, the
+// p95 < 300 ms budget of the v2 brief), reports (the staff report summary), office (staff only).
 // Prints one JSON line. With --max-p95 it exits 1 when any request failed or p95 is over budget,
 // which is how CI runs it as a smoke test. Tokens come from tooling/load/tokens.mjs.
 import autocannon from 'autocannon';
@@ -20,6 +21,7 @@ if (!base || !tokensFile) {
 const tokens = JSON.parse(readFileSync(tokensFile, 'utf8'));
 const month = new Date().toISOString().slice(0, 7);
 
+const year = month.slice(0, 4);
 const staffPaths = [
   '/api/staff/overview',
   `/api/staff/cheques?month=${month}`,
@@ -27,11 +29,18 @@ const staffPaths = [
   '/api/staff/contracts?status=active',
   '/api/staff/audit',
   '/api/staff/disputes',
+  '/api/staff/reports/summary?preset=this_year&compare=1',
+  '/api/staff/expenses?preset=this_month',
+  `/api/staff/calendar?from=${month}-01&to=${month}-28`,
+  '/api/staff/work-orders?status=open',
 ];
 const ownerPaths = [
   '/api/owner/home',
+  '/api/owner/summary?preset=this_month',
   '/api/owner/cheques',
   '/api/owner/units',
+  '/api/owner/expenses?preset=last_6_months',
+  `/api/owner/calendar?from=${year}-01-01&to=${year}-12-31`,
   '/api/owner/disputes',
 ];
 const owner = (n) => (n % 10 === 0 ? tokens.heavyOwner : tokens.owners[n % tokens.owners.length]);
@@ -44,6 +53,13 @@ function pick(n) {
       return { path: `/api/staff/cheques?month=${month}`, token: tokens.admin };
     case 'ownerhome':
       return { path: '/api/owner/home', token: owner(n) };
+    case 'summary':
+      return {
+        path: `/api/owner/summary?preset=${['this_month', 'this_year', 'last_6_months', 'next_6_months'][n % 4]}`,
+        token: owner(n),
+      };
+    case 'reports':
+      return { path: '/api/staff/reports/summary?preset=this_year&compare=1', token: tokens.admin };
     case 'office':
       return {
         path: staffPaths[n % staffPaths.length],
