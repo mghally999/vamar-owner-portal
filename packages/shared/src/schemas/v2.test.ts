@@ -79,7 +79,6 @@ describe('expenses', () => {
       unitId: null,
       vendorId: null,
       invoiceNo: null,
-      vatFils: 0,
       paidOn: null,
       paymentMethod: null,
       visibleToOwner: true,
@@ -130,7 +129,8 @@ describe('expenses', () => {
       dayOfMonth: 25,
       startDate: '2026-01-01',
     });
-    expect(rule).toMatchObject({ endDate: null, active: true, vatFils: 0 });
+    expect(rule).toMatchObject({ endDate: null, active: true });
+    expect(rule.vatFils).toBeUndefined();
     expect(
       createRecurringRuleSchema.safeParse({
         ...expense,

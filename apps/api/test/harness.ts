@@ -82,9 +82,11 @@ export async function createWorld(): Promise<TestWorld> {
   const db = drizzle({ client, schema, casing: 'snake_case' }) as unknown as Db;
   await client.exec(`CREATE ROLE vamar_app LOGIN PASSWORD 'vamar_app'`);
   await migrate(db as never, { migrationsFolder: join(dbPkgDir, 'migrations') });
-  await seed(db as never, TODAY);
-
   const r2 = new MemoryR2();
+  await seed(db as never, TODAY, async (key, bytes, mime) => {
+    await r2.put(key, bytes.buffer as ArrayBuffer, { httpMetadata: { contentType: mime } });
+  });
+
   const waitUntilPromises: Promise<unknown>[] = [];
   const ctx = {
     waitUntil: (p: Promise<unknown>) => void waitUntilPromises.push(p),

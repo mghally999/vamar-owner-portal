@@ -7,6 +7,7 @@ import './load-env.js';
 import { sql } from 'drizzle-orm';
 import { createNodeDb } from '../src/node.js';
 import { seed } from '../src/seed/index.js';
+import { demoFilesDir, demoFilesHook } from './files.js';
 
 const url = process.env['DATABASE_URL'];
 if (!url) {
@@ -57,7 +58,8 @@ try {
   );
 
   // 3. Seed again.
-  const summary = await seed(db);
+  const summary = await seed(db, undefined, demoFilesHook());
+  console.info(`[${label}] demo files written to`, demoFilesDir());
 
   // 4. Re-attach logins to the new rows.
   for (const s of staff) {

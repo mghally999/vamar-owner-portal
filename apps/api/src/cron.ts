@@ -4,6 +4,8 @@
  * 2. active contracts ending in exactly 60 / 30 days -> push
  * 3. mark active contracts past their end date as expired (with its audit row, in one transaction)
  * 4. retention: stale rate-limit windows, dead sessions, old notification rows
+ * 5. v2: draft expenses from the recurring rules, hearing reminders 3 days before, and on the
+ *    1st of the month a summary of the month that ended (collected, expenses, net) per owner
  *
  * Each step runs on its own: a failure is recorded in the summary and the next step still runs.
  * Notifications are idempotent through notification_log.dedupe_key and transport failures are
@@ -13,12 +15,17 @@ import { and, eq, inArray, isNull, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
+  addMonthsClamped,
   CHEQUE_REMINDER_DAYS,
   CONTRACT_ENDING_DAYS,
+  firstDayOfMonth,
+  HEARING_REMINDER_DAYS,
+  lastDayOfMonth,
   ownerShareAmount,
   type PlainDate,
 } from '@vamar/shared';
-import { cronDb, type Db } from './db.js';
+import { createRecurringDrafts } from './services/expenses.js';
+import { cronDb, rowsOf, type Db } from './db.js';
 import type { Bindings } from './env.js';
 import {
   deliver,
@@ -39,6 +46,8 @@ const {
   auditLog,
   sessions,
   notificationLog,
+  disputes,
+  disputeCheques,
 } = schema;
 
 /** Rows older than these are deleted every night. */
@@ -54,6 +63,10 @@ export interface DailySummary extends DeliveryReport {
   notifications: number;
   expiredContracts: number;
   purged: { rateLimits: number; sessions: number; notifications: number };
+  /** v2 */
+  recurringDrafts: number;
+  hearingReminders: number;
+  monthlySummaries: number;
   errors: string[];
 }
 
@@ -69,6 +82,9 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
     failed: 0,
     expiredContracts: 0,
     purged: { rateLimits: 0, sessions: 0, notifications: 0 },
+    recurringDrafts: 0,
+    hearingReminders: 0,
+    monthlySummaries: 0,
     errors: [],
   };
   const step = async (name: string, fn: () => Promise<void>) => {
@@ -95,6 +111,26 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
     });
     await step('retention', async () => {
       summary.purged = await purge(db);
+    });
+    await step('recurring', async () => {
+      summary.recurringDrafts = await db.transaction((tx) => createRecurringDrafts(tx, t));
+    });
+    await step('hearings', async () => {
+      const pending = await collectHearingReminders(db, t);
+      summary.hearingReminders = pending.length;
+      const r = await deliver(env, db, pending);
+      summary.sent += r.sent;
+      summary.skipped += r.skipped;
+      summary.failed += r.failed;
+    });
+    await step('monthly', async () => {
+      if (!t.endsWith('-01')) return;
+      const pending = await collectMonthlySummaries(db, t);
+      summary.monthlySummaries = pending.length;
+      const r = await deliver(env, db, pending);
+      summary.sent += r.sent;
+      summary.skipped += r.skipped;
+      summary.failed += r.failed;
     });
     log(summary.errors.length ? 'warn' : 'info', 'cron.daily', { ...summary });
     if (summary.errors.length) throw new Error(summary.errors.join(' | '));
@@ -217,6 +253,114 @@ async function collectAlerts(db: Db, t: PlainDate): Promise<PendingNotification[
     }
   }
   return pending;
+}
+
+/** Hearings in exactly HEARING_REMINDER_DAYS days, to the current owners of the case's unit, with the cheque numbers. */
+async function collectHearingReminders(db: Db, t: PlainDate): Promise<PendingNotification[]> {
+  const target = addDays(t, HEARING_REMINDER_DAYS);
+  const rows = await db
+    .select({
+      id: disputes.id,
+      caseNo: disputes.caseNo,
+      hearing: disputes.nextHearingDate,
+      unitId: disputes.unitId,
+      unitNo: units.unitNo,
+      bAr: buildings.nameAr,
+      bEn: buildings.nameEn,
+      chequeNos: sql<
+        string[]
+      >`coalesce((select array_agg(q.cheque_no order by q.due_date) from ${disputeCheques} dc join ${cheques} q on q.id = dc.cheque_id where dc.dispute_id = ${disputes.id} and q.cheque_no is not null), '{}')`,
+    })
+    .from(disputes)
+    .innerJoin(units, eq(units.id, disputes.unitId))
+    .innerJoin(buildings, eq(buildings.id, units.buildingId))
+    .where(and(eq(disputes.nextHearingDate, target), sql`${disputes.status} <> 'closed'`));
+  if (rows.length === 0) return [];
+  const holders = await db
+    .select({
+      unitId: unitOwnerships.unitId,
+      ownerId: unitOwnerships.ownerId,
+      lang: owners.preferredLang,
+    })
+    .from(unitOwnerships)
+    .innerJoin(owners, eq(owners.id, unitOwnerships.ownerId))
+    .where(
+      and(
+        inArray(
+          unitOwnerships.unitId,
+          rows.map((r) => r.unitId),
+        ),
+        isNull(unitOwnerships.toDate),
+        inArray(owners.status, ['active', 'invited']),
+      ),
+    );
+  const pending: PendingNotification[] = [];
+  for (const r of rows) {
+    for (const o of holders.filter((h) => h.unitId === r.unitId)) {
+      pending.push({
+        ownerId: o.ownerId,
+        type: 'hearing_soon',
+        entityId: r.id,
+        date: t,
+        params: {
+          type: 'hearing_soon',
+          caseNo: r.caseNo,
+          chequeNos: r.chequeNos,
+          hearingDate: r.hearing as PlainDate,
+          unitLabel: o.lang === 'ar' ? `${r.bAr} ${r.unitNo}` : `${r.bEn} ${r.unitNo}`,
+        },
+      });
+    }
+  }
+  return pending;
+}
+
+/**
+ * On the 1st: last month's collected rent, posted expenses and net for every active owner, in one
+ * query each. The dedupe key is per owner and day, so a re-run never sends twice.
+ */
+async function collectMonthlySummaries(db: Db, t: PlainDate): Promise<PendingNotification[]> {
+  const from = firstDayOfMonth(addMonthsClamped(t, -1));
+  const to = lastDayOfMonth(from);
+  const result: unknown = await db.execute(sql`
+    with active as (select id from ${owners} where status in ('active', 'invited')),
+    rent as (
+      select uo.owner_id, coalesce(sum(q.amount_fils * uo.share_bp / 10000), 0)::bigint as collected
+      from ${cheques} q
+      join ${contracts} c on c.id = q.contract_id and c.status <> 'draft'
+      join ${unitOwnerships} uo on uo.unit_id = c.unit_id and uo.from_date <= q.due_date and (uo.to_date is null or uo.to_date > q.due_date)
+      where q.status = 'cleared' and q.amount_fils is not null and q.due_date between ${from} and ${to}
+      group by uo.owner_id
+    ),
+    spent as (
+      select a.owner_id, coalesce(sum(a.amount_fils), 0)::bigint as expenses
+      from expense_allocations a join expenses x on x.id = a.expense_id and x.status = 'posted' and x.visible_to_owner
+      where a.on_date between ${from} and ${to}
+      group by a.owner_id
+    )
+    select o.id as owner_id, coalesce(r.collected, 0)::bigint as collected, coalesce(s.expenses, 0)::bigint as expenses
+    from active o left join rent r on r.owner_id = o.id left join spent s on s.owner_id = o.id
+    where coalesce(r.collected, 0) <> 0 or coalesce(s.expenses, 0) <> 0`);
+  const rows = rowsOf<{ owner_id: string; collected: string | number; expenses: string | number }>(
+    result,
+  );
+  return rows.map((r) => {
+    const collectedFils = Number(r.collected);
+    const expensesFils = Number(r.expenses);
+    return {
+      ownerId: r.owner_id,
+      type: 'monthly_summary' as const,
+      entityId: r.owner_id,
+      date: t,
+      params: {
+        type: 'monthly_summary' as const,
+        month: from,
+        collectedFils,
+        expensesFils,
+        netFils: collectedFils - expensesFils,
+      },
+    };
+  });
 }
 
 /** Active contracts past their end date become expired, with the audit row in the same transaction. */

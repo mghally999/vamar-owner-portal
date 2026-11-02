@@ -5,6 +5,7 @@ import { count } from 'drizzle-orm';
 import { createNodeDb } from '../src/node.js';
 import { owners } from '../src/schema/index.js';
 import { seed } from '../src/seed/index.js';
+import { demoFilesDir, demoFilesHook } from './files.js';
 
 const url = process.env['DATABASE_URL'];
 if (!url) {
@@ -19,8 +20,8 @@ try {
     console.error('database already has owners; run `pnpm db:reset` to reseed locally');
     process.exit(1);
   }
-  const summary = await seed(db);
-  console.info('seeded', summary);
+  const summary = await seed(db, undefined, demoFilesHook());
+  console.info('seeded', summary, 'files in', demoFilesDir());
 } finally {
   await pool.end();
 }

@@ -18,6 +18,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
 import * as s from '../schema/index.js';
 import { uuidv7 } from '../schema/_common.js';
+import { seedV2, type SeedFiles, type SeedV2Summary } from './v2.js';
 
 // Any drizzle Postgres database over our schema (node-postgres locally, neon in deploy scripts).
 export type SeedDb = PgDatabase<PgQueryResultHKT, typeof s> | NodePgDatabase<typeof s>;
@@ -75,7 +76,7 @@ export const DEMO_STAFF = [
   },
 ] as const;
 
-export interface SeedSummary {
+export interface SeedSummary extends SeedV2Summary {
   staff: number;
   owners: number;
   buildings: number;
@@ -85,6 +86,8 @@ export interface SeedSummary {
   cheques: number;
   disputes: number;
 }
+
+export type { SeedFiles } from './v2.js';
 
 const AED = (aed: number) => aed * 100;
 
@@ -99,7 +102,11 @@ function rng(seed: number) {
 
 const BANKS = ['Emirates NBD', 'ADCB', 'Mashreq', 'FAB', 'Dubai Islamic Bank', 'RAKBANK'];
 
-export async function seed(db: SeedDb, today: PlainDate = todayInDubai()): Promise<SeedSummary> {
+export async function seed(
+  db: SeedDb,
+  today: PlainDate = todayInDubai(),
+  files?: SeedFiles,
+): Promise<SeedSummary> {
   const rand = rng(20_261_007);
   const pick = <T>(arr: readonly T[]): T => arr[Math.floor(rand() * arr.length)] as T;
 
@@ -603,6 +610,34 @@ export async function seed(db: SeedDb, today: PlainDate = todayInDubai()): Promi
     await db.insert(s.disputeUpdates).values(updates);
   }
 
+  // v2: expenses, work orders, records, calendar -------------------------------------------
+  const v2 = await seedV2(db, {
+    today,
+    adminId: admin.id,
+    owners: { khalid, fatima, omar, mariam, rashid },
+    buildings: { noor, safa, khan, mamzar, nahda },
+    units: unitRows,
+    ownerships: ownerships.map((o) => ({ ...o, fromDate: from, toDate: null })),
+    contracts: contractRows.map((c) => ({
+      id: c.id,
+      unitId: c.unitId,
+      status: c.status ?? 'draft',
+    })),
+    cheques: chequeRows.map((q) => ({
+      id: q.id,
+      contractId: q.contractId,
+      status: q.status ?? 'upcoming',
+    })),
+    disputes: disputeRows.map((d) => ({
+      id: d.id,
+      caseNo: d.caseNo,
+      unitId: d.unitId,
+      contractId: d.contractId ?? null,
+      type: d.type,
+    })),
+    files,
+  });
+
   // Audit trail for the seed itself -------------------------------------------------------
   await db.insert(s.auditLog).values({
     id: uuidv7(),
@@ -626,5 +661,6 @@ export async function seed(db: SeedDb, today: PlainDate = todayInDubai()): Promi
     contracts: contractRows.length,
     cheques: chequeRows.length,
     disputes: disputeRows.length,
+    ...v2,
   };
 }

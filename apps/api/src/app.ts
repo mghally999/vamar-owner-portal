@@ -11,6 +11,7 @@ import { ApiError } from './errors.js';
 import { authOwnerRoutes } from './routes/auth-owner.js';
 import { authStaffRoutes } from './routes/auth-staff.js';
 import { ownerRoutes } from './routes/owner.js';
+import { ownerV2Routes } from './routes/owner-v2.js';
 import { staffRoutes } from './routes/staff.js';
 import { detectDevice, downloadPage } from './download.js';
 import { privacyPage } from './privacy.js';
@@ -213,6 +214,7 @@ export const app = new Hono<AppEnv>()
   .route('/api/auth/owner', authOwnerRoutes)
   .route('/api/auth/staff', authStaffRoutes)
   .route('/api/owner', ownerRoutes)
+  .route('/api/owner', ownerV2Routes)
   .route('/api/staff', staffRoutes)
   .notFound((c) =>
     c.req.path.startsWith('/api/')

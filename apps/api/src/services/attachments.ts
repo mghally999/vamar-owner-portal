@@ -19,6 +19,8 @@ import { log } from '../util/log.js';
 import { withTimeout } from '../util/outbound.js';
 import { audit, type AuditActor } from './audit.js';
 import { disputeInOwnerScope } from './owner-scope.js';
+import { expenseAttachmentInOwnerScope } from './expenses.js';
+import { workOrderAttachmentInOwnerScope } from './work-orders.js';
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 export const ALLOWED_MIME = new Set([
@@ -164,15 +166,32 @@ export async function getAttachmentForStaff(db: Dbx, id: string) {
   return row;
 }
 
-/** Owners may only fetch attachments of disputes on their units. */
-export async function getAttachmentForOwner(db: Dbx, ownerId: string, id: string) {
+/**
+ * Owners may fetch the files of disputes on their units, of expenses they have a share in (when
+ * the setting allows invoice files) and of work orders they can see. Anything else is a 404.
+ */
+export async function getAttachmentForOwner(
+  db: Dbx,
+  ownerId: string,
+  id: string,
+  options: { invoiceFiles: boolean },
+) {
   const row = await db.query.attachments.findFirst({ where: eq(schema.attachments.id, id) });
-  if (row?.entityType !== 'dispute') throw notFound('Attachment');
-  const dispute = await db
-    .select({ id: schema.disputes.id })
-    .from(schema.disputes)
-    .where(and(eq(schema.disputes.id, row.entityId), disputeInOwnerScope(db, ownerId)));
-  if (!dispute.length) throw notFound('Attachment');
+  if (!row) throw notFound('Attachment');
+  let allowed = false;
+  if (row.entityType === 'dispute') {
+    const dispute = await db
+      .select({ id: schema.disputes.id })
+      .from(schema.disputes)
+      .where(and(eq(schema.disputes.id, row.entityId), disputeInOwnerScope(db, ownerId)));
+    allowed = dispute.length > 0;
+  } else if (row.entityType === 'expense') {
+    allowed =
+      options.invoiceFiles && (await expenseAttachmentInOwnerScope(db, ownerId, row.entityId));
+  } else if (row.entityType === 'work_order') {
+    allowed = await workOrderAttachmentInOwnerScope(db, ownerId, row.entityId);
+  }
+  if (!allowed) throw notFound('Attachment');
   return row;
 }
 

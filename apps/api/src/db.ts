@@ -11,7 +11,7 @@
  * ever sees `Db` / `Tx`.
  */
 import { neon, Pool as NeonPool } from '@neondatabase/serverless';
-import { sql, type ExtractTablesWithRelations, type SQL } from 'drizzle-orm';
+import { and, or, sql, type ExtractTablesWithRelations, type SQL } from 'drizzle-orm';
 import { drizzle as drizzleNeonHttp } from 'drizzle-orm/neon-http';
 import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
@@ -106,6 +106,25 @@ export function cronDb(env: Bindings): { db: Db; close: () => Promise<void> } {
     db: drizzleNeon({ client: pool, schema, casing: 'snake_case' }),
     close: () => pool.end(),
   };
+}
+
+/** `or()` and `and()` that always return a fragment (drizzle's return undefined for no arguments). */
+export function orSql(...conditions: (SQL | undefined)[]): SQL {
+  const out = or(...conditions);
+  if (!out) throw new Error('orSql needs at least one condition');
+  return out;
+}
+
+export function andSql(...conditions: (SQL | undefined)[]): SQL {
+  const out = and(...conditions);
+  if (!out) throw new Error('andSql needs at least one condition');
+  return out;
+}
+
+/** Rows of a raw `execute()`: the Neon HTTP driver returns `{ rows }`, pg and PGlite the array. */
+export function rowsOf<T>(result: unknown): T[] {
+  if (Array.isArray(result)) return result as T[];
+  return (result as { rows?: T[] }).rows ?? [];
 }
 
 /** `col in (...)` with every value bound, for raw SQL fragments that filter on a status list. */

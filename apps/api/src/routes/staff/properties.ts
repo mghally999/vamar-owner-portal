@@ -75,7 +75,7 @@ export const propertiesRoutes = new Hono<AppEnv>()
     ),
   )
   .get('/units/:id', viewer, idParam, async (c) =>
-    c.json(await getUnitDetail(readDb(c), c.req.valid('param').id)),
+    c.json(await getUnitDetail(readDb(c), c.req.valid('param').id, today(c.env))),
   )
   .patch('/units/:id', editor, idParam, zValidator('json', updateUnitSchema), async (c) =>
     c.json(

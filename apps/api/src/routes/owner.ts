@@ -8,6 +8,7 @@ import {
   langSchema,
   monthKeySchema,
   paginationQuerySchema,
+  ownerVisibleSettings,
   registerPushTokenSchema,
   uuidSchema,
 } from '@vamar/shared';
@@ -28,6 +29,7 @@ import {
   ownerUnits,
 } from '../services/owner-portal.js';
 import { requestAccountDeletion } from '../services/owner-account.js';
+import { getSettings } from '../services/settings.js';
 import { today } from '../util/today.js';
 
 const statusList = z
@@ -39,7 +41,15 @@ const statusList = z
 export const ownerRoutes = new Hono<AppEnv>()
   .use(requireOwner)
 
-  .get('/me', async (c) => c.json(await ownerProfile(readDb(c), ownerOf(c).id)))
+  /** Profile plus the display settings the admin chose (week start, Hijri, fee label, invoice files). */
+  .get('/me', async (c) => {
+    const db = readDb(c);
+    const [profile, settings] = await Promise.all([
+      ownerProfile(db, ownerOf(c).id),
+      getSettings(db),
+    ]);
+    return c.json({ ...profile, settings: ownerVisibleSettings(settings) });
+  })
 
   .patch('/me', zValidator('json', z.object({ preferredLang: langSchema })), async (c) => {
     const p = ownerOf(c);
@@ -142,7 +152,11 @@ export const ownerRoutes = new Hono<AppEnv>()
   )
 
   .get('/attachments/:id', zValidator('param', z.object({ id: uuidSchema })), async (c) => {
-    const att = await getAttachmentForOwner(readDb(c), ownerOf(c).id, c.req.valid('param').id);
+    const db = readDb(c);
+    const settings = await getSettings(db);
+    const att = await getAttachmentForOwner(db, ownerOf(c).id, c.req.valid('param').id, {
+      invoiceFiles: settings.ownersSeeInvoiceFiles,
+    });
     return streamObject(c.env.FILES, att.r2Key, c, att);
   })
 

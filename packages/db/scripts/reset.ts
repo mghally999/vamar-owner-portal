@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createNodeDb } from '../src/node.js';
 import { seed } from '../src/seed/index.js';
+import { demoFilesDir, demoFilesHook } from './files.js';
 
 const url = process.env['DATABASE_URL'];
 if (!url) {
@@ -25,8 +26,8 @@ try {
   await db.execute(sql`CREATE SCHEMA public`);
   await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
   await migrate(db, { migrationsFolder: join(here, '..', 'migrations') });
-  const summary = await seed(db);
-  console.info('database reset and seeded', summary);
+  const summary = await seed(db, undefined, demoFilesHook());
+  console.info('database reset and seeded', summary, 'files in', demoFilesDir());
 } finally {
   await pool.end();
 }

@@ -27,6 +27,8 @@ import { cronDb } from '../db.js';
 import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { fetchWithRetry, OutboundError } from '../util/outbound.js';
+import { expenseOwnerIds } from './expenses.js';
+import { workOrderOwnerIds } from './work-orders.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_TIMEOUT_MS = 10_000;
@@ -309,6 +311,107 @@ export async function queueBounceAlerts(env: Bindings, chequeIds: string[]): Pro
     await deliver(env, db, pending);
   } catch (e) {
     log('error', 'push.bounce_failed', { error: e instanceof Error ? e.message : String(e) });
+  } finally {
+    await close();
+  }
+}
+
+/**
+ * Fan an alert out to a set of owners with per-language parameters (unit labels and titles
+ * differ by language). One database handle for the lookup and the delivery.
+ */
+export async function queueToOwners(
+  env: Bindings,
+  type: NotificationType,
+  entityId: string,
+  ownerIds: string[],
+  paramsFor: (lang: 'ar' | 'en') => NotificationParams,
+): Promise<DeliveryReport> {
+  if (ownerIds.length === 0) return { sent: 0, skipped: 0, failed: 0 };
+  const { db, close } = cronDb(env);
+  try {
+    const rows = await db
+      .select({ id: schema.owners.id, lang: schema.owners.preferredLang })
+      .from(schema.owners)
+      .where(inArray(schema.owners.id, ownerIds));
+    const date = env.TEST_TODAY ? (env.TEST_TODAY as PlainDate) : todayInDubai();
+    return await deliver(
+      env,
+      db,
+      rows.map((o) => ({ ownerId: o.id, type, entityId, date, params: paramsFor(o.lang) })),
+    );
+  } finally {
+    await close();
+  }
+}
+
+/** A work order marked done: the owners of its unit (or building) hear about it, with the cost. */
+export async function queueWorkOrderDoneAlert(env: Bindings, workOrderId: string): Promise<void> {
+  const { db, close } = cronDb(env);
+  try {
+    const [row] = await db
+      .select({
+        titleAr: schema.workOrders.titleAr,
+        titleEn: schema.workOrders.titleEn,
+        unitNo: schema.units.unitNo,
+        bAr: schema.buildings.nameAr,
+        bEn: schema.buildings.nameEn,
+        costFils: schema.expenses.totalFils,
+        expenseStatus: schema.expenses.status,
+      })
+      .from(schema.workOrders)
+      .innerJoin(schema.buildings, eq(schema.buildings.id, schema.workOrders.buildingId))
+      .leftJoin(schema.units, eq(schema.units.id, schema.workOrders.unitId))
+      .leftJoin(schema.expenses, eq(schema.expenses.id, schema.workOrders.expenseId))
+      .where(eq(schema.workOrders.id, workOrderId));
+    if (!row) return;
+    const ownerIds = await workOrderOwnerIds(db, workOrderId);
+    const cost = row.expenseStatus === 'posted' ? row.costFils : null;
+    await queueToOwners(env, 'work_order_done', workOrderId, ownerIds, (lang) => ({
+      type: 'work_order_done',
+      title: lang === 'ar' ? row.titleAr : row.titleEn,
+      unitLabel: `${lang === 'ar' ? row.bAr : row.bEn}${row.unitNo ? ` ${row.unitNo}` : ''}`,
+      costFils: cost,
+    }));
+  } catch (e) {
+    log('error', 'push.work_order_done_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+  } finally {
+    await close();
+  }
+}
+
+/** A large expense was posted: every owner with a share hears about it (their share is in the app). */
+export async function queueLargeExpenseAlert(env: Bindings, expenseId: string): Promise<void> {
+  const { db, close } = cronDb(env);
+  try {
+    const [row] = await db
+      .select({
+        reasonAr: schema.expenses.reasonAr,
+        reasonEn: schema.expenses.reasonEn,
+        totalFils: schema.expenses.totalFils,
+        visibleToOwner: schema.expenses.visibleToOwner,
+        unitNo: schema.units.unitNo,
+        bAr: schema.buildings.nameAr,
+        bEn: schema.buildings.nameEn,
+      })
+      .from(schema.expenses)
+      .innerJoin(schema.buildings, eq(schema.buildings.id, schema.expenses.buildingId))
+      .leftJoin(schema.units, eq(schema.units.id, schema.expenses.unitId))
+      .where(eq(schema.expenses.id, expenseId));
+    if (!row?.visibleToOwner) return;
+    const ownerIds = await expenseOwnerIds(db, expenseId);
+    await queueToOwners(env, 'large_expense', expenseId, ownerIds, (lang) => ({
+      type: 'large_expense',
+      reason: lang === 'ar' ? row.reasonAr : row.reasonEn,
+      totalFils: row.totalFils,
+      placeLabel: `${lang === 'ar' ? row.bAr : row.bEn}${row.unitNo ? ` ${row.unitNo}` : ''}`,
+    }));
+  } catch (e) {
+    log('error', 'push.large_expense_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
   } finally {
     await close();
   }

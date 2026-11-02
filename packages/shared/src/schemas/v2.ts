@@ -18,6 +18,7 @@ import {
   WORK_ORDER_STATUSES,
 } from '../expenses.js';
 import { PERIOD_PRESETS, WEEK_STARTS } from '../periods.js';
+import { createDisputeSchema } from './entities.js';
 import {
   auditReasonSchema,
   emailSchema,
@@ -157,7 +158,8 @@ const expenseFields = {
   invoiceNo: expenseBase.invoiceNo.default(null),
   coversFrom: expenseBase.coversFrom.default(null),
   coversTo: expenseBase.coversTo.default(null),
-  vatFils: expenseBase.vatFils.default(0),
+  /** Omitted: 5 % when the vendor has a TRN, otherwise 0. */
+  vatFils: expenseBase.vatFils.optional(),
   paidOn: expenseBase.paidOn.default(null),
   paymentMethod: expenseBase.paymentMethod.default(null),
   visibleToOwner: expenseBase.visibleToOwner.default(true),
@@ -260,7 +262,7 @@ const ruleFields = {
   ...ruleBase,
   unitId: ruleBase.unitId.default(null),
   vendorId: ruleBase.vendorId.default(null),
-  vatFils: ruleBase.vatFils.default(0),
+  vatFils: ruleBase.vatFils.optional(),
   endDate: ruleBase.endDate.default(null),
   visibleToOwner: ruleBase.visibleToOwner.default(true),
   active: ruleBase.active.default(true),
@@ -463,6 +465,15 @@ export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 export const setDisputeChequesSchema = z.object({
   chequeIds: z.array(uuidSchema).max(50),
 });
+
+/** A case opened with the cheques it is about; a bounced-cheque case needs at least one. */
+export const createDisputeWithChequesSchema = createDisputeSchema
+  .extend({ chequeIds: z.array(uuidSchema).max(50).default([]) })
+  .refine((d) => d.type !== 'bounced_cheque' || d.chequeIds.length > 0, {
+    message:
+      'A bounced-cheque case needs at least one cheque · قضية الشيك المرتجع تحتاج شيكاً واحداً على الأقل',
+    path: ['chequeIds'],
+  });
 
 /** Dashboard search box (Ctrl+K): owner, phone, unit, deed, Makani, cheque, case or invoice. */
 export const globalSearchQuerySchema = z.object({

@@ -14,6 +14,13 @@ import { attachmentsRoutes } from './staff/attachments.js';
 import { staffUsersRoutes } from './staff/staff-users.js';
 import { importRoutes } from './staff/import.js';
 import { jobsRoutes } from './staff/jobs.js';
+import { expensesRoutes } from './staff/expenses.js';
+import { workOrdersRoutes } from './staff/work-orders.js';
+import { calendarRoutes } from './staff/calendar.js';
+import { recordsRoutes } from './staff/records.js';
+import { reportsRoutes } from './staff/reports.js';
+import { settingsRoutes } from './staff/settings.js';
+import { searchRoutes } from './staff/search.js';
 
 export const staffRoutes = new Hono<AppEnv>()
   .route('/', overviewRoutes)
@@ -25,4 +32,11 @@ export const staffRoutes = new Hono<AppEnv>()
   .route('/', attachmentsRoutes)
   .route('/', staffUsersRoutes)
   .route('/', importRoutes)
-  .route('/', jobsRoutes);
+  .route('/', jobsRoutes)
+  .route('/', expensesRoutes)
+  .route('/', workOrdersRoutes)
+  .route('/', calendarRoutes)
+  .route('/', recordsRoutes)
+  .route('/', reportsRoutes)
+  .route('/', settingsRoutes)
+  .route('/', searchRoutes);

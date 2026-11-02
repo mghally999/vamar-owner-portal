@@ -21,6 +21,7 @@ import {
   unitInOwnerScope,
 } from './owner-scope.js';
 import { decodeCursor, page } from '../util/pagination.js';
+import { chequeNosSql, disputeChequeRows } from './disputes.js';
 
 const {
   cheques,
@@ -433,6 +434,8 @@ const ownerDisputeSelect = {
   buildingNameAr: buildings.nameAr,
   buildingNameEn: buildings.nameEn,
   tenantName: tenants.name,
+  /** The bounced cheques the case is about, oldest first. */
+  chequeNos: chequeNosSql,
 };
 
 /** Owner's disputes, newest first; keyset on (opened_at, id). */
@@ -475,7 +478,8 @@ export async function ownerDisputeDetail(db: Dbx, ownerId: string, disputeId: st
     .from(disputeUpdates)
     .where(and(eq(disputeUpdates.disputeId, disputeId), eq(disputeUpdates.visibleToOwner, true)))
     .orderBy(desc(disputeUpdates.at));
-  return { ...dispute, updates };
+  const linkedCheques = await disputeChequeRows(db, disputeId);
+  return { ...dispute, updates, cheques: linkedCheques };
 }
 
 export async function ownerProfile(db: Dbx, ownerId: string) {

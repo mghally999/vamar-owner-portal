@@ -141,6 +141,7 @@ export async function getBuildingDetail(db: Dbx, id: string, todayDate: PlainDat
         ...u,
         owners: ownerRows.filter((o) => o.unitId === u.id).map(({ unitId: _u, ...rest }) => rest),
         occupied: contract !== null,
+        effectiveStatus: contract !== null ? ('occupied' as const) : u.status,
         contract,
       };
     }),
@@ -256,7 +257,7 @@ export async function setUnitOwners(
   return after;
 }
 
-export async function getUnitDetail(db: Dbx, unitId: string) {
+export async function getUnitDetail(db: Dbx, unitId: string, todayDate?: PlainDate) {
   const unit = await db.query.units.findFirst({ where: eq(units.id, unitId) });
   if (!unit) throw notFound('Unit');
   const building = await db.query.buildings.findFirst({ where: eq(buildings.id, unit.buildingId) });
@@ -286,7 +287,19 @@ export async function getUnitDetail(db: Dbx, unitId: string) {
     .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
     .where(eq(contracts.unitId, unitId))
     .orderBy(sql`${contracts.startDate} desc`);
-  return { ...unit, building, owners: currentOwners, contracts: unitContracts };
+  const occupied =
+    todayDate !== undefined &&
+    unitContracts.some(
+      (c) => c.status === 'active' && c.startDate <= todayDate && c.endDate >= todayDate,
+    );
+  return {
+    ...unit,
+    occupied,
+    effectiveStatus: occupied ? ('occupied' as const) : unit.status,
+    building,
+    owners: currentOwners,
+    contracts: unitContracts,
+  };
 }
 
 export async function listTenants(db: Dbx, search?: string) {
