@@ -159,3 +159,49 @@ year off, an unnamed progress bar. HANDOVER.md, README, DEMO and PROJECT updated
 v2 in both themes and both languages.
 
 تم تسليم المشروع كاملاً وجاهزاً للتشغيل الفعلي، فقد أصبح تطبيق الملاك متاحاً عبر رابط تنزيل واحد يعرض تطبيق أندرويد أو نسخة الويب المناسبة للآيفون، مع تحديثات تصل للتطبيق المثبت تلقائياً. وتم تجهيز نموذج إكسل باللغة العربية لإدخال بيانات فامار الحقيقية مع التحقق من صحتها قبل الحفظ، وتجربة استيراد 5,000 سجل بنجاح، وخطوات واضحة ومجربة لبدء التشغيل الفعلي ببيانات نظيفة. وأظهرت المراجعة النهائية تحسناً في التقييم العام من 6.1 إلى 8.4 من 10، وأصبح النظام يتحمل ضعف عدد المستخدمين بسرعة استجابة أعلى بثلاث إلى خمس مرات، وتم توثيق كل ما يلزم لاستلام المشروع وتشغيله.
+
+## v2 phase 1, model and rules (2 Nov 2026)
+
+**Built.** Migrations 0006 and 0007: expense categories (21 seeded, fixed and variable), vendors,
+expenses with a draft / posted / void life cycle, append-only owner allocations, recurring rules,
+work orders, unit status with its history and the property identifiers (title deed, plot, Makani,
+DEWA/SEWA, municipality) on units and buildings, dispute-to-cheque links (backfilled from the
+contracts of existing bounced-cheque cases), calendar events, the 2026 and 2027 UAE holidays
+(religious ones tentative) and the settings table with its defaults. Shared rules: period presets
+(this year by default, Dubai dates, Monday week start, comparison periods of the same length,
+monthly buckets), the largest-remainder allocation of a building expense to units and owners,
+VAT at 5 %, recurring due dates with month-end clamping, fixed-cost projections, the rent identity
+expected = collected + outstanding + at risk, month grids and the Hijri date, settings parsing.
+
+**Try it.** `pnpm --filter @vamar/shared test` (176 tests; property tests prove every allocation
+adds up and the identity holds; presets checked on 1 Jan, 31 Dec and 29 Feb),
+`pnpm --filter @vamar/db test` (migrations and the seed on an in-process Postgres).
+
+تم بناء أساس النسخة الثانية: جداول المصروفات والفئات والموردين وقواعد المصروفات المتكررة، وتوزيع كل
+مصروف على الملاك بدقة الفلس، وأوامر الصيانة، وحالة الوحدة وسجلها وأرقام العقار، وربط الشيكات المرتجعة
+بالقضايا، وأحداث التقويم والعطلات الرسمية للعامين 2026 و2027، مع قواعد الفترات والحسابات (المتوقع =
+المحصّل + المتبقي + المعرّض للخطر) مختبرة بالكامل.
+
+## v2 phase 2, API (2 Nov 2026)
+
+**Built.** Staff endpoints for categories, vendors, expenses (create, edit, post with the owners'
+shares computed from the ownership on the invoice date, void with a reason and an optional
+corrected copy, live allocation preview, duplicate-invoice and outlier warnings), recurring rules
+and the drafts the daily cron creates from them, work orders with photos and the paying invoice,
+unit status with reason and history, identifiers, unit and building history timelines, a calendar
+for any range with manual events and admin-managed holidays, a one-round-trip report summary
+(rent, expenses by kind and category, occupancy over time, comparison period, up to 24 monthly
+buckets), global search, settings, and dispute-to-cheque links (a bounced-cheque case needs at
+least one). Owner endpoints: the period summary behind Home, expenses with invoice files, work
+orders, the unit timeline, the calendar and the display settings on the profile. Pushes: a
+monthly summary on the 1st, a hearing reminder three days before, a finished work order and a
+large expense. The demo seed now carries eighteen months of fixed costs, a lift repair, an AC
+breakdown with before and after photos, legal fees on the bounced-cheque case, work orders,
+statuses, identifiers and events.
+
+**Try it.** `pnpm --filter @vamar/api test` (150 tests, 30 new, owner isolation on every new
+endpoint); `GET /api/owner/summary?preset=this_year` and `GET /api/staff/reports/summary?preset=last_month&compare=1`.
+
+تم بناء واجهة البرمجة الكاملة للمصروفات وأوامر الصيانة وسجل العقار والتقويم والتقارير والبحث
+والإعدادات، مع ملخص المالك لأي فترة في طلب واحد، وربط الشيكات المرتجعة بالقضايا، وتنبيهات شهرية
+وتذكير بالجلسات وإشعار بإنجاز الصيانة وبالمصروفات الكبيرة، وبيانات تجريبية لثمانية عشر شهراً.
