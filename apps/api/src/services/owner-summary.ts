@@ -249,7 +249,14 @@ export async function ownerSummary(
     spent_src as (
       select a.on_date as d, x.kind, a.amount_fils as fils, x.id as xid
       from expense_allocations a
-      join expenses x on x.id = a.expense_id and x.status = 'posted' and x.visible_to_owner
+      -- One primary-key lookup per allocation row. Written as a joined table, the planner reads
+      -- every posted expense (196k rows, 267 ms) to merge with an owner's 20k allocations;
+      -- LIMIT 1 keeps this a per-row lookup (id is unique, so the result is the same).
+      cross join lateral (
+        select e.id, e.kind, e.building_id, e.category_id from expenses e
+        where e.id = a.expense_id and e.status = 'posted' and e.visible_to_owner
+        limit 1
+      ) x
       where a.owner_id = ${ownerId} and a.on_date between ${minFrom} and ${period.to}${andAll(expenseWhere)}
     ),
     spent as (
