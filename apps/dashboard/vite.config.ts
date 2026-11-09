@@ -4,6 +4,47 @@ import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 import AllTestFilesRan from '../../tooling/ci/vitest-all-files-ran';
 
+/** Small packages the shell and most pages use; they share one cached `vendor` chunk. */
+const SHELL_PACKAGES = new Set([
+  'lucide-react',
+  'radix-ui',
+  'zod',
+  'react-hook-form',
+  '@hookform/resolvers',
+  // Used by the shell's buttons (asChild); the rest of Radix loads with the dialogs that need it.
+  '@radix-ui/react-slot',
+  '@radix-ui/react-compose-refs',
+]);
+
+/**
+ * App modules the shell loads at start and every page shares; kept together in `index-core`.
+ * Page modules are left out: they load with their routes.
+ */
+const CORE_SOURCES = [
+  /\/apps\/dashboard\/src\/lib\/(messages|i18n|api|auth|theme|hooks|firebase)\.tsx?$/,
+  /\/apps\/dashboard\/src\/ui\/(primitives|shell|logo|search-shortcut)\.tsx?$/,
+  /\/apps\/dashboard\/src\/v2\/index\.tsx?$/,
+  /\/packages\/shared\/src\/(dates|money)\.ts$/,
+];
+
+/** The chunk a module belongs to, or null to leave it with the route chunk that imports it. */
+function chunkName(id: string): string | null {
+  const path = id.replaceAll('\\', '/');
+  if (CORE_SOURCES.some((re) => re.test(path))) return 'index-core';
+  const m = /node_modules\/(?:\.pnpm\/[^/]+\/node_modules\/)?((?:@[^/]+\/)?[^/]+)/.exec(path);
+  const pkg = m?.[1];
+  if (!pkg) return null;
+  if (pkg === 'xlsx') return 'xlsx';
+  if (pkg === 'firebase' || pkg.startsWith('@firebase/')) return 'firebase';
+  if (pkg.startsWith('@tanstack/')) return 'tanstack';
+  if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') return 'react';
+  if (pkg.startsWith('@fullcalendar/') || pkg === 'preact') return 'fullcalendar';
+  if (pkg === 'react-day-picker' || pkg === 'date-fns' || pkg.startsWith('@date-fns/'))
+    return 'datepicker';
+  if (SHELL_PACKAGES.has(pkg)) return 'vendor';
+  return null;
+}
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
@@ -36,16 +77,23 @@ export default defineConfig({
   build: {
     target: 'es2022',
     sourcemap: false,
-    rollupOptions: {
+    rolldownOptions: {
       output: {
-        // Keep the vendor chunk small and stable; route chunks are split by React.lazy.
-        manualChunks(id) {
-          if (!id.includes('node_modules')) return undefined;
-          if (id.includes('xlsx')) return 'xlsx';
-          if (id.includes('firebase')) return 'firebase';
-          if (id.includes('@tanstack')) return 'tanstack';
-          if (id.includes('react')) return 'react';
-          return 'vendor';
+        // Chunks are named on purpose so the bundle budget (tooling/ci/bundle-budget.mjs) measures
+        // what each one is:
+        // - the libraries every page needs (React, TanStack, Firebase) and the shell's small ones
+        //   (`vendor`), matched on the package name: matching "react" anywhere in the path used to
+        //   pull react-day-picker, @fullcalendar/react and react-hook-form into the React chunk;
+        // - the app core every page shares (messages, primitives, i18n, the API client) as
+        //   `index-core`, so it counts in the initial download instead of getting an arbitrary name;
+        // - the date-picker and calendar libraries in their own lazy chunks, downloaded only by the
+        //   pages that use them; every other package stays with the lazy route chunk importing it.
+        // `includeDependenciesRecursively: false` keeps each group to its own modules: by default
+        // Rolldown pulls a group's dependencies (React, for react-day-picker) into that group, and
+        // the startup chunks then had to load the date picker and the calendar.
+        codeSplitting: {
+          includeDependenciesRecursively: false,
+          groups: [{ name: chunkName }],
         },
       },
     },

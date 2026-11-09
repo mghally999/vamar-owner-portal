@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "sideEffects": false,
   "description": "Pure business rules shared by API, dashboard and app: zod schemas, money and date utils, cheque state machine, shares, occupancy, alerts, i18n keys",
   "exports": {
     ".": {

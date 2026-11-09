@@ -161,18 +161,4 @@ export function SearchPalette({
   );
 }
 
-/** Ctrl+K (or Cmd+K) anywhere opens the palette. */
-export function useSearchShortcut(setOpen: (o: boolean) => void) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setOpen(true);
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [setOpen]);
-}
+export { useSearchShortcut } from './search-shortcut';

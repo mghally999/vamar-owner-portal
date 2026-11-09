@@ -1,5 +1,10 @@
+/**
+ * Screenshots of every dashboard page in Arabic and English, at desktop and phone width, for the
+ * docs and the demo. One signed-in page per language and width; each screenshot is its own test,
+ * so the time limit applies per page and a failure names the page that did not render.
+ */
 import { mkdirSync } from 'node:fs';
-import { test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { login } from './helpers';
 
 const OUT = process.env['SCREENSHOT_DIR'] ?? '../../demo/screenshots/dashboard';
@@ -8,7 +13,7 @@ const THEME = process.env['SCREENSHOT_THEME'] ?? 'default';
 const SUFFIX = THEME === 'default' ? '' : `-${THEME}`;
 mkdirSync(OUT, { recursive: true });
 
-const PAGES: { name: string; path: string; settle?: (page: Page) => Promise<void> }[] = [
+const PAGES: { name: string; path: string }[] = [
   { name: 'overview', path: '/' },
   { name: 'owners', path: '/owners' },
   { name: 'buildings', path: '/buildings' },
@@ -35,97 +40,125 @@ const PAGES: { name: string; path: string; settle?: (page: Page) => Promise<void
   { name: 'reports', path: '/reports?preset=this_year&compare=1' },
 ];
 
+/** Detail pages: open the list, then follow the first visible link of each selector in turn. */
+const DETAILS: { name: string; list: string; links: string[] }[] = [
+  { name: 'building-detail', list: '/buildings', links: ['a[href^="/buildings/"]'] },
+  // v2: the unit record behind the first unit of that building
+  {
+    name: 'unit-detail',
+    list: '/buildings',
+    links: ['a[href^="/buildings/"]', 'a[href^="/units/"]'],
+  },
+  {
+    name: 'contract-detail',
+    list: '/contracts',
+    links: ['a[href^="/contracts/"]:not([href$="/new"])'],
+  },
+  { name: 'cheque-detail', list: '/cheques', links: ['a[href^="/cheques/"]'] },
+  { name: 'owner-detail', list: '/owners', links: ['a[href^="/owners/"]'] },
+  { name: 'dispute-detail', list: '/disputes', links: ['a[href^="/disputes/"]'] },
+  // v2: a posted expense with its invoice and a work order with photos
+  {
+    name: 'expense-detail',
+    list: '/expenses?preset=this_year&status=posted',
+    links: ['a[href^="/expenses/"]:not([href$="/new"]):not([href$="/rules"])'],
+  },
+  {
+    name: 'work-order-detail',
+    list: '/work-orders',
+    links: ['a[href^="/work-orders/"]:not([href$="/new"])'],
+  },
+];
+
+/**
+ * Waits until the page has rendered its data: the page heading is shown and no loading skeleton
+ * is left. The app keeps requests going (session checks, counts), so the network never goes idle
+ * and is not a signal to wait for.
+ */
+async function settle(page: Page) {
+  const main = page.getByRole('main');
+  await expect(main.getByRole('heading', { level: 1 })).toBeVisible({ timeout: 20_000 });
+  await expect(main.locator('.skeleton, [aria-busy="true"]')).toHaveCount(0, { timeout: 20_000 });
+  await page.evaluate(() => document.fonts.ready);
+  // Let entry transitions finish so the picture is not caught mid-fade.
+  await page.waitForTimeout(300);
+}
+
+async function shoot(page: Page, name: string, lang: string, width: number, fullPage = true) {
+  await page.screenshot({ path: `${OUT}/${name}-${lang}-${width}${SUFFIX}.png`, fullPage });
+}
+
 for (const lang of ['ar', 'en'] as const) {
   for (const width of [1440, 390]) {
-    test(`screenshots ${lang} @${width}`, async ({ page }) => {
-      await page.setViewportSize({ width, height: width === 1440 ? 900 : 844 });
-      await page.addInitScript((theme) => {
-        localStorage.setItem('vamar.theme', theme);
-      }, THEME);
-      await page.goto('/login');
-      await page.evaluate((l) => {
-        localStorage.setItem('vamar.lang', l);
-      }, lang);
-      await page.goto('/login');
-      await page.screenshot({ path: `${OUT}/login-${lang}-${width}${SUFFIX}.png`, fullPage: true });
-      await login(page, 'admin', lang);
+    test.describe(`screenshots ${lang} @${width}`, () => {
+      test.describe.configure({ mode: 'serial' });
+      let page: Page;
+
+      test.beforeAll(async ({ browser }, testInfo) => {
+        // The project's own options (base URL, Arabic locale, device) on a page shared by the tests.
+        const { baseURL, locale, userAgent, deviceScaleFactor } = testInfo.project.use;
+        page = await browser.newPage({
+          ...(baseURL ? { baseURL } : {}),
+          ...(locale ? { locale } : {}),
+          ...(userAgent ? { userAgent } : {}),
+          ...(deviceScaleFactor ? { deviceScaleFactor } : {}),
+          viewport: { width, height: width === 1440 ? 900 : 844 },
+        });
+        await page.addInitScript(
+          ([theme, l]) => {
+            localStorage.setItem('vamar.theme', theme);
+            localStorage.setItem('vamar.lang', l);
+          },
+          [THEME, lang] as const,
+        );
+      });
+
+      test.afterAll(async () => {
+        await page.close();
+      });
+
+      test('login', async () => {
+        await page.goto('/login');
+        await expect(page.getByRole('button', { name: /تسجيل الدخول|Sign in/ })).toBeVisible();
+        await page.evaluate(() => document.fonts.ready);
+        await shoot(page, 'login', lang, width);
+        await login(page, 'admin', lang);
+      });
+
       for (const p of PAGES) {
-        await page.goto(p.path);
-        await page.waitForLoadState('networkidle');
-        await page.waitForTimeout(400);
-        await page.screenshot({
-          path: `${OUT}/${p.name}-${lang}-${width}${SUFFIX}.png`,
-          fullPage: true,
+        test(p.name, async () => {
+          await page.goto(p.path);
+          await settle(page);
+          await shoot(page, p.name, lang, width);
         });
       }
-      // Detail pages: first building, first contract, first cheque, first owner
-      await page.goto('/buildings');
-      await page.locator('a[href^="/buildings/"]').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/building-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
+
+      for (const d of DETAILS) {
+        test(d.name, async () => {
+          await page.goto(d.list);
+          for (const selector of d.links) {
+            await settle(page);
+            const from = new URL(page.url()).pathname;
+            await page.locator(selector).filter({ visible: true }).first().click();
+            // The list's own heading is still on screen until the route changes.
+            await page.waitForURL((u) => u.pathname !== from);
+          }
+          await settle(page);
+          await shoot(page, d.name, lang, width);
+        });
+      }
+
+      // Ctrl+K search with a case number typed; the palette loads on first use.
+      test('search', async () => {
+        await page.goto('/');
+        await settle(page);
+        await page.keyboard.press('Control+K');
+        const input = page.getByRole('dialog').getByRole('combobox');
+        await expect(input).toBeVisible();
+        await input.fill('D-20');
+        await expect(page.getByRole('option').first()).toBeVisible({ timeout: 10_000 });
+        await shoot(page, 'search', lang, width, false);
       });
-      // v2: the unit record behind the first unit of that building
-      await page.locator('a[href^="/units/"]').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/unit-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      await page.goto('/contracts');
-      await page.locator('a[href^="/contracts/"]:not([href$="/new"])').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/contract-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      await page.goto('/cheques');
-      await page.locator('a[href^="/cheques/"]').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/cheque-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      await page.goto('/owners');
-      await page.locator('a[href^="/owners/"]').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/owner-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      await page.goto('/disputes');
-      await page.locator('a[href^="/disputes/"]').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/dispute-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      // v2 detail pages: a posted expense with its invoice and a work order with photos
-      await page.goto('/expenses?preset=this_year&status=posted');
-      await page
-        .locator('a[href^="/expenses/"]:not([href$="/new"]):not([href$="/rules"])')
-        .first()
-        .click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/expense-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      await page.goto('/work-orders');
-      await page.locator('a[href^="/work-orders/"]:not([href$="/new"])').first().click();
-      await page.waitForLoadState('networkidle');
-      await page.screenshot({
-        path: `${OUT}/work-order-detail-${lang}-${width}${SUFFIX}.png`,
-        fullPage: true,
-      });
-      // Ctrl+K search with a cheque number typed
-      await page.goto('/');
-      await page.waitForLoadState('networkidle');
-      await page.keyboard.press('Control+K');
-      await page.keyboard.type('D-20');
-      await page.waitForTimeout(800);
-      await page.screenshot({ path: `${OUT}/search-${lang}-${width}${SUFFIX}.png` });
     });
   }
 }

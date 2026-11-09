@@ -17,6 +17,9 @@ const BUDGETS = [
   { match: /^firebase-/, limit: 45_000 },
   { match: /^index-.*\.js$/, limit: 40_000 },
   { match: /^xlsx-/, limit: 180_000 },
+  // FullCalendar v6 (core and the dayGrid, timeGrid, multiMonth, list and interaction plugins the
+  // calendar page needs), loaded only by /calendar, never at start; measured at 79,865 bytes.
+  { match: /^fullcalendar-/, limit: 90_000 },
   { match: /\.js$/, limit: 20_000 }, // every route chunk
 ];
 const TOTAL_INITIAL_LIMIT = 260_000; // everything a cold login page downloads (no xlsx, no routes)

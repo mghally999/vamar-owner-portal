@@ -18,14 +18,19 @@ import {
   Wrench,
   X,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { lazy, Suspense, useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import type { MessageKey } from '@/lib/messages';
 import { Logo } from './logo';
 import { cx } from './primitives';
-import { SearchPalette, useSearchShortcut } from './search-palette';
+import { useSearchShortcut } from './search-shortcut';
+
+/** The palette (a dialog and the search request) loads the first time it is opened. */
+const SearchPalette = lazy(async () => ({
+  default: (await import('./search-palette')).SearchPalette,
+}));
 import { V2_NAV } from '@/v2';
 
 export interface NavItem {
@@ -67,6 +72,9 @@ export function AppShell() {
   const [theme, setTheme] = useTheme();
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  /** Mounted once opened so the dialog can animate closed and keep its state afterwards. */
+  const [searchUsed, setSearchUsed] = useState(false);
+  if (searchOpen && !searchUsed) setSearchUsed(true);
   useSearchShortcut(setSearchOpen);
   const path = useRouterState({ select: (s) => s.location.pathname });
 
@@ -160,7 +168,9 @@ export function AppShell() {
 
   return (
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_1fr]">
-      <aside className="hidden lg:flex lg:flex-col lg:gap-6 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh">
+      {/* The sidebar scrolls when the entries do not fit the window, so the last ones never spill
+          onto the page background (where their light text would fail contrast). */}
+      <aside className="hidden lg:flex lg:flex-col lg:gap-6 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
         <Brand />
         {nav}
         {footer}
@@ -181,7 +191,7 @@ export function AppShell() {
       </header>
       {open ? (
         <div className="fixed inset-0 z-50 flex lg:hidden">
-          <div className="flex w-72 flex-col gap-6 bg-header px-3 py-5 text-on-header">
+          <div className="flex h-dvh w-72 flex-col gap-6 overflow-y-auto bg-header px-3 py-5 text-on-header">
             <div className="flex items-center justify-between">
               <Brand />
               <button
@@ -212,7 +222,11 @@ export function AppShell() {
       <main className="mx-auto w-full min-w-0 max-w-6xl px-4 py-6 lg:px-8 lg:py-8">
         <Outlet />
       </main>
-      <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+      {searchUsed ? (
+        <Suspense fallback={null}>
+          <SearchPalette open={searchOpen} onOpenChange={setSearchOpen} />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

@@ -26,7 +26,9 @@ async function dismissToast(page: Page) {
 test('login with TOTP lands on the overview', async ({ page }) => {
   await login(page, 'admin', 'en');
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(/Overview/);
-  await expect(page.getByText(/Expected this month/i)).toBeVisible();
+  // The period summary: the hero card links to the cheques behind the expected rent. Matched as a
+  // link so the chart legend of the same name never makes the locator ambiguous.
+  await expect(page.getByRole('link', { name: /Expected rent/ })).toBeVisible();
 });
 
 test('add an owner with a phone number', async ({ page }) => {
@@ -134,7 +136,11 @@ test('change a cheque status: deposit, bounce with a reason, replace', async ({ 
   await page.getByRole('button', { name: /Change status/ }).click();
   dialog = page.getByRole('dialog');
   await dialog.getByRole('radio', { name: /Replace with a new cheque/ }).click();
-  await dialog.getByLabel(/Due date/).fill('2027-01-15');
+  // The date picker's text field takes a typed date and commits it on Enter (or on blur).
+  const dueDate = dialog.getByLabel(/Due date/);
+  await dueDate.fill('15/01/2027');
+  await dueDate.press('Enter');
+  await expect(dueDate).toHaveValue('15/01/2027');
   await dialog.getByLabel(/Amount/).fill('21250');
   await dialog.getByLabel(/Cheque no/).fill(`R${stamp}`);
   await dialog.getByLabel(/Bank/).fill('Mashreq');

@@ -55,12 +55,13 @@ describe('OwnersPage', () => {
         status: 'active',
       });
     });
-    await vi.waitFor(() => {
-      expect(screen.queryByText('Ahmed Al Mansouri')).toBeNull();
-    });
+    // The filtered list replaces the first one: wait for its row, since Ahmed is also gone while
+    // the new request is still loading (the list shows a skeleton then, not a table).
+    const fatima = await screen.findByRole('link', { name: 'Fatima Al Zarooni' });
+    expect(screen.queryByText('Ahmed Al Mansouri')).toBeNull();
 
     // Hovering a row warms the owner's detail page.
-    await user.hover(screen.getByRole('link', { name: 'Fatima Al Zarooni' }));
+    await user.hover(fatima);
     await vi.waitFor(() => {
       expect(api.to('GET', '/api/staff/owners/own-2')).toHaveLength(1);
     });
