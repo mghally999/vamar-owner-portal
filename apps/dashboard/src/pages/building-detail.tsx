@@ -17,9 +17,10 @@ import {
   TimelineKindFilter,
   TimelineList,
   UnitStatusChip,
+  useAccumulatedEntries,
   useTimelinePages,
 } from '@/v2/shared';
-import type { BuildingIdentifiers, BuildingUnitRecord, TimelineEntry } from '@/v2/types';
+import type { BuildingIdentifiers, BuildingUnitRecord } from '@/v2/types';
 import { Dialog } from '@/ui/dialog';
 import {
   Button,
@@ -38,6 +39,7 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { DatePicker } from '@/ui/date-picker';
 
 const UNIT_TYPE_LABEL: Record<(typeof UNIT_TYPES)[number], { ar: string; en: string }> = {
   apartment: { ar: 'شقة', en: 'Apartment' },
@@ -314,22 +316,7 @@ function BuildingHistory({ buildingId }: { buildingId: string }) {
   const pages = useTimelinePages();
   const cursor = pages.cursors.at(-1);
   const q = useBuildingTimeline(buildingId, { ...pages.filter, cursor });
-  const [shown, setShown] = useState<{ key: string; items: TimelineEntry[] }>({
-    key: '',
-    items: [],
-  });
-  const key = `${pages.kinds.join(',')}|${pages.cursors.length}`;
-  const current = q.data?.items ?? [];
-  const items =
-    pages.cursors.length === 0
-      ? current
-      : shown.key === key
-        ? shown.items
-        : [...shown.items, ...current];
-  if (shown.key !== key && q.data)
-    setShown({ key, items: pages.cursors.length === 0 ? current : items });
-  const seen = new Set<string>();
-  const unique = items.filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
+  const unique = useAccumulatedEntries(pages, q.data?.items);
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   return (
     <section className="flex flex-col gap-3">
@@ -401,6 +388,8 @@ function BuildingIdentifiersDialog({
                   floorsCount: num(floorsCount),
                 })
                 .then(onSaved)
+                // A refused save shows its message from save.isError; nothing else to do.
+                .catch(() => undefined)
             }
           >
             {t('save')}
@@ -705,14 +694,13 @@ function SharesDialog({
           </p>
         </div>
         <Field label={t('shares_fromDate')} required>
-          <Input
-            type="date"
+          <DatePicker
             value={fromDate}
-            onChange={(e) => {
-              setFromDate(e.target.value as typeof fromDate);
+            onChange={(next) => {
+              setFromDate(next ?? todayInDubai());
             }}
-            numeric
-            className="max-w-56"
+            required
+            className="max-w-64"
           />
         </Field>
         {!valid && complete ? (

@@ -79,6 +79,8 @@ jobs:
           cd /tmp/load && npm init -y > /dev/null && npm install --no-audit --no-fund autocannon@8 jose@6 pg@8
       - name: Scenarios (15 s each)
         working-directory: /tmp/load
+        # pipefail: a scenario that misses its budget fails the job even though its output goes through tee.
+        shell: bash -o pipefail -e {0}
         run: |
           node tokens.mjs > tokens.json
           B=http://127.0.0.1:8787

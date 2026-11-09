@@ -274,9 +274,49 @@ describe('ChequesPage', () => {
     expect(await screen.findByText('No cheques match these filters.')).toBeTruthy();
     cleanup();
 
-    await renderApp('/cheques', {
+    const failing = await renderApp('/cheques', {
       routes: routes({ 'GET /api/staff/cheques': apiError(500, 'internal') }),
     });
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+    await failing.user.click(await screen.findByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(failing.api.to('GET', '/api/staff/cheques').length).toBeGreaterThan(1);
+    });
+  });
+
+  it('selects all then none, closes the bulk dialog with Escape, and shows cheques without a number', async () => {
+    const { user } = await renderApp('/cheques?status=upcoming,deposited', {
+      routes: routes({
+        'GET /api/staff/cheques': page([
+          chequeRow({ id: 'chq-9', chequeNo: null, bankName: null, tenantName: 'No Number' }),
+          ...ROWS,
+        ]),
+        'POST /api/staff/cheques/bulk-status': {
+          ok: ['chq-1'],
+          failed: [{ id: 'chq-gone', reason: 'Not found' }],
+        },
+      }),
+    });
+    await screen.findByText('No Number');
+    // A status list from a link (overview cards) stays selectable as it came.
+    expect(screen.getByRole('option', { name: 'upcoming,deposited' })).toBeTruthy();
+    // A cheque without a number is labelled by its id and shows dashes.
+    expect(screen.getByRole('checkbox', { name: 'chq-9' })).toBeTruthy();
+    const all = screen.getByRole('checkbox', { name: 'All' });
+    await user.click(all);
+    expect(screen.getByRole('button', { name: 'Bulk update · 3 selected' })).toBeTruthy();
+    await user.click(all);
+    expect(screen.queryByRole('button', { name: /Bulk update/ })).toBeNull();
+    await user.click(all);
+    await user.click(screen.getByRole('button', { name: 'Bulk update · 3 selected' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    // A failure for a cheque no longer in the list is shown by its id.
+    await user.click(screen.getByRole('button', { name: 'Bulk update · 3 selected' }));
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(await within(dialog).findByText('chq-gone')).toBeTruthy();
   });
 });

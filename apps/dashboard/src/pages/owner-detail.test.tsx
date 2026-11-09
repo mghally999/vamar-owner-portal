@@ -130,10 +130,66 @@ describe('OwnerDetailPage', () => {
     });
   });
 
-  it('shows the error state when the owner cannot be loaded', async () => {
-    await renderApp('/owners/missing', {
+  it('shows the error state when the owner cannot be loaded, and retries', async () => {
+    const { api, user } = await renderApp('/owners/missing', {
       routes: { 'GET /api/staff/owners/missing': apiError(404, 'not_found') },
     });
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(api.to('GET', '/api/staff/owners/missing').length).toBeGreaterThan(1);
+    });
+  });
+
+  it('shows web and push-less devices, an unknown unit type, no e-mail, and cancels both dialogs', async () => {
+    const base = ownerDetail();
+    const { user } = await renderApp('/owners/own-1', {
+      routes: {
+        'GET /api/staff/owners/own-1': ownerDetail({
+          email: null,
+          holdings: base.holdings.map((h) => ({ ...h, type: 'penthouse' as never })),
+          devices: [
+            {
+              id: 'dev-3',
+              platform: 'web',
+              model: '',
+              firstSeen: '2026-05-01T09:00:00.000Z',
+              lastSeen: '2026-05-02T09:00:00.000Z',
+              revokedAt: null,
+              hasPushToken: false,
+            },
+          ],
+        }),
+        'POST /api/staff/owners/own-1/phone': () => {
+          throw new TypeError('Failed to fetch');
+        },
+      },
+    });
+    expect(await screen.findByRole('heading', { name: 'Ahmed Al Mansouri' })).toBeTruthy();
+    expect(screen.queryByText('ahmed@example.ae')).toBeNull();
+    // A type the dashboard has no label for is shown as it is stored.
+    expect(screen.getByText('penthouse')).toBeTruthy();
+    expect(screen.getAllByText('Web').length).toBeGreaterThan(0);
+    expect(screen.getByText('Notifications off')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Disable account' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Change phone number' }));
+    dialog = await screen.findByRole('dialog');
+    await user.type(within(dialog).getByLabelText(/^Reason/), 'Owner lost the SIM');
+    const phone = within(dialog).getByLabelText(/Phone \(sign-in number\)/);
+    await user.clear(phone);
+    await user.type(phone, '+971509990000');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(await within(dialog).findByText('Something went wrong. Please try again.')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 });

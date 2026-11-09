@@ -186,6 +186,8 @@ function CategoryDialog({
                   sort: Number(sort),
                 })
                 .then(onSaved)
+                // A refused save shows its message from save.isError; nothing else to do.
+                .catch(() => undefined)
             }
           >
             {t('save')}

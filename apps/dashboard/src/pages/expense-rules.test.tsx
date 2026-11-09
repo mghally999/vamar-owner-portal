@@ -172,4 +172,87 @@ describe('ExpenseRulesPage', () => {
       }),
     ).toBe('/x');
   });
+
+  it('edits a unit rule back to the building with a chosen split, own VAT and no owner visibility', async () => {
+    let refuse: 'api' | 'network' | null = null;
+    const unitRule = rule({
+      id: 'rule-9',
+      scope: 'unit',
+      unitId: 'unit-801',
+      unitNo: '801',
+      vendorId: 'ven-lifts',
+      vendorName: 'Gulf Lifts Technical Services',
+      allocationMethod: 'single_unit',
+    });
+    const { api, user } = await renderApp('/expenses/rules', {
+      role: 'editor',
+      routes: routes({
+        'GET /api/staff/recurring-rules': { items: [unitRule] },
+        'PATCH /api/staff/recurring-rules/:id': (c: ApiCall) => {
+          if (refuse === 'api') return apiError(409, 'conflict', 'The rule is in use');
+          if (refuse === 'network') throw new TypeError('Failed to fetch');
+          return rule({ id: 'rule-9', ...(c.body as object) });
+        },
+      }),
+    });
+    expect(await screen.findByText('Al Noor Tower · 801')).toBeTruthy();
+    expect(screen.getByText('Gulf Lifts Technical Services')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Applies to/ }),
+      'building',
+    );
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: /^Split between owners/ }),
+      'by_ownership',
+    );
+    const vat = within(dialog).getByRole('textbox', { name: /^VAT/ });
+    await user.clear(vat);
+    await user.type(vat, 'abc');
+    expect(vat.getAttribute('aria-invalid')).toBe('true');
+    await user.clear(vat);
+    await user.type(vat, '0');
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Visible to owners' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Ends' }), '31/12/2027{Enter}');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await vi.waitFor(() => {
+      expect(api.last('PATCH', '/api/staff/recurring-rules/rule-9').body).toMatchObject({
+        scope: 'building',
+        unitId: null,
+        allocationMethod: 'by_ownership',
+        vatFils: 0,
+        visibleToOwner: false,
+        endDate: '2027-12-31',
+      });
+    });
+    expect(await screen.findByText('Rule saved.')).toBeTruthy();
+
+    // A save without an answer shows the generic message; Escape closes the dialog.
+    refuse = 'network';
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    expect(await within(dialog).findByText('Something went wrong. Please try again.')).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    // A refused pause says why.
+    refuse = 'api';
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(await screen.findByText('The rule is in use')).toBeTruthy();
+  });
+
+  it('retries a failed list', async () => {
+    const { api, user } = await renderApp('/expenses/rules', {
+      routes: routes({ 'GET /api/staff/recurring-rules': apiError(500, 'internal') }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(api.to('GET', '/api/staff/recurring-rules').length).toBeGreaterThan(1);
+    });
+  });
 });

@@ -291,7 +291,8 @@ export function OverviewPage() {
                     params={{ ownerId: r.ownerId }}
                     className="flex-1 font-medium hover:underline"
                   >
-                    {pick(r.nameAr ?? '', r.nameEn ?? '')}
+                    {/* An owner without a name still gets a link that can be seen and clicked. */}
+                    {pick(r.nameAr ?? '', r.nameEn ?? '') || t('owner')}
                   </Link>
                 ) : (
                   <span className="flex-1">—</span>

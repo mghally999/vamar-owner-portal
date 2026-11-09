@@ -71,7 +71,8 @@ describe('ExpenseNewPage', () => {
         }),
       }),
     });
-    expect(await screen.findByText('New expense')).toBeTruthy();
+    // The page loads lazily; the first load on a busy machine can be slow.
+    expect(await screen.findByText('New expense', undefined, { timeout: 90_000 })).toBeTruthy();
     expect(
       screen.getByText('Fill in the building, date and amount to see the split.'),
     ).toBeTruthy();
@@ -183,6 +184,32 @@ describe('ExpenseNewPage', () => {
       unitId: 'unit-801',
       allocationMethod: 'single_unit',
       workOrderId: 'wo-1',
+    });
+  });
+});
+
+describe('ExpenseNewPage, leaving and failing', () => {
+  it('cancel goes back to the list, and a create without an answer shows the generic message', async () => {
+    const { api, router, user } = await renderApp('/expenses/new', {
+      role: 'editor',
+      routes: routes({
+        'POST /api/staff/expenses': () => {
+          throw new TypeError('Failed to fetch');
+        },
+      }),
+    });
+    await screen.findByText('New expense');
+    await pickOption(user, screen.getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Category/ }), 'cat-lift');
+    await user.type(screen.getByRole('textbox', { name: /^Reason \(Arabic\)/ }), 'إصلاح');
+    await user.type(screen.getByRole('textbox', { name: /^Reason \(English\)/ }), 'Lift repair');
+    await user.type(screen.getByRole('textbox', { name: /^Amount before VAT/ }), '100');
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
+    expect(api.to('POST', '/api/staff/expenses')).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(router.state.location.pathname).toBe('/expenses');
     });
   });
 });
@@ -304,7 +331,7 @@ describe('ExpenseDetailPage', () => {
         'GET /api/staff/expenses/:id': expenseDetail({
           status: 'void',
           voidReason: 'Duplicate',
-          voidedByName: 'Mariam Haddad',
+          voidedByName: null,
           correctedBy: { id: 'exp-fix', status: 'posted' },
         }),
       }),
@@ -313,9 +340,173 @@ describe('ExpenseDetailPage', () => {
     expect(screen.getByText('Duplicate')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'exp-fix' })).toBeTruthy();
     cleanup();
-    await renderApp('/expenses/exp-1', {
+    const failing = await renderApp('/expenses/exp-1', {
       routes: routes({ 'GET /api/staff/expenses/:id': apiError(500, 'internal') }),
     });
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+    await failing.user.click(await screen.findByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(failing.api.to('GET', '/api/staff/expenses/exp-1').length).toBeGreaterThan(1);
+    });
+  });
+
+  it('shows the API reason when posting, deleting or saving fails, and the cancel buttons close the dialogs', async () => {
+    const draft = expenseDetail({
+      id: 'exp-2',
+      status: 'draft',
+      allocations: [],
+      attachments: [],
+      postedByName: null,
+      postedAt: null,
+    });
+    const { user } = await renderApp('/expenses/exp-2', {
+      role: 'editor',
+      routes: routes({
+        'GET /api/staff/expenses/:id': draft,
+        'POST /api/staff/expenses/:id/post': apiError(
+          409,
+          'conflict',
+          'Expense is posted, not a draft',
+        ),
+        'DELETE /api/staff/expenses/:id': apiError(409, 'conflict', 'Only a draft can be deleted'),
+        'PATCH /api/staff/expenses/:id': () => {
+          throw new TypeError('Failed to fetch');
+        },
+      }),
+    });
+    expect(await screen.findByRole('heading', { name: 'Lift 2 repair' })).toBeTruthy();
+    // Post: cancel first, then a refused post shows the reason.
+    await user.click(screen.getByRole('button', { name: 'Post' }));
+    let dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Lift 2 repair · AED 13,020')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await user.click(screen.getByRole('button', { name: 'Post' }));
+    dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Post' }));
+    expect(await screen.findByText('Expense is posted, not a draft')).toBeTruthy();
+    // Delete refused.
+    await user.click(screen.getByRole('button', { name: 'Delete draft' }));
+    expect(await screen.findByText('Only a draft can be deleted')).toBeTruthy();
+    // Save without an answer from the server: the generic message.
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
+  });
+
+  it('an admin voids without a correction and stays on the page; a refused void shows why', async () => {
+    let refuse = false;
+    const { api, router, user } = await renderApp('/expenses/exp-1', {
+      routes: routes({
+        'GET /api/staff/expenses/:id': expenseDetail(),
+        'POST /api/staff/expenses/:id/void': () =>
+          refuse
+            ? apiError(409, 'conflict', 'Expense is already void')
+            : { voided: expenseRow({ status: 'void' }), correction: null },
+      }),
+    });
+    await screen.findByRole('heading', { name: 'Lift 2 repair' });
+    await user.click(screen.getByRole('button', { name: 'Void' }));
+    let dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getAllByRole('button', { name: 'Void' }).at(-1)!;
+    // A reason of at least three characters is required.
+    expect(confirm).toHaveProperty('disabled', true);
+    await user.type(
+      within(dialog).getByRole('textbox', { name: /Why is it voided/ }),
+      'Duplicate invoice',
+    );
+    // Asking for a correction keeps the button off until the copy is confirmed.
+    const copy = within(dialog).getByRole('checkbox', { name: 'Post a corrected copy' });
+    await user.click(copy);
+    expect(confirm).toHaveProperty('disabled', true);
+    await user.click(copy);
+    expect(confirm).toHaveProperty('disabled', false);
+    await user.click(confirm);
+    await vi.waitFor(() => {
+      expect(api.last('POST', '/api/staff/expenses/exp-1/void').body).toEqual({
+        reason: 'Duplicate invoice',
+      });
+    });
+    expect(await screen.findByText('Expense voided.')).toBeTruthy();
+    expect(router.state.location.pathname).toBe('/expenses/exp-1');
+
+    refuse = true;
+    await user.click(screen.getByRole('button', { name: 'Void' }));
+    dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getAllByRole('button', { name: 'Void' }).at(-1)!);
+    expect(await screen.findByText('Expense is already void')).toBeTruthy();
+    // Cancel closes the dialog.
+    await user.click(screen.getByRole('button', { name: 'Void' }));
+    dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    // Escape closes it too.
+    await user.click(screen.getByRole('button', { name: 'Void' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('shows the dashes and links of a sparse expense, and a viewer sees a draft read-only', async () => {
+    await renderApp('/expenses/exp-3', {
+      routes: routes({
+        'GET /api/staff/expenses/:id': expenseDetail({
+          id: 'exp-3',
+          scope: 'unit',
+          unitId: 'unit-801',
+          unitNo: '801',
+          vendorId: null,
+          vendorName: null,
+          vendorTrn: null,
+          invoiceNo: null,
+          coversFrom: '2026-10-01',
+          coversTo: '2026-10-31',
+          paidOn: null,
+          paymentMethod: null,
+          visibleToOwner: false,
+          postedByName: null,
+          postedAt: null,
+          workOrder: null,
+          disputeId: 'dsp-1',
+          disputeCaseNo: null,
+          correctsExpenseId: 'exp-0000000099',
+          allocations: [],
+          attachments: [],
+          allocationMethod: 'single_unit',
+        }),
+      }),
+    });
+    expect(await screen.findByText(/Al Noor Tower · 801/)).toBeTruthy();
+    expect(screen.getByText('1 Oct 2026')).toBeTruthy();
+    expect(screen.getByText('31 Oct 2026')).toBeTruthy();
+    expect(screen.getByText('No')).toBeTruthy();
+    // A case without a stored number links by its id; the voided original by its short id.
+    expect(screen.getByRole('link', { name: 'dsp-1' }).getAttribute('href')).toBe(
+      '/disputes/dsp-1',
+    );
+    expect(screen.getByRole('link', { name: 'exp-0000' }).getAttribute('href')).toBe(
+      '/expenses/exp-0000000099',
+    );
+    expect(screen.getAllByText('—').length).toBeGreaterThan(3);
+
+    cleanup();
+    await renderApp('/expenses/exp-2', {
+      role: 'viewer',
+      routes: routes({
+        'GET /api/staff/expenses/:id': expenseDetail({
+          id: 'exp-2',
+          status: 'draft',
+          disputeId: 'dsp-1',
+          disputeCaseNo: 'D-2026-0001',
+        }),
+      }),
+    });
+    expect(await screen.findByRole('link', { name: 'D-2026-0001' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Post' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 });

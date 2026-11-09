@@ -170,10 +170,99 @@ describe('ContractDetailPage', () => {
     expect(screen.queryByRole('button', { name: 'Activate contract' })).toBeNull();
   });
 
-  it('shows the error state', async () => {
-    await renderApp('/contracts/nope', {
+  it('shows the error state and retries', async () => {
+    const { api, user } = await renderApp('/contracts/nope', {
       routes: { 'GET /api/staff/contracts/nope': apiError(404, 'not_found') },
     });
-    expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+    await user.click(await screen.findByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(api.to('GET', '/api/staff/contracts/nope').length).toBeGreaterThan(1);
+    });
+  });
+
+  it('a draft with empty cheque rows keeps blanks, shows why a save failed, and closes the reason dialog', async () => {
+    const base = draft();
+    const blank: ContractDetail = {
+      ...base,
+      unit: null,
+      building: null,
+      cheques: base.cheques.map((c, i) =>
+        i === 3 ? { ...c, amountFils: null, chequeNo: null, bankName: null } : c,
+      ),
+    };
+    let saveFails: 'api' | 'network' = 'api';
+    const { api, user } = await renderApp('/contracts/con-1', {
+      routes: {
+        'GET /api/staff/contracts/con-1': blank,
+        'PATCH /api/staff/contracts/con-1': () => {
+          if (saveFails === 'network') throw new TypeError('Failed to fetch');
+          return apiError(422, 'validation', 'Cheque numbers must be unique');
+        },
+        'POST /api/staff/contracts/con-1/activate': apiError(
+          422,
+          'total_mismatch_needs_reason',
+          'Needs a reason',
+          { totalFils: 7_125_000 },
+        ),
+      },
+    });
+    const empty = await screen.findByLabelText<HTMLInputElement>('Amount 4');
+    expect(empty.value).toBe('');
+    const first = screen.getByLabelText('Amount 1');
+    await user.clear(first);
+    await user.type(first, '20000');
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+    expect(await screen.findByText('Cheque numbers must be unique')).toBeTruthy();
+    // The empty row is sent as an empty amount, never as zero.
+    const body = api.last('PATCH', '/api/staff/contracts/con-1').body as {
+      cheques: { amountFils: number | null }[];
+    };
+    expect(body.cheques.at(3)?.amountFils).toBeNull();
+    saveFails = 'network';
+    await user.click(screen.getByRole('button', { name: 'Save as draft' }));
+    expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
+
+    // An unsaved grid is saved before activating; here that save fails without an answer.
+    await user.click(screen.getByRole('button', { name: 'Activate contract' }));
+    await vi.waitFor(() => {
+      expect(api.to('PATCH', '/api/staff/contracts/con-1')).toHaveLength(3);
+    });
+  });
+
+  it('cancels the reason dialog, closes it with Escape, and cancels the termination', async () => {
+    const { user } = await renderApp('/contracts/con-1', {
+      routes: {
+        'GET /api/staff/contracts/con-1': draft(),
+        'POST /api/staff/contracts/con-1/activate': apiError(
+          422,
+          'total_mismatch_needs_reason',
+          'Needs a reason',
+          { totalFils: 9_000_000 },
+        ),
+      },
+    });
+    await user.click(await screen.findByRole('button', { name: 'Activate contract' }));
+    let dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    await user.click(screen.getByRole('button', { name: 'Activate contract' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    cleanup();
+    const active = await renderApp('/contracts/con-1', {
+      routes: { 'GET /api/staff/contracts/con-1': contractDetail() },
+    });
+    await active.user.click(await screen.findByRole('button', { name: 'Terminate' }));
+    dialog = await screen.findByRole('dialog');
+    await active.user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
   });
 });

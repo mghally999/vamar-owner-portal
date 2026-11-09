@@ -241,6 +241,8 @@ export function ExpenseForm({
                 type="button"
                 role="radio"
                 aria-checked={scope === s}
+                // Named by its own text: the field's wrapping label would otherwise name the first choice.
+                aria-label={t(`expense_scope_${s}`)}
                 onClick={() => {
                   setScope(s);
                   if (s === 'building') setUnitId('');
@@ -580,11 +582,15 @@ export function VendorDialog({
   const [trn, setTrn] = useState('');
   const trnOk = trn.trim() === '' || /^\d{15}$/.test(trn.trim());
   async function submit() {
-    const r = await create.mutateAsync({
-      name: name.trim(),
-      phone: phone.trim() || null,
-      trn: trn.trim() || null,
-    });
+    // A refused vendor is reported under the fields (create.isError) and the dialog stays open.
+    const r = await create
+      .mutateAsync({
+        name: name.trim(),
+        phone: phone.trim() || null,
+        trn: trn.trim() || null,
+      })
+      .catch(() => null);
+    if (!r) return;
     onCreated(r.id);
     setName('');
     setPhone('');

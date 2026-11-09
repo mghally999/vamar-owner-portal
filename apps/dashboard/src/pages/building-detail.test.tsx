@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { buildingDetail, owner, page, unit } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
+import { formatTypedDate } from '@/ui/date-picker';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -161,7 +162,7 @@ describe('BuildingDetailPage', () => {
     await user.type(at(percents, 0), '60');
     expect(within(dialog).getByText('Total 100%')).toBeTruthy();
     const from = within(dialog).getByLabelText('Effective from');
-    expect(from).toHaveProperty('value', todayInDubai());
+    expect(from).toHaveProperty('value', formatTypedDate(todayInDubai()));
     await user.clear(from);
     await user.type(from, '2026-11-01');
     await user.click(save);

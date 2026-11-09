@@ -56,6 +56,7 @@ import {
   useUpdateEvent,
 } from './queries';
 import { DateWarning, RouteLink } from './shared';
+import { DatePicker } from '@/ui/date-picker';
 
 type View = 'multiMonthYear' | 'dayGridMonth' | 'timeGridWeek' | 'listMonth';
 
@@ -716,7 +717,12 @@ function EventDialog({
           <Button variant="secondary" onClick={onClose}>
             {t('cancel')}
           </Button>
-          <Button onClick={() => void submit()} disabled={!valid || !loaded} loading={pending}>
+          <Button
+            // A refused save shows its message from create.isError or update.isError.
+            onClick={() => void submit().catch(() => undefined)}
+            disabled={!valid || !loaded}
+            loading={pending}
+          >
             {t('save')}
           </Button>
         </>
@@ -742,13 +748,12 @@ function EventDialog({
           />
         </Field>
         <Field label={t('date')} required>
-          <Input
-            type="date"
-            value={day}
-            onChange={(e) => {
-              setDay(e.target.value);
+          <DatePicker
+            value={day as PlainDate | ''}
+            onChange={(next) => {
+              setDay(next ?? '');
             }}
-            numeric
+            required
           />
           <DateWarning date={day} />
         </Field>

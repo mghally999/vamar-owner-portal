@@ -3,7 +3,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { contractDetail, overview } from '@/test/fixtures';
-import { reportSummary, v2Routes } from '@/test/fixtures-v2';
+import { reportSummary, settings, v2Routes } from '@/test/fixtures-v2';
 import { renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -148,5 +148,40 @@ describe('OverviewPage', () => {
     await vi.waitFor(() => {
       expect(api.to('GET', '/api/staff/overview').length).toBeGreaterThan(1);
     });
+  });
+
+  it('keeps the lists when only the period cards fail, hides the fee label when turned off, and links a nameless deletion request', async () => {
+    const base = overview();
+    const { api, user } = await renderApp('/', {
+      role: 'admin',
+      routes: routes({
+        'GET /api/staff/settings': settings({ showBeforeFeeLabel: false }),
+        'GET /api/staff/reports/summary': apiError(500, 'internal'),
+        'GET /api/staff/overview': overview({
+          deletionRequests: [
+            ...base.deletionRequests,
+            {
+              id: 'del-3',
+              ownerId: 'own-8',
+              at: '2026-10-23T10:00:00.000Z',
+              nameEn: null,
+              nameAr: null,
+              phoneE164: '+971505554444',
+            },
+          ],
+        }),
+      }),
+    });
+    expect(await screen.findByText('Account deletion requests')).toBeTruthy();
+    // The lists still show while the period cards offer a retry.
+    expect(screen.getByText('Nadia Rahman')).toBeTruthy();
+    expect(screen.queryByText("Before Vamar's management fee")).toBeNull();
+    // An owner without a name still gets a visible link.
+    expect(screen.getByRole('link', { name: 'Owner' }).getAttribute('href')).toBe('/owners/own-8');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    await vi.waitFor(() => {
+      expect(api.to('GET', '/api/staff/reports/summary').length).toBeGreaterThan(1);
+    });
+    expect(api.to('GET', '/api/staff/overview')).toHaveLength(1);
   });
 });

@@ -143,7 +143,8 @@ function BuildingDialog({
     >
       <form
         id="building-form"
-        onSubmit={(e) => void submit(e)}
+        // A refused create keeps the dialog open with its message from create.isError.
+        onSubmit={(e) => void submit(e).catch(() => undefined)}
         className="flex flex-col gap-4"
         noValidate
       >

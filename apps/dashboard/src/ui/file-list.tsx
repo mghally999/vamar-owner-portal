@@ -73,7 +73,7 @@ export function FileList({
                   <Button
                     size="sm"
                     variant="ghost"
-                    aria-label={`${t('close')} ${f.fileName}`}
+                    aria-label={`${t('file_delete')} ${f.fileName || f.id}`}
                     loading={remove.isPending && remove.variables === f.id}
                     onClick={() => void remove.mutateAsync(f.id).catch(() => undefined)}
                   >

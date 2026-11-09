@@ -187,6 +187,8 @@ function VendorDialog({
                   active,
                 })
                 .then(onSaved)
+                // A refused save shows its message from save.isError; nothing else to do.
+                .catch(() => undefined)
             }
           >
             {t('save')}

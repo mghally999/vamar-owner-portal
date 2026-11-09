@@ -133,7 +133,8 @@ export function SettingsPage() {
           {canEdit ? (
             <div>
               <Button
-                onClick={() => void submit()}
+                // A refused save shows its message from save.isError.
+                onClick={() => void submit().catch(() => undefined)}
                 disabled={!dirty || !valid}
                 loading={save.isPending}
               >

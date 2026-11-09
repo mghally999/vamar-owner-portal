@@ -10,6 +10,7 @@ import {
   parseAmountInput,
   type DisputeStatus,
   type DisputeType,
+  type PlainDate,
 } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/hooks';
@@ -36,6 +37,8 @@ import { ResponsiveTable } from '@/ui/responsive-table';
 import { useV2 } from '@/v2/messages';
 import { useDisputesV2, useUnitCheques } from '@/v2/queries';
 import { ChequePicker } from '@/v2/cheque-picker';
+import { DatePicker } from '@/ui/date-picker';
+import { useHolidaySet } from '@/lib/queries-v2';
 
 export function DisputesPage() {
   const { t, pick, lang } = useI18n();
@@ -190,6 +193,7 @@ function DisputeDialog({
   const unitCheques = useUnitCheques(unitId);
   const [amount, setAmount] = useState('');
   const [hearing, setHearing] = useState('');
+  const holidaySet = useHolidaySet();
   const [notes, setNotes] = useState('');
   const units = useMemo(() => building.data?.units ?? [], [building.data]);
   const unit = units.find((u) => u.id === unitId);
@@ -298,13 +302,14 @@ function DisputeDialog({
           />
         </Field>
         <Field label={t('dispute_hearing')}>
-          <Input
-            type="date"
-            value={hearing}
-            onChange={(e) => {
-              setHearing(e.target.value);
+          <DatePicker
+            value={hearing as PlainDate | ''}
+            onChange={(next) => {
+              setHearing(next ?? '');
             }}
-            numeric
+            clearable
+            warnNonWorking
+            holidays={holidaySet}
           />
         </Field>
         {unitId ? (

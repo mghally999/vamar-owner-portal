@@ -55,6 +55,7 @@ export function ExpenseRulesPage() {
   const save = useSaveRule();
   const [editing, setEditing] = useState<RecurringRule | 'new' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
   const today = todayInDubai();
 
   return (
@@ -80,6 +81,7 @@ export function ExpenseRulesPage() {
         }
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
+      {failure ? <Toast kind="error">{failure}</Toast> : null}
       <Checkbox
         label={t('rule_paused')}
         checked={includeInactive}
@@ -171,12 +173,19 @@ export function ExpenseRulesPage() {
                           variant="ghost"
                           loading={save.isPending && save.variables.id === r.id}
                           onClick={() => {
+                            setFailure(null);
                             save
                               .mutateAsync({ id: r.id, input: { active: !r.active } })
                               .then(() => {
                                 setNotice(t('rule_saved'));
                               })
-                              .catch(() => undefined);
+                              .catch((e: unknown) => {
+                                // A refused pause or resume says why instead of doing nothing.
+                                setNotice(null);
+                                setFailure(
+                                  e instanceof ApiRequestError ? e.message : t('error_generic'),
+                                );
+                              });
                           }}
                         >
                           {r.active ? t('rule_pause') : t('rule_resume')}

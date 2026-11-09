@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { sharePct } from '@vamar/shared';
+import { sharePct, UNIT_TYPES } from '@vamar/shared';
 import { ApiRequestError } from '@/lib/api';
 import { useChangeOwnerPhone, useOwner, useSetOwnerStatus } from '@/lib/queries';
 import { Dialog } from '@/ui/dialog';
@@ -118,9 +118,10 @@ export function OwnerDetailPage() {
                   {pick(h.buildingNameAr, h.buildingNameEn)} · {h.unitNo}
                 </Link>
                 <span className="text-ink-soft">
-                  {t(`unit_type_${h.type}` as MessageKey) === `unit_type_${h.type}`
-                    ? h.type
-                    : t(`unit_type_${h.type}` as MessageKey)}
+                  {/* A type this dashboard has no label for is shown as it is stored. */}
+                  {(UNIT_TYPES as readonly string[]).includes(h.type)
+                    ? t(`unit_type_${h.type}` as MessageKey)
+                    : h.type}
                 </span>
                 <span className="tnum">
                   {t('owner_share')} {sharePct(h.shareBp)}%

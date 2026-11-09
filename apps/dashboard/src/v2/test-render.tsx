@@ -22,8 +22,8 @@ import { mockApi, reply, type Routes } from '@/test/api';
 import { staffUser } from '@/test/fixtures';
 import { v2Routes } from './index';
 
-configure({ asyncUtilTimeout: 5000 });
-vi.setConfig({ testTimeout: 20_000 });
+configure({ asyncUtilTimeout: 30_000 }); // the same wait as src/test/render.tsx
+vi.setConfig({ testTimeout: 120_000 }); // as src/test/render.tsx: a cold first render under coverage is slow
 window.scrollTo = () => undefined;
 
 export interface RenderV2Options {

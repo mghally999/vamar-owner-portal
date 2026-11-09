@@ -61,6 +61,17 @@ describe('date helpers', () => {
   });
 });
 
+describe('typed date edges', () => {
+  it('reads Persian digits and dotted dates, and refuses half-typed ones', () => {
+    expect(parseTypedDate('۱۵/۱۰/۲۰۲۶')).toBe('2026-10-15');
+    expect(parseTypedDate('15.10.2026')).toBe('2026-10-15');
+    expect(parseTypedDate('15/10')).toBeNull();
+    expect(parseTypedDate('2026-13-01')).toBeNull();
+    expect(formatTypedDate('')).toBe('');
+    expect(formatTypedDate(undefined)).toBe('');
+  });
+});
+
 function Single({ initial, holidays }: { initial: PlainDate | null; holidays?: Set<string> }) {
   const [v, setV] = useState<PlainDate | null>(initial);
   return (
@@ -145,6 +156,62 @@ function Range() {
   );
 }
 
+describe('DatePicker limits and dismissal', () => {
+  function Bounded() {
+    const [v, setV] = useState<PlainDate | null>(null);
+    return (
+      <>
+        <button type="button">elsewhere</button>
+        <DatePicker
+          value={v}
+          onChange={setV}
+          min="2026-10-10"
+          max="2026-10-20"
+          defaultMonth="2026-10-01"
+          weekStart="sunday"
+          aria-label="Hearing"
+        />
+        <output data-testid="value">{v ?? 'none'}</output>
+      </>
+    );
+  }
+
+  it('greys out days outside min and max, closes on a click outside, and an empty field stays empty', async () => {
+    const user = userEvent.setup();
+    renderUi(<Bounded />);
+    await user.click(screen.getByRole('button', { name: 'Open calendar' }));
+    let dialog = screen.getByRole('dialog');
+    // Sunday first when the week starts on Sunday.
+    const headers = [...dialog.querySelectorAll('thead th')].map((th) => th.textContent);
+    expect(headers[0]).toBe('Sun');
+    expect(
+      within(dialog)
+        .getByRole('button', { name: /^Monday, October 5/i })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    expect(
+      within(dialog)
+        .getByRole('button', { name: /^Saturday, October 24/i })
+        .hasAttribute('disabled'),
+    ).toBe(true);
+    // A click inside the calendar keeps it open; a click elsewhere closes it.
+    await user.click(within(dialog).getByText('October 2026'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'elsewhere' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Open calendar' }));
+    dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^Thursday, October 15/i }));
+    expect(screen.getByTestId('value').textContent).toBe('2026-10-15');
+    // Leaving an empty field when nothing was chosen changes nothing.
+    cleanup();
+    renderUi(<Bounded />);
+    await user.click(screen.getByRole('textbox', { name: 'Hearing' }));
+    await user.tab();
+    expect(screen.getByTestId('value').textContent).toBe('none');
+  });
+});
+
 describe('DateRangePicker', () => {
   it('shows two months and takes a typed range (ordered) or two clicks', async () => {
     const user = userEvent.setup();
@@ -170,5 +237,42 @@ describe('DateRangePicker', () => {
   it('is a labelled placeholder until something is picked', () => {
     renderUi(<Range />);
     expect(screen.getByRole('button', { name: 'Range' }).textContent).toContain('Date range');
+  });
+
+  it('applies from the From field and the Apply button, ignores a half-typed range, and closes on Escape or a second click', async () => {
+    const user = userEvent.setup();
+    renderUi(<Range />);
+    const open = screen.getByRole('button', { name: 'Range' });
+    await user.click(open);
+    let dialog = screen.getByRole('dialog');
+    await user.type(within(dialog).getByRole('textbox', { name: 'From' }), '01/10/2026{Enter}');
+    // Only one end typed: nothing is applied and the calendar stays open.
+    expect(screen.getByTestId('value').textContent).toBe('none');
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    await user.type(within(dialog).getByRole('textbox', { name: 'To' }), '31/10/2026');
+    await user.type(within(dialog).getByRole('textbox', { name: 'From' }), '{Enter}');
+    expect(screen.getByTestId('value').textContent).toBe('2026-10-01..2026-10-31');
+    // The Apply button does the same.
+    await user.click(open);
+    dialog = screen.getByRole('dialog');
+    const to = within(dialog).getByRole('textbox', { name: 'To' });
+    await user.clear(to);
+    await user.type(to, '15/10/2026');
+    await user.click(within(dialog).getByRole('button', { name: 'Apply' }));
+    expect(screen.getByTestId('value').textContent).toBe('2026-10-01..2026-10-15');
+    // Clicking the same day twice gives a one-day range.
+    await user.click(open);
+    dialog = screen.getByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: /^Wednesday, October 21/i }));
+    await user.click(within(dialog).getByRole('button', { name: /^Wednesday, October 21/i }));
+    expect(screen.getByTestId('value').textContent).toBe('2026-10-21..2026-10-21');
+    // A second click on the trigger closes it; so does Escape.
+    await user.click(open);
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    await user.click(open);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await user.click(open);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

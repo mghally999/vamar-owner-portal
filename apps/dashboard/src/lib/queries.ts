@@ -16,7 +16,6 @@ import type {
   ContractStatus,
   CreateContractInput,
   CreateOwnerInput,
-  DisputeStatus,
 } from '@vamar/shared';
 import { qs, request } from './api';
 import type {
@@ -28,7 +27,6 @@ import type {
   ContractDetail,
   ContractRow,
   DisputeDetail,
-  DisputeRow,
   OwnerDetail,
   OwnerRow,
   Overview,
@@ -441,20 +439,6 @@ export function useBulkChequeStatus() {
   });
 }
 
-export function useUpdateChequeRow() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: Record<string, unknown> }) =>
-      request<{ contractId: string }>(`/api/staff/cheques/${id}`, {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      }),
-    onSuccess: (data, { id }) => {
-      invalidateCheque(qc, id, data.contractId);
-    },
-  });
-}
-
 export function useUploadChequeImage() {
   const qc = useQueryClient();
   return useMutation({
@@ -466,17 +450,6 @@ export function useUploadChequeImage() {
     onSuccess: (_d, { id }) => {
       invalidateCheque(qc, id);
     },
-  });
-}
-
-export function useDisputes(filters: {
-  status?: DisputeStatus | undefined;
-  buildingId?: string | undefined;
-}) {
-  return useQuery({
-    queryKey: keys.disputes(filters),
-    queryFn: () =>
-      request<{ items: DisputeRow[] }>(`/api/staff/disputes${qs(filters)}`).then((r) => r.items),
   });
 }
 

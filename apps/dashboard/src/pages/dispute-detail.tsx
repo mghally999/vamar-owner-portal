@@ -335,12 +335,17 @@ export function DisputeDetailPage() {
                       .then(() => {
                         setNote('');
                         setNotice(t('dispute_updateAdded'));
-                      });
+                      })
+                      // A refused update keeps the note and shows the error below.
+                      .catch(() => undefined);
                   }}
                 >
                   {t('dispute_addUpdate')}
                 </Button>
               </div>
+              {addUpdate.isError ? (
+                <p className="text-[13px] text-danger">{t('error_generic')}</p>
+              ) : null}
             </Card>
           ) : null}
           {!d ? (
@@ -381,11 +386,10 @@ export function DisputeDetailPage() {
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f)
-                          void upload.mutateAsync({
-                            entityType: 'dispute',
-                            entityId: disputeId,
-                            file: f,
-                          });
+                          void upload
+                            .mutateAsync({ entityType: 'dispute', entityId: disputeId, file: f })
+                            // A refused upload shows its message from upload.isError.
+                            .catch(() => undefined);
                         e.target.value = '';
                       }}
                     />
@@ -511,7 +515,13 @@ function LinkChequesDialog({
           <Button
             disabled={required && ids.length === 0}
             loading={save.isPending}
-            onClick={() => void save.mutateAsync(ids).then(onSaved)}
+            // A refused save shows its message from save.isError.
+            onClick={() =>
+              void save
+                .mutateAsync(ids)
+                .then(onSaved)
+                .catch(() => undefined)
+            }
           >
             {t('save')}
           </Button>

@@ -1,6 +1,6 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
-import { isPlainDate, todayInDubai } from '@vamar/shared';
+import { isPlainDate, todayInDubai, type PlainDate } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { Dialog } from '@/ui/dialog';
 import {
@@ -22,6 +22,7 @@ import { Page } from '@/ui/shell';
 import { useV2 } from './messages';
 import { useDeleteHoliday, useHolidays, useUpsertHoliday } from './queries';
 import type { Holiday } from './types';
+import { DatePicker } from '@/ui/date-picker';
 
 /** Public holidays per year; admins add, edit and remove them (moon-sighting dates are tentative). */
 export function HolidaysPage() {
@@ -190,6 +191,8 @@ function HolidayDialog({
               void save
                 .mutateAsync({ date, nameAr: nameAr.trim(), nameEn: nameEn.trim(), tentative })
                 .then(onSaved)
+                // A refused save shows its message from save.isError; nothing else to do.
+                .catch(() => undefined)
             }
           >
             {t('save')}
@@ -199,13 +202,12 @@ function HolidayDialog({
     >
       <div className="grid gap-4">
         <Field label={t('date')} required>
-          <Input
-            type="date"
-            value={date}
-            onChange={(e) => {
-              setDate(e.target.value);
+          <DatePicker
+            value={date as PlainDate | ''}
+            onChange={(next) => {
+              setDate(next ?? '');
             }}
-            numeric
+            required
             disabled={holiday !== null}
           />
         </Field>

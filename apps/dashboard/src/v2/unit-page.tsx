@@ -6,6 +6,7 @@ import {
   UNIT_STATUS_LABEL,
   UNIT_TYPE_LABEL,
   type ManualUnitStatus,
+  type PlainDate,
 } from '@vamar/shared';
 import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -36,8 +37,15 @@ import {
   useUnitStatusHistory,
   useUnitTimeline,
 } from './queries';
-import { TimelineKindFilter, TimelineList, UnitStatusChip, useTimelinePages } from './shared';
-import type { TimelineEntry, UnitRecord } from './types';
+import {
+  TimelineKindFilter,
+  TimelineList,
+  UnitStatusChip,
+  useAccumulatedEntries,
+  useTimelinePages,
+} from './shared';
+import type { UnitRecord } from './types';
+import { DatePicker } from '@/ui/date-picker';
 
 const IDENTIFIER_FIELDS = [
   ['titleDeedNo', 'records_titleDeed'],
@@ -298,18 +306,7 @@ function UnitTimeline({ unitId }: { unitId: string }) {
   const pages = useTimelinePages();
   const cursor = pages.cursors.at(-1);
   const q = useUnitTimeline(unitId, { ...pages.filter, cursor });
-  const [earlier, setEarlier] = useState<TimelineEntry[]>([]);
-  const [earlierKey, setEarlierKey] = useState('');
-  const key = `${pages.kinds.join(',')}|${pages.cursors.length}`;
-  if (earlierKey !== key) {
-    // A new page was requested: keep what was shown so far; a filter change starts over.
-    setEarlierKey(key);
-    setEarlier(pages.cursors.length === 0 ? [] : [...earlier, ...(q.data?.items ?? [])]);
-  }
-  const items =
-    pages.cursors.length === 0 ? (q.data?.items ?? []) : [...earlier, ...(q.data?.items ?? [])];
-  const seen = new Set<string>();
-  const unique = items.filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
+  const unique = useAccumulatedEntries(pages, q.data?.items);
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   return (
     <div className="flex flex-col gap-3">
@@ -456,6 +453,8 @@ function IdentifiersDialog({
                   ),
                 )
                 .then(onSaved)
+                // A refused save shows its message from save.isError; nothing else to do.
+                .catch(() => undefined)
             }
           >
             {t('save')}
@@ -482,13 +481,12 @@ function IdentifiersDialog({
           </Field>
         ))}
         <Field label={t('records_handover')}>
-          <Input
-            type="date"
-            value={values['handoverDate'] ?? ''}
-            onChange={(e) => {
-              set('handoverDate', e.target.value);
+          <DatePicker
+            value={(values['handoverDate'] ?? '') as PlainDate | ''}
+            onChange={(next) => {
+              set('handoverDate', next ?? '');
             }}
-            numeric
+            clearable
           />
         </Field>
         {save.isError ? (

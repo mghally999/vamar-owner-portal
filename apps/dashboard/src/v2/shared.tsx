@@ -9,7 +9,7 @@ import {
   type UnitStatus,
 } from '@vamar/shared';
 import { Button, Card, Checkbox, cx, Money, Skeleton } from '@/ui/primitives';
-import { useV2, type V2MessageKey } from './messages';
+import { useV2, v2Messages, type V2MessageKey } from './messages';
 import { useHolidays } from './queries';
 import type { TimelineEntry } from './types';
 
@@ -121,9 +121,9 @@ export function timelineTitle(
         ? UNIT_STATUS_LABEL[e.titleEn as UnitStatus][lang]
         : e.titleEn
       : e.titleEn;
-  const vars = { name, no: name };
-  const dict = t(key, vars);
-  return dict.startsWith('tl_') ? `${e.titleAr} ${e.titleEn}` : dict;
+  // A key this build does not know yet (the API added an event) falls back to the raw key and subject.
+  if (!Object.hasOwn(v2Messages.en, key)) return `${e.titleAr} ${e.titleEn}`;
+  return t(key, { name, no: name });
 }
 
 export function timelineLink(
@@ -254,6 +254,29 @@ export function TimelineList({
       ) : null}
     </div>
   );
+}
+
+/**
+ * The entries to show for a paged timeline: when "load more" asks for the next page, what was on
+ * screen is kept and the new page is added after it; a filter change starts over. The query keeps
+ * the previous page as placeholder data while the next one loads, so the snapshot taken at the
+ * moment the page count changes is exactly what was shown. Duplicates (an entry on two pages)
+ * appear once.
+ */
+export function useAccumulatedEntries(
+  pages: { kinds: TimelineKind[]; cursors: string[] },
+  current: TimelineEntry[] | undefined,
+): TimelineEntry[] {
+  const [earlier, setEarlier] = useState<TimelineEntry[]>([]);
+  const [earlierKey, setEarlierKey] = useState('');
+  const key = `${pages.kinds.join(',')}|${String(pages.cursors.length)}`;
+  if (earlierKey !== key) {
+    setEarlierKey(key);
+    setEarlier(pages.cursors.length === 0 ? [] : [...earlier, ...(current ?? [])]);
+  }
+  const items = pages.cursors.length === 0 ? (current ?? []) : [...earlier, ...(current ?? [])];
+  const seen = new Set<string>();
+  return items.filter((e) => (seen.has(e.id) ? false : (seen.add(e.id), true)));
 }
 
 /** Pages accumulated over "load more" on top of the kind filter. */
