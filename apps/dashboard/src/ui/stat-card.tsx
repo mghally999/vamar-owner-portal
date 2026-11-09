@@ -50,7 +50,7 @@ export function StatCard({
         )}
       >
         {fils === null || fils === undefined ? (
-          <span className="text-ink-faint">—</span>
+          <span className={tone === 'hero' ? 'text-on-hero-soft' : 'text-ink-faint'}>—</span>
         ) : (
           <Amount fils={fils} currencyClassName="text-[13px]" />
         )}
@@ -73,11 +73,26 @@ export function StatCard({
         previousFils !== null &&
         fils !== null &&
         fils !== undefined ? (
-        <p className="mt-1 text-[13px] text-ink-faint tnum">
+        <p
+          className={cx(
+            'mt-1 text-[13px] tnum',
+            tone === 'hero' ? 'text-on-hero-soft' : 'text-ink-faint',
+          )}
+        >
           {t('period_previous')}: {num(previousFils)}
         </p>
       ) : null}
-      {hint ? <p className="mt-1 text-[13px] text-ink-faint">{hint}</p> : null}
+      {/* On the dark hero card the faint grey fails contrast: secondary lines use the hero tokens. */}
+      {hint ? (
+        <p
+          className={cx(
+            'mt-1 text-[13px]',
+            tone === 'hero' ? 'text-on-hero-soft' : 'text-ink-faint',
+          )}
+        >
+          {hint}
+        </p>
+      ) : null}
       {children}
     </>
   );
