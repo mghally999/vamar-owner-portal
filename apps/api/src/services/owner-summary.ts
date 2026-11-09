@@ -1,11 +1,11 @@
 /**
  * The owner's summary for a period: rent (expected, collected, outstanding, at risk), expenses
  * (fixed and variable, actual and projected), net and projected net, the comparison period and
- * monthly buckets, plus the rows Home shows under the cards. Four statements run together: one
+ * monthly buckets, plus the rows Home shows under the cards. Two statements run together: one
  * round trip of latency. Shares follow the ownership valid on each cheque's due date and each
  * expense's invoice date.
  */
-import { and, asc, eq, gte, inArray, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
@@ -16,6 +16,7 @@ import {
   projectFixedExpenses,
   recurringDueDates,
   resolvePeriodQuery,
+  type AllocationMethod,
   type ChequeStatus,
   type Period,
   type PeriodPreset,
@@ -23,21 +24,13 @@ import {
   type WeekStart,
 } from '@vamar/shared';
 import { rowsOf, type Dbx } from '../db.js';
-import { allocationUnitsFor } from './expenses.js';
-import { ownerUnitsSubquery } from './owner-scope.js';
-import { workOrderInOwnerScope } from './work-orders.js';
+import {
+  buildAllocationUnits,
+  type AllocationOwnershipRow,
+  type AllocationUnitRow,
+} from './expenses.js';
 
-const {
-  cheques,
-  contracts,
-  units,
-  buildings,
-  tenants,
-  disputes,
-  workOrders,
-  recurringExpenseRules,
-  unitOwnerships,
-} = schema;
+const { disputes } = schema;
 
 export interface OwnerRent {
   expectedFils: number;
@@ -114,6 +107,56 @@ interface ExpenseRow {
   n: number | string;
 }
 
+interface Figures {
+  rent: RentRow[];
+  spent: ExpenseRow[];
+  next: {
+    id: string;
+    dueDate: string;
+    amountFils: number | null;
+    shareBp: number;
+    status: ChequeStatus;
+    unitNo: string;
+    buildingNameAr: string;
+    buildingNameEn: string;
+    tenantName: string;
+  } | null;
+  ending: OwnerSummary['contractsEnding'];
+  counts: {
+    open_work_orders: number | string;
+    open_disputes: number | string;
+    total_units: number | string;
+    occupied_units: number | string;
+  };
+}
+
+interface Projection {
+  rules: {
+    id: string;
+    scope: 'building' | 'unit';
+    buildingId: string;
+    unitId: string | null;
+    frequency: 'monthly' | 'quarterly' | 'yearly';
+    dayOfMonth: number;
+    startDate: string;
+    endDate: string | null;
+    amountFils: number;
+    vatFils: number;
+    allocationMethod: AllocationMethod;
+    active: boolean;
+  }[];
+  units: AllocationUnitRow[];
+  ownerships: AllocationOwnershipRow[];
+}
+
+/** One JSON column of a one-row result (pg and PGlite parse json, some drivers return text). */
+function jsonColumn(result: unknown, column: string): unknown {
+  const row = rowsOf<Record<string, unknown>>(result)[0];
+  const value = row?.[column];
+  if (value === undefined || value === null) throw new Error(`summary query returned no ${column}`);
+  return typeof value === 'string' ? (JSON.parse(value) as unknown) : value;
+}
+
 const emptyRent = (): OwnerRent => ({
   expectedFils: 0,
   collectedFils: 0,
@@ -174,8 +217,18 @@ export async function ownerSummary(
   const andAll = (parts: SQL[]) =>
     parts.length ? sql` and ${sql.join(parts, sql` and `)}` : sql``;
 
-  const rentQ = db.execute(sql`
-    with mine as (
+  // The owner's current units in the requested scope: next cheque, contracts ending, counts.
+  const scopeUnitsSql = sql`
+    select uo.unit_id, uo.share_bp from unit_ownerships uo join units u on u.id = uo.unit_id
+    where uo.owner_id = ${ownerId} and uo.to_date is null
+      ${q.buildingId ? sql`and u.building_id = ${q.buildingId}` : sql``}
+      ${q.unitId ? sql`and u.id = ${q.unitId}` : sql``}`;
+
+  // Statement 1: every figure and list of the screen as one JSON document, so a summary costs one
+  // round trip (one pooled connection locally, one HTTPS request on Neon) instead of six.
+  const figuresQ = db.execute(sql`
+    with my_units as (${scopeUnitsSql}),
+    rent_src as (
       select q.due_date as d, q.status, (q.amount_fils * uo.share_bp / 10000)::bigint as fils
       from cheques q
       join contracts c on c.id = q.contract_id and c.status <> 'draft'
@@ -184,129 +237,117 @@ export async function ownerSummary(
            and uo.from_date <= q.due_date and (uo.to_date is null or uo.to_date > q.due_date)
       where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
         and q.due_date between ${minFrom} and ${period.to}${andAll(chequeWhere)}
-    )
-    select ${partCase} as part, to_char(d, 'YYYY-MM') as month,
-           coalesce(sum(fils), 0)::bigint as expected,
-           coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
-           coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
-           count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
-    from mine group by 1, 2`);
-
-  const expenseQ = db.execute(sql`
-    with mine as (
+    ),
+    rent as (
+      select ${partCase} as part, to_char(d, 'YYYY-MM') as month,
+             coalesce(sum(fils), 0)::bigint as expected,
+             coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
+             coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
+             count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
+      from rent_src group by 1, 2
+    ),
+    spent_src as (
       select a.on_date as d, x.kind, a.amount_fils as fils, x.id as xid
       from expense_allocations a
       join expenses x on x.id = a.expense_id and x.status = 'posted' and x.visible_to_owner
       where a.owner_id = ${ownerId} and a.on_date between ${minFrom} and ${period.to}${andAll(expenseWhere)}
+    ),
+    spent as (
+      select ${partCase} as part, to_char(d, 'YYYY-MM') as month, kind,
+             coalesce(sum(fils), 0)::bigint as total, count(distinct xid)::int as n
+      from spent_src group by 1, 2, 3
+    ),
+    next_cheque as (
+      select q.id, q.due_date as "dueDate", q.amount_fils as "amountFils", mu.share_bp as "shareBp",
+             q.status, u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
+             b.name_en as "buildingNameEn", t.name as "tenantName"
+      from cheques q
+      join contracts c on c.id = q.contract_id and c.status <> 'draft'
+      join my_units mu on mu.unit_id = c.unit_id
+      join units u on u.id = c.unit_id
+      join buildings b on b.id = u.building_id
+      join tenants t on t.id = c.tenant_id
+      where q.amount_fils is not null and q.status in ('upcoming', 'deposited')
+        and q.due_date >= ${todayDate}
+      order by q.due_date, q.id limit 1
+    ),
+    ending as (
+      select c.id, u.id as "unitId", u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
+             b.name_en as "buildingNameEn", t.name as "tenantName", c.end_date as "endDate"
+      from contracts c
+      join my_units mu on mu.unit_id = c.unit_id
+      join units u on u.id = c.unit_id
+      join buildings b on b.id = u.building_id
+      join tenants t on t.id = c.tenant_id
+      where c.status = 'active' and c.end_date between ${todayDate} and ${addDays(todayDate, 90)}
+      order by c.end_date limit 5
     )
-    select ${partCase} as part, to_char(d, 'YYYY-MM') as month, kind,
-           coalesce(sum(fils), 0)::bigint as total, count(distinct xid)::int as n
-    from mine group by 1, 2, 3`);
+    select json_build_object(
+      'rent', coalesce((select json_agg(r) from rent r), '[]'::json),
+      'spent', coalesce((select json_agg(e) from spent e), '[]'::json),
+      'next', (select row_to_json(n) from next_cheque n),
+      'ending', coalesce((select json_agg(g order by g."endDate") from ending g), '[]'::json),
+      'counts', json_build_object(
+        -- The owner's scope for jobs (as workOrderInOwnerScope): on their units, or building-wide in
+        -- a building they own in. Counted as two disjoint parts so each uses its own index.
+        'open_work_orders', (
+          (select count(*)::int from work_orders w where w.visible_to_owner
+             and w.status in ('open', 'scheduled', 'in_progress')
+             and w.unit_id in (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null))
+          + (select count(*)::int from work_orders w where w.visible_to_owner
+             and w.status in ('open', 'scheduled', 'in_progress') and w.unit_id is null
+             and w.building_id in (select u.building_id from units u where u.id in
+               (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null)))),
+        'open_disputes', (select count(*)::int from ${disputes} d where d.unit_id in (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null) and d.status <> 'closed'),
+        'total_units', (select count(*)::int from my_units),
+        'occupied_units', (select count(*)::int from my_units mu where exists (
+          select 1 from contracts c where c.unit_id = mu.unit_id and c.status = 'active'
+            and c.start_date <= ${todayDate} and c.end_date >= ${todayDate}))
+      )
+    ) as figures`);
 
-  // Rules that can touch the owner's current units (projections use today's ownership).
-  const myUnits = ownerUnitsSubquery(db, ownerId);
-  const rulesQ = db
-    .select()
-    .from(recurringExpenseRules)
-    .where(
-      and(
-        eq(recurringExpenseRules.active, true),
-        eq(recurringExpenseRules.visibleToOwner, true),
-        lte(recurringExpenseRules.startDate, period.to),
-        or(isNull(recurringExpenseRules.endDate), gte(recurringExpenseRules.endDate, todayDate)),
-        or(
-          inArray(recurringExpenseRules.unitId, myUnits),
-          and(
-            isNull(recurringExpenseRules.unitId),
-            inArray(
-              recurringExpenseRules.buildingId,
-              db.select({ b: units.buildingId }).from(units).where(inArray(units.id, myUnits)),
-            ),
-          ),
-        ),
-        q.buildingId ? eq(recurringExpenseRules.buildingId, q.buildingId) : undefined,
-        q.unitId
-          ? or(eq(recurringExpenseRules.unitId, q.unitId), isNull(recurringExpenseRules.unitId))
-          : undefined,
-      ),
-    );
+  // Statement 2: the recurring rules that can touch the owner's units and, only when there are
+  // some, every unit of the owner's buildings with its owners (a building rule is split over all
+  // of them). Projections then allocate in memory, with no query per rule.
+  const projectionQ = db.execute(sql`
+    with mine as (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null),
+    blds as (select distinct u.building_id from units u where u.id in (select unit_id from mine)),
+    rules as (
+      select r.* from recurring_expense_rules r
+      where r.active and r.visible_to_owner and r.start_date <= ${period.to}
+        and (r.end_date is null or r.end_date >= ${todayDate})
+        and (r.unit_id in (select unit_id from mine)
+             or (r.unit_id is null and r.building_id in (select building_id from blds)))
+        ${q.buildingId ? sql`and r.building_id = ${q.buildingId}` : sql``}
+        ${q.unitId ? sql`and (r.unit_id = ${q.unitId} or r.unit_id is null)` : sql``}
+    ),
+    su as (select id, size_sqft, building_id, active from units
+           where building_id in (select building_id from blds) and exists (select 1 from rules))
+    select json_build_object(
+      'rules', coalesce((select json_agg(json_build_object(
+        'id', id, 'scope', scope, 'buildingId', building_id, 'unitId', unit_id,
+        'frequency', frequency, 'dayOfMonth', day_of_month, 'startDate', start_date,
+        'endDate', end_date, 'amountFils', amount_fils, 'vatFils', vat_fils,
+        'allocationMethod', allocation_method, 'active', active)) from rules), '[]'::json),
+      'units', coalesce((select json_agg(json_build_object(
+        'id', id, 'sizeSqft', size_sqft, 'buildingId', building_id, 'active', active)) from su), '[]'::json),
+      'ownerships', coalesce((select json_agg(json_build_object(
+        'unitId', uo.unit_id, 'ownerId', uo.owner_id, 'shareBp', uo.share_bp,
+        'fromDate', uo.from_date, 'toDate', uo.to_date))
+        from unit_ownerships uo where uo.unit_id in (select id from su)), '[]'::json)
+    ) as projection`);
 
-  const scopeConditions: SQL[] = [
-    eq(unitOwnerships.ownerId, ownerId),
-    isNull(unitOwnerships.toDate),
-  ];
-  if (q.buildingId) scopeConditions.push(eq(units.buildingId, q.buildingId));
-  if (q.unitId) scopeConditions.push(eq(units.id, q.unitId));
-  const nextChequeQ = db
-    .select({
-      id: cheques.id,
-      dueDate: cheques.dueDate,
-      amountFils: cheques.amountFils,
-      shareBp: unitOwnerships.shareBp,
-      status: cheques.status,
-      unitNo: units.unitNo,
-      buildingNameAr: buildings.nameAr,
-      buildingNameEn: buildings.nameEn,
-      tenantName: tenants.name,
-    })
-    .from(cheques)
-    .innerJoin(contracts, eq(contracts.id, cheques.contractId))
-    .innerJoin(units, eq(units.id, contracts.unitId))
-    .innerJoin(unitOwnerships, eq(unitOwnerships.unitId, units.id))
-    .innerJoin(buildings, eq(buildings.id, units.buildingId))
-    .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
-    .where(
-      and(
-        ...scopeConditions,
-        sql`${contracts.status} <> 'draft'`,
-        sql`${cheques.amountFils} is not null`,
-        inArray(cheques.status, ['upcoming', 'deposited']),
-        gte(cheques.dueDate, todayDate),
-      ),
-    )
-    .orderBy(asc(cheques.dueDate), asc(cheques.id))
-    .limit(1);
-  const endingQ = db
-    .select({
-      id: contracts.id,
-      unitId: units.id,
-      unitNo: units.unitNo,
-      buildingNameAr: buildings.nameAr,
-      buildingNameEn: buildings.nameEn,
-      tenantName: tenants.name,
-      endDate: contracts.endDate,
-    })
-    .from(contracts)
-    .innerJoin(units, eq(units.id, contracts.unitId))
-    .innerJoin(unitOwnerships, eq(unitOwnerships.unitId, units.id))
-    .innerJoin(buildings, eq(buildings.id, units.buildingId))
-    .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
-    .where(
-      and(
-        ...scopeConditions,
-        eq(contracts.status, 'active'),
-        gte(contracts.endDate, todayDate),
-        lte(contracts.endDate, addDays(todayDate, 90)),
-      ),
-    )
-    .orderBy(asc(contracts.endDate))
-    .limit(5);
-  const countsQ = db.execute(sql`
-    select
-      (select count(*)::int from ${workOrders} where ${workOrderInOwnerScope(db, ownerId)} and ${workOrders.status} in ('open', 'scheduled', 'in_progress')) as open_work_orders,
-      (select count(*)::int from ${disputes} d where d.unit_id in (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null) and d.status <> 'closed') as open_disputes,
-      (select count(*)::int from unit_ownerships uo join units u on u.id = uo.unit_id where uo.owner_id = ${ownerId} and uo.to_date is null ${q.buildingId ? sql`and u.building_id = ${q.buildingId}` : sql``} ${q.unitId ? sql`and u.id = ${q.unitId}` : sql``}) as total_units,
-      (select count(*)::int from unit_ownerships uo join units u on u.id = uo.unit_id where uo.owner_id = ${ownerId} and uo.to_date is null ${q.buildingId ? sql`and u.building_id = ${q.buildingId}` : sql``} ${q.unitId ? sql`and u.id = ${q.unitId}` : sql``}
-         and exists (select 1 from contracts c where c.unit_id = uo.unit_id and c.status = 'active' and c.start_date <= ${todayDate} and c.end_date >= ${todayDate})) as occupied_units`);
-
-  const [rentRaw, expenseRaw, rules, nextRows, ending, countsRaw] = await Promise.all([
-    rentQ,
-    expenseQ,
-    rulesQ,
-    nextChequeQ,
-    endingQ,
-    countsQ,
-  ]);
+  const [figuresRaw, projectionRaw] = await Promise.all([figuresQ, projectionQ]);
+  const figures = jsonColumn(figuresRaw, 'figures') as Figures;
+  const projection = jsonColumn(projectionRaw, 'projection') as Projection;
+  const rentRaw = figures.rent;
+  const expenseRaw = figures.spent;
+  const nextRows = figures.next ? [figures.next] : [];
+  const ending = figures.ending;
+  const countsRaw = [figures.counts];
+  const rules = projection.rules;
+  const scopeUnits = projection.units;
+  const scopeOwnerships = projection.ownerships;
 
   const rent = emptyRent();
   const expenses = emptyExpenses();
@@ -349,8 +390,9 @@ export async function ownerSummary(
     try {
       // Future due dates are split with today's ownership: who will own a unit later is not
       // known yet. Actual expenses and rent always use the ownership valid on their own date.
-      const allocationUnits = await allocationUnitsFor(
-        db,
+      const allocationUnits = buildAllocationUnits(
+        scopeUnits,
+        scopeOwnerships,
         rule.scope,
         rule.buildingId,
         rule.unitId,

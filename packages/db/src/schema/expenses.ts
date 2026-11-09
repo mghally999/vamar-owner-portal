@@ -155,6 +155,13 @@ export const expenses = pgTable(
     index('expenses_dispute_idx')
       .on(t.disputeId)
       .where(sql`${t.disputeId} IS NOT NULL`),
+    /**
+     * Owner totals join their allocations to the posted, owner-visible expenses for the kind: this
+     * small partial index answers that join by itself (index-only), without reading the table.
+     */
+    index('expenses_posted_visible_kind_idx')
+      .on(t.id, t.kind)
+      .where(sql`${t.status} = 'posted' AND ${t.visibleToOwner}`),
     check('expenses_amount_positive', sql`${t.amountFils} > 0`),
     check('expenses_vat_non_negative', sql`${t.vatFils} >= 0`),
     check('expenses_total_is_sum', sql`${t.totalFils} = ${t.amountFils} + ${t.vatFils}`),
@@ -190,6 +197,13 @@ export const expenseAllocations = pgTable(
   (t) => [
     /** Every owner total, bucket and list starts here. */
     index('expense_allocations_owner_date_idx').on(t.ownerId, t.onDate),
+    /** The owner summary and lists read the expense and amount too: index-only for an owner. */
+    index('expense_allocations_owner_date_cover_idx').on(
+      t.ownerId,
+      t.onDate,
+      t.expenseId,
+      t.amountFils,
+    ),
     index('expense_allocations_expense_idx').on(t.expenseId),
     /** The unit history timeline. */
     index('expense_allocations_unit_date_idx').on(t.unitId, t.onDate),

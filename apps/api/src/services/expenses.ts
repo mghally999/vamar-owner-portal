@@ -184,45 +184,51 @@ export async function updateVendor(
  * The units an expense is spread over and the owners holding each one on `date`. A unit nobody
  * held on that date (an invoice dated before its first owner) falls back to its current owners.
  */
-export async function allocationUnitsFor(
-  db: Dbx,
+export interface AllocationUnitRow {
+  id: string;
+  sizeSqft: number | null;
+  buildingId: string;
+  active: boolean;
+}
+
+export interface AllocationOwnershipRow {
+  unitId: string;
+  ownerId: string;
+  shareBp: number;
+  fromDate: string;
+  toDate: string | null;
+}
+
+/**
+ * The units an expense is spread over and the owners holding each one on `date`, from rows
+ * already loaded: a unit expense is its unit (which must be in the building), a building expense
+ * the building's active units. A unit nobody held on that date (an invoice dated before its first
+ * owner) falls back to its current owners.
+ */
+export function buildAllocationUnits(
+  unitRows: readonly AllocationUnitRow[],
+  ownershipRows: readonly AllocationOwnershipRow[],
   scope: 'building' | 'unit',
   buildingId: string,
   unitId: string | null,
   date: PlainDate,
-): Promise<AllocationUnit[]> {
-  const unitRows = await db
-    .select({ id: units.id, sizeSqft: units.sizeSqft, buildingId: units.buildingId })
-    .from(units)
-    .where(
-      scope === 'unit' && unitId !== null
-        ? eq(units.id, unitId)
-        : and(eq(units.buildingId, buildingId), eq(units.active, true)),
-    );
-  if (scope === 'unit' && (unitRows.length !== 1 || unitRows[0]?.buildingId !== buildingId))
+): AllocationUnit[] {
+  const chosen =
+    scope === 'unit' && unitId !== null
+      ? unitRows.filter((u) => u.id === unitId)
+      : unitRows.filter((u) => u.buildingId === buildingId && u.active);
+  if (scope === 'unit' && (chosen.length !== 1 || chosen[0]?.buildingId !== buildingId))
     throw notFound('Unit');
-  if (unitRows.length === 0) throw validation('The building has no active units');
-  const rows = await db
-    .select({
-      unitId: unitOwnerships.unitId,
-      ownerId: unitOwnerships.ownerId,
-      shareBp: unitOwnerships.shareBp,
-      fromDate: unitOwnerships.fromDate,
-      toDate: unitOwnerships.toDate,
-    })
-    .from(unitOwnerships)
-    .where(
-      inArray(
-        unitOwnerships.unitId,
-        unitRows.map((u) => u.id),
-      ),
-    );
-  const typed = rows.map((r) => ({
-    ...r,
-    fromDate: r.fromDate as PlainDate,
-    toDate: r.toDate as PlainDate | null,
-  }));
-  return unitRows.map((u) => {
+  if (chosen.length === 0) throw validation('The building has no active units');
+  const ids = new Set(chosen.map((u) => u.id));
+  const typed = ownershipRows
+    .filter((r) => ids.has(r.unitId))
+    .map((r) => ({
+      ...r,
+      fromDate: r.fromDate as PlainDate,
+      toDate: r.toDate as PlainDate | null,
+    }));
+  return chosen.map((u) => {
     let holders = ownersOnDate(typed, u.id, date);
     if (holders.length === 0)
       holders = typed
@@ -234,6 +240,50 @@ export async function allocationUnitsFor(
       });
     return { unitId: u.id, sizeSqft: u.sizeSqft, owners: holders };
   });
+}
+
+/**
+ * The units an expense is spread over and the owners holding each one on `date`. A unit nobody
+ * held on that date (an invoice dated before its first owner) falls back to its current owners.
+ */
+export async function allocationUnitsFor(
+  db: Dbx,
+  scope: 'building' | 'unit',
+  buildingId: string,
+  unitId: string | null,
+  date: PlainDate,
+): Promise<AllocationUnit[]> {
+  const unitRows = await db
+    .select({
+      id: units.id,
+      sizeSqft: units.sizeSqft,
+      buildingId: units.buildingId,
+      active: units.active,
+    })
+    .from(units)
+    .where(
+      scope === 'unit' && unitId !== null
+        ? eq(units.id, unitId)
+        : and(eq(units.buildingId, buildingId), eq(units.active, true)),
+    );
+  const rows = unitRows.length
+    ? await db
+        .select({
+          unitId: unitOwnerships.unitId,
+          ownerId: unitOwnerships.ownerId,
+          shareBp: unitOwnerships.shareBp,
+          fromDate: unitOwnerships.fromDate,
+          toDate: unitOwnerships.toDate,
+        })
+        .from(unitOwnerships)
+        .where(
+          inArray(
+            unitOwnerships.unitId,
+            unitRows.map((u) => u.id),
+          ),
+        )
+    : [];
+  return buildAllocationUnits(unitRows, rows, scope, buildingId, unitId, date);
 }
 
 export function resolveMethod(

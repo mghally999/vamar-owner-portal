@@ -195,9 +195,14 @@ export async function reportSummary(
            count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
     from mine group by 1, 2`);
 
-  // Expenses: posted only; the owner's allocations when an owner is given, else every allocation
-  // summed back to the expense (so building and unit filters apply per allocation).
-  const expenseQ = db.execute(sql`
+  // Expenses, posted only. With an owner or a unit filter the figures are shares, so they come from
+  // the allocations (indexed by owner and date, unit and date). Without one, every allocation of an
+  // expense adds back up to the expense (largest remainder), so the expense rows themselves give
+  // the same totals: a scan of the expenses by status and invoice date instead of joining over a
+  // million allocation rows (which ran Postgres out of shared memory on the load dataset).
+  const byShare = Boolean(filters.ownerId ?? filters.unitId);
+  const expenseQ = byShare
+    ? db.execute(sql`
     with mine as (
       select a.on_date as d, x.kind, a.amount_fils as fils, x.id as xid,
              (a.amount_fils::numeric * x.vat_fils / nullif(x.total_fils, 0)) as vat
@@ -210,9 +215,18 @@ export async function reportSummary(
     select ${partCase} as part, to_char(d, 'YYYY-MM') as month, kind,
            coalesce(sum(fils), 0)::bigint as total, coalesce(round(sum(vat)), 0)::bigint as vat,
            count(distinct xid)::int as n
-    from mine group by 1, 2, 3`);
+    from mine group by 1, 2, 3`)
+    : db.execute(sql`
+    select ${sql`case when x.invoice_date between ${period.from} and ${period.to} then 'cur' else 'prev' end`} as part,
+           to_char(x.invoice_date, 'YYYY-MM') as month, x.kind,
+           coalesce(sum(x.total_fils), 0)::bigint as total, coalesce(sum(x.vat_fils), 0)::bigint as vat,
+           count(*)::int as n
+    from expenses x
+    where x.status = 'posted' and x.invoice_date between ${minFrom} and ${maxTo}${andAll(expenseWhere)}
+    group by 1, 2, 3`);
 
-  const categoryQ = db.execute(sql`
+  const categoryQ = byShare
+    ? db.execute(sql`
     select x.category_id, k.name_ar, k.name_en, k.kind,
            coalesce(sum(a.amount_fils), 0)::bigint as total, count(distinct x.id)::int as n
     from expense_allocations a
@@ -221,6 +235,13 @@ export async function reportSummary(
     where a.on_date between ${period.from} and ${period.to}
       ${filters.ownerId ? sql`and a.owner_id = ${filters.ownerId} and x.visible_to_owner` : sql``}
       ${andAll(expenseWhere)}
+    group by 1, 2, 3, 4 order by total desc`)
+    : db.execute(sql`
+    select x.category_id, k.name_ar, k.name_en, k.kind,
+           coalesce(sum(x.total_fils), 0)::bigint as total, count(*)::int as n
+    from expenses x
+    join expense_categories k on k.id = x.category_id
+    where x.status = 'posted' and x.invoice_date between ${period.from} and ${period.to}${andAll(expenseWhere)}
     group by 1, 2, 3, 4 order by total desc`);
 
   // Occupancy at each month end of the period, over the units in scope.
@@ -238,14 +259,20 @@ export async function reportSummary(
       select least((gs + interval '1 month - 1 day')::date, ${period.to}::date) as month_end
       from generate_series(date_trunc('month', ${period.from}::date), ${period.to}::date, interval '1 month') gs
     ),
-    scope as (select u.id from units u where ${sql.join(unitScope, sql` and `)})
+    scope as (select u.id from units u where ${sql.join(unitScope, sql` and `)}),
+    total as (select count(*)::int as n from scope)
+    -- Each month joins the contracts that ran on its end day (one pass over contracts per month)
+    -- instead of probing every unit for every month; a unit with two such contracts counts once.
     select to_char(m.month_end, 'YYYY-MM') as month,
-           count(s.id) filter (where exists (
-             select 1 from contracts c where c.unit_id = s.id and c.status in ('active', 'expired', 'renewed', 'terminated')
-               and c.start_date <= least(m.month_end, ${todayDate}::date) and c.end_date >= least(m.month_end, ${todayDate}::date)
-               and (c.status = 'active' or c.end_date < ${todayDate}::date)))::int as occupied,
-           count(s.id)::int as total
-    from months m cross join scope s group by 1`);
+           count(distinct c.unit_id)::int as occupied,
+           (select n from total) as total
+    from months m
+    left join contracts c
+      on c.status in ('active', 'expired', 'renewed', 'terminated')
+     and c.start_date <= least(m.month_end, ${todayDate}::date) and c.end_date >= least(m.month_end, ${todayDate}::date)
+     and (c.status = 'active' or c.end_date < ${todayDate}::date)
+     and c.unit_id in (select id from scope)
+    group by 1`);
 
   const [rentRaw, expenseRaw, categoryRaw, occRaw] = await Promise.all([
     rentQ,

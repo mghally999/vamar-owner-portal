@@ -1,0 +1,2 @@
+CREATE INDEX "expense_allocations_owner_date_cover_idx" ON "expense_allocations" USING btree ("owner_id","on_date","expense_id","amount_fils");--> statement-breakpoint
+CREATE INDEX "expenses_posted_visible_kind_idx" ON "expenses" USING btree ("id","kind") WHERE "expenses"."status" = 'posted' AND "expenses"."visible_to_owner";
