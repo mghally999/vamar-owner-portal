@@ -149,7 +149,9 @@ export async function createDispute(
     columns: { id: true },
   });
   if (!unit) throw notFound('Unit');
-  const { chequeIds = [], ...fields } = input;
+  const { chequeIds: rawChequeIds = [], ...fields } = input;
+  // The same cheque named twice is linked once.
+  const chequeIds = [...new Set(rawChequeIds)];
   if (input.type === 'bounced_cheque' && chequeIds.length === 0)
     throw validation('A bounced-cheque case needs at least one cheque', { path: 'chequeIds' });
   await assertChequesOnUnit(db, input.unitId, chequeIds);

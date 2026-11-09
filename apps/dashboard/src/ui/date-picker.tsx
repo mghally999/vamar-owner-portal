@@ -38,6 +38,8 @@ export function parseTypedDate(text: string): PlainDate | null {
     .replace(/[٠-٩]/g, (c) => String(c.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (c) => String(c.charCodeAt(0) - 0x06f0))
     .trim();
+  // YYYY-MM-DD pasted from a spreadsheet or the API is accepted as well as dd/mm/yyyy.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ascii)) return isPlainDate(ascii) ? ascii : null;
   const m = /^(\d{1,2})[/.-](\d{1,2})[/.-](\d{4})$/.exec(ascii);
   if (!m) return null;
   const iso = `${m[3] ?? ''}-${(m[2] ?? '').padStart(2, '0')}-${(m[1] ?? '').padStart(2, '0')}`;
@@ -331,6 +333,8 @@ export function DateRangePicker({
   const { t, date } = useI18n();
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<DateRange | undefined>(undefined);
+  /** The first day clicked in the open calendar, until the second click commits the range. */
+  const [anchor, setAnchor] = useState<Date | null>(null);
   const [fromText, setFromText] = useState(formatTypedDate(value?.from));
   const [toText, setToText] = useState(formatTypedDate(value?.to));
   const wrap = useRef<HTMLDivElement>(null);
@@ -369,6 +373,7 @@ export function DateRangePicker({
         aria-label={label ?? t('date_range')}
         disabled={disabled}
         onClick={() => {
+          setAnchor(null);
           setOpen((o) => !o);
         }}
       >
@@ -439,12 +444,20 @@ export function DateRangePicker({
           {...monthProp(
             value ? plainToDate(value.from) : defaultMonth ? plainToDate(defaultMonth) : undefined,
           )}
-          onSelect={(r) => {
-            setDraft(r);
-            if (r?.from && r.to) {
-              onChange({ from: dateToPlain(r.from), to: dateToPlain(r.to) });
-              setOpen(false);
+          // react-day-picker v9 turns the first click into a one-day range when a range is already
+          // selected, which would commit at once. The first click sets the start, the second (before
+          // or after it, or the same day) commits the ordered range.
+          onSelect={(_range, day) => {
+            if (!anchor) {
+              setAnchor(day);
+              setDraft({ from: day, to: undefined });
+              return;
             }
+            const [from, to] = anchor <= day ? [anchor, day] : [day, anchor];
+            setAnchor(null);
+            setDraft({ from, to });
+            onChange({ from: dateToPlain(from), to: dateToPlain(to) });
+            setOpen(false);
           }}
           {...calendar}
         />

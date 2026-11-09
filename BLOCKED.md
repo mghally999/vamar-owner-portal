@@ -1,6 +1,7 @@
 # Blocked: needs a click or a credential from the project owner
 
-Each item says exactly what to do. Everything else keeps moving without them.
+Each item says exactly what to do. Everything else keeps moving without them. The v2 features
+(expenses, calendar, records, dispute cheques) need no new account or credential.
 
 ## 1. Nightly database backups never ran (AUDIT V-050)
 
@@ -59,3 +60,6 @@ skips the deploy with a notice until this token exists.
    `CLOUDFLARE_API_TOKEN`, paste, Add.
 3. Actions > **Deploy** > Run workflow (branch `main`). The staging job must end with
    "smoke test passed".
+
+Until then v2 is deployed by hand like every release so far (HANDOVER.md), including the two new
+migrations (0006, 0007), which are applied before the Worker is deployed.

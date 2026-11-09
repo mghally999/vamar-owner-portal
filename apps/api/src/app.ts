@@ -51,8 +51,13 @@ export const app = new Hono<AppEnv>()
   )
   .use(
     '*',
-    createMiddleware<AppEnv>((c, next) =>
-      secureHeaders({
+    // secureHeaders writes its headers after the handler and overwrites any the handler set. File
+    // downloads (services/attachments.ts streamObject) carry the stricter `sandbox; default-src
+    // 'none'` policy, which must survive, so a sandbox policy set by the handler is put back
+    // afterwards. Every other response gets exactly the policy below.
+    createMiddleware<AppEnv>(async (c, next) => {
+      const handler: { csp: string | null } = { csp: null };
+      await secureHeaders({
         strictTransportSecurity: 'max-age=63072000; includeSubDomains; preload',
         xFrameOptions: 'DENY',
         referrerPolicy: 'strict-origin-when-cross-origin',
@@ -86,8 +91,13 @@ export const app = new Hono<AppEnv>()
               formAction: ["'self'"],
               objectSrc: ["'none'"],
             },
-      })(c, next),
-    ),
+      })(c, async () => {
+        await next();
+        handler.csp = c.res.headers.get('content-security-policy');
+      });
+      if (handler.csp?.includes('sandbox'))
+        c.res.headers.set('content-security-policy', handler.csp);
+    }),
   )
   // API responses carry tokens and personal data: never cacheable by browsers or proxies.
   .use('/api/*', async (c, next) => {

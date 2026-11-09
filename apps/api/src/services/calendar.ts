@@ -103,9 +103,13 @@ export async function calendarItems(
           bAr: buildings.nameAr,
           bEn: buildings.nameEn,
           tenant: tenants.name,
+          // The owner's share valid on the cheque's due date (as in the summary); null when
+          // the owner did not hold the unit on that day.
           shareBp: scope.ownerId
-            ? sql<number>`(select uo.share_bp from ${unitOwnerships} uo where uo.unit_id = ${contracts.unitId} and uo.owner_id = ${scope.ownerId} and uo.to_date is null limit 1)`
-            : sql<number>`10000`,
+            ? sql<
+                number | null
+              >`(select uo.share_bp from ${unitOwnerships} uo where uo.unit_id = ${contracts.unitId} and uo.owner_id = ${scope.ownerId} and uo.from_date <= ${cheques.dueDate} and (uo.to_date is null or uo.to_date > ${cheques.dueDate}) limit 1)`
+            : sql<number | null>`10000`,
         })
         .from(cheques)
         .innerJoin(contracts, eq(contracts.id, cheques.contractId))
@@ -124,6 +128,8 @@ export async function calendarItems(
         )
         .then((rows) => {
           for (const r of rows) {
+            // A cheque from before the owner held the unit is not theirs to see.
+            if (scope.ownerId && (r.shareBp === null || r.shareBp === 0)) continue;
             const gross = r.amountFils ?? 0;
             const share = r.shareBp ? Math.floor((gross * r.shareBp) / 10_000) : gross;
             items.push({
@@ -353,6 +359,10 @@ export async function calendarItems(
         .from(units)
         .where(inArray(units.id, ownerUnitsSubquery(db, scope.ownerId)));
       conditions.push(eq(calendarEvents.visibleToOwner, true));
+      // An event addressed to one owner is that owner's alone, whatever building it is in.
+      conditions.push(
+        orSql(isNull(calendarEvents.ownerId), eq(calendarEvents.ownerId, scope.ownerId)),
+      );
       conditions.push(
         orSql(
           eq(calendarEvents.ownerId, scope.ownerId),

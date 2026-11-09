@@ -242,7 +242,8 @@ export function resolveMethod(
   allocationUnits: readonly AllocationUnit[],
 ): AllocationMethod {
   if (scope === 'unit') return 'single_unit';
-  if (requested !== undefined) return requested;
+  // A draft moved from a unit to the whole building drops the unit-only method.
+  if (requested !== undefined && requested !== 'single_unit') return requested;
   return defaultAllocationMethod(allocationUnits);
 }
 
@@ -628,11 +629,24 @@ async function checkReferences(
   return category;
 }
 
-async function linkWorkOrder(db: Dbx, workOrderId: string | null, expenseId: string) {
+async function linkWorkOrder(
+  db: Dbx,
+  actor: AuditActor,
+  workOrderId: string | null,
+  expenseId: string,
+) {
   if (!workOrderId) return;
   const wo = await db.query.workOrders.findFirst({ where: eq(workOrders.id, workOrderId) });
   if (!wo) throw notFound('Work order');
+  if (wo.expenseId === expenseId) return;
   await db.update(workOrders).set({ expenseId }).where(eq(workOrders.id, workOrderId));
+  await audit(db, actor, {
+    action: 'work_order.link_expense',
+    entityType: 'work_order',
+    entityId: workOrderId,
+    before: { expenseId: wo.expenseId },
+    after: { expenseId },
+  });
 }
 
 /** A new draft. `allocationMethod` is fixed now so the preview and the posting agree. */
@@ -661,7 +675,7 @@ export async function createExpense(db: Dbx, actor: AuditActor, input: CreateExp
     })
     .returning();
   if (!row) throw new Error('insert failed');
-  await linkWorkOrder(db, workOrderId, row.id);
+  await linkWorkOrder(db, actor, workOrderId, row.id);
   await audit(db, actor, {
     action: 'expense.create',
     entityType: 'expense',
@@ -729,7 +743,7 @@ export async function updateExpense(
     })
     .where(eq(expenses.id, id))
     .returning();
-  if (workOrderId !== undefined) await linkWorkOrder(db, workOrderId, id);
+  if (workOrderId !== undefined) await linkWorkOrder(db, actor, workOrderId, id);
   await audit(db, actor, {
     action: 'expense.update',
     entityType: 'expense',
@@ -745,7 +759,42 @@ export async function deleteDraft(db: Dbx, actor: AuditActor, id: string) {
   const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw notFound('Expense');
   if (before.status !== 'draft') throw conflict('Only a draft can be deleted');
-  await db.update(workOrders).set({ expenseId: null }).where(eq(workOrders.expenseId, id));
+  const unlinked = await db
+    .update(workOrders)
+    .set({ expenseId: null })
+    .where(eq(workOrders.expenseId, id))
+    .returning({ id: workOrders.id });
+  for (const wo of unlinked) {
+    await audit(db, actor, {
+      action: 'work_order.unlink_expense',
+      entityType: 'work_order',
+      entityId: wo.id,
+      before: { expenseId: id },
+      after: { expenseId: null },
+    });
+  }
+  if (before.recurringRuleId) {
+    // A draft the daily job made from a rule is kept as void, not removed: the job sees the
+    // (rule, date) pair as handled and never makes the draft again.
+    const [after] = await db
+      .update(expenses)
+      .set({
+        status: 'void',
+        voidReason: 'discarded draft',
+        voidedAt: new Date(),
+        voidedBy: actor.type === 'staff' ? actor.id : null,
+      })
+      .where(eq(expenses.id, id))
+      .returning();
+    await audit(db, actor, {
+      action: 'expense.discard_draft',
+      entityType: 'expense',
+      entityId: id,
+      before,
+      after,
+    });
+    return { ok: true as const };
+  }
   await db.delete(expenses).where(eq(expenses.id, id));
   await audit(db, actor, {
     action: 'expense.delete_draft',
@@ -843,6 +892,8 @@ export async function voidExpense(
   const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
   if (!before) throw notFound('Expense');
   if (before.status === 'void') throw conflict('Expense is already void');
+  // Only posted expenses are voided; a draft is edited or deleted instead.
+  if (before.status !== 'posted') throw conflict('Only a posted expense can be voided');
   const [voided] = await db
     .update(expenses)
     .set({

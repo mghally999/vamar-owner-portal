@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail } from '@/test/fixtures';
 import { rule, v2Routes } from '@/test/fixtures-v2';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -44,8 +44,10 @@ describe('ExpenseRulesPage', () => {
     expect(await screen.findByText('Guard salaries')).toBeTruthy();
     expect(screen.getByText('Monthly · 25')).toBeTruthy();
     expect(screen.getByText('Active')).toBeTruthy();
-    expect(screen.getByText('Paused')).toBeTruthy();
-    expect(screen.getByText('AED 6,500')).toBeTruthy();
+    // The paused rule's status, besides the "Paused" filter checkbox.
+    expect(screen.getByRole('checkbox', { name: 'Paused' })).toBeTruthy();
+    expect(screen.getAllByText('Paused')).toHaveLength(2);
+    expect(screen.getAllByText('AED 6,500')).toHaveLength(2); // both test rules cost the same
     await user.click(screen.getByRole('button', { name: 'Pause' }));
     await vi.waitFor(() => {
       expect(api.last('PATCH', '/api/staff/recurring-rules/rule-1').body).toEqual({
@@ -74,7 +76,7 @@ describe('ExpenseRulesPage', () => {
     await screen.findByText('Guard salaries');
     await user.click(screen.getByRole('button', { name: 'New rule' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await pickOption(user, within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
     await user.selectOptions(
       within(dialog).getByRole('combobox', { name: /^Category/ }),
       'cat-dewa',
@@ -136,7 +138,7 @@ describe('ExpenseRulesPage', () => {
     await screen.findByText('Guard salaries');
     await user.click(screen.getByRole('button', { name: 'New rule' }));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await pickOption(user, within(dialog).getByRole('combobox', { name: /^Building/ }), 'bld-1');
     await user.selectOptions(
       within(dialog).getByRole('combobox', { name: /^Category/ }),
       'cat-sal',

@@ -280,6 +280,7 @@ describe('Home', () => {
         body: { items: [cheque({ status: 'cleared' })], nextCursor: null },
       },
       'GET /api/owner/expenses': { body: { items: [expense()], nextCursor: null } },
+      'GET /api/owner/disputes': { body: { items: [], nextCursor: null } },
     });
     await renderApp(<HomeScreen />);
     await fireEvent.press(await screen.findByRole('button', { name: 'Statement (PDF)' }));

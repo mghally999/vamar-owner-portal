@@ -57,6 +57,7 @@ const workOrderSelect = {
   expenseId: workOrders.expenseId,
   expenseTotalFils: expenses.totalFils,
   expenseStatus: expenses.status,
+  expenseVisibleToOwner: expenses.visibleToOwner,
   visibleToOwner: workOrders.visibleToOwner,
   createdAt: workOrders.createdAt,
   photoCount: sql<number>`(select count(*)::int from ${schema.attachments} a where a.entity_type = 'work_order' and a.entity_id = ${workOrders.id})`,
@@ -304,6 +305,18 @@ export async function ownerWorkOrders(
   return page(rows, q.limit, (r) => ({ key: r.reportedOn, id: r.id }));
 }
 
+/**
+ * What an owner may know of the expense that paid for a job: its total only when the expense is
+ * posted and visible to owners, otherwise nothing (a hidden or draft cost never leaks).
+ */
+export function ownerVisibleCost(e: {
+  status: string | null;
+  visibleToOwner: boolean | null;
+  totalFils: number | null;
+}): number | null {
+  return e.status === 'posted' && e.visibleToOwner === true ? e.totalFils : null;
+}
+
 export async function ownerWorkOrderDetail(db: Dbx, ownerId: string, id: string) {
   const [row] = await db
     .select({ id: workOrders.id })
@@ -311,11 +324,18 @@ export async function ownerWorkOrderDetail(db: Dbx, ownerId: string, id: string)
     .where(and(eq(workOrders.id, id), workOrderInOwnerScope(db, ownerId)));
   if (!row) throw notFound('Work order');
   const detail = await getWorkOrderDetail(db, id);
-  const expenseVisible = detail.expenseStatus === 'posted';
+  const cost = ownerVisibleCost({
+    status: detail.expenseStatus,
+    visibleToOwner: detail.expenseVisibleToOwner,
+    totalFils: detail.expenseTotalFils,
+  });
+  const expenseVisible = cost !== null;
   return {
     ...detail,
     expenseId: expenseVisible ? detail.expenseId : null,
-    expenseTotalFils: expenseVisible ? detail.expenseTotalFils : null,
+    expenseTotalFils: cost,
+    expenseStatus: expenseVisible ? detail.expenseStatus : null,
+    expenseVisibleToOwner: expenseVisible,
   };
 }
 

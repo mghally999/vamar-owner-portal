@@ -3,7 +3,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail, chequeRow, disputeDetail, disputeRow } from '@/test/fixtures';
-import { at, renderApp } from '@/test/render';
+import { at, renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -100,7 +100,7 @@ describe('DisputesPage', () => {
     const create = within(dialog).getByRole('button', { name: 'Create' });
     expect(create).toHaveProperty('disabled', true);
 
-    await user.selectOptions(within(dialog).getByLabelText(/^Building/), 'bld-1');
+    await pickOption(user, within(dialog).getByLabelText(/^Building/), 'bld-1');
     const unitSelect = within(dialog).getByLabelText(/^Unit/);
     await within(unitSelect).findByRole('option', { name: '801 · Sara Khan' });
     await user.selectOptions(unitSelect, 'unit-801');
@@ -145,7 +145,7 @@ describe('DisputesPage', () => {
     const buttons = screen.getAllByRole('button', { name: 'New dispute' });
     await user.click(at(buttons, 1));
     const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByLabelText(/^Building/), 'bld-1');
+    await pickOption(user, within(dialog).getByLabelText(/^Building/), 'bld-1');
     const unitSelect = within(dialog).getByLabelText(/^Unit/);
     await within(unitSelect).findByRole('option', { name: '802' });
     await user.selectOptions(unitSelect, 'unit-802');

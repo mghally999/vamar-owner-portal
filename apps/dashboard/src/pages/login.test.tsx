@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { firebaseEmailLogin, firebaseSendVerificationEmail } from '@/lib/firebase';
 import { apiError } from '@/test/api';
 import { overview, staffUser } from '@/test/fixtures';
+import { reportSummary, v2Routes } from '@/test/fixtures-v2';
 import { renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -39,11 +40,13 @@ describe('LoginPage', () => {
   it('signs in with password and authenticator code, then opens the overview', async () => {
     const { api, router, user } = await renderApp('/login', {
       role: null,
-      routes: {
+      // The overview behind the sign-in also loads the period summary, settings and holidays.
+      routes: v2Routes({
         'POST /api/auth/staff/exchange': PRE_MFA,
         'POST /api/auth/staff/totp/verify': SIGNED_IN,
         'GET /api/staff/overview': overview(),
-      },
+        'GET /api/staff/reports/summary': reportSummary(),
+      }),
     });
     expect(await screen.findByRole('heading', { name: 'Staff sign-in' })).toBeTruthy();
     await signIn(user);
@@ -68,7 +71,8 @@ describe('LoginPage', () => {
     expect(call.body).toEqual({ code: '123456' });
     expect(call.headers.get('authorization')).toBe('Bearer pre-1');
     expect(localStorage.getItem('vamar_staff_session')).toBe('1');
-    // Later requests carry the session's access token.
+    // Later requests carry the session's access token (once the lazy overview page has loaded).
+    expect(await screen.findByText('Expected rent')).toBeTruthy();
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/overview').headers.get('authorization')).toBe(
         'Bearer access-2',

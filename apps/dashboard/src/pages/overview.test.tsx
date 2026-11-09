@@ -28,9 +28,9 @@ describe('OverviewPage', () => {
     const { api } = await renderApp('/', { routes: routes() });
 
     expect(await screen.findByText('Expected rent')).toBeTruthy();
-    expect(screen.getByText('80,000')).toBeTruthy(); // expected 8,000,000 fils
+    expect(await screen.findByText('80,000')).toBeTruthy(); // expected 8,000,000 fils
     expect(screen.getByText('60,000')).toBeTruthy(); // collected
-    expect(screen.getByText('16,000')).toBeTruthy(); // expenses
+    expect(screen.getAllByText('16,000')).toHaveLength(2); // outstanding and expenses
     expect(screen.getByText('44,000')).toBeTruthy(); // net
     expect(screen.getByText("Before Vamar's management fee")).toBeTruthy();
     expect(screen.getByRole('img', { name: 'Rent and expenses by month' })).toBeTruthy();
@@ -86,7 +86,7 @@ describe('OverviewPage', () => {
         compare: '1',
       });
     });
-    expect(await screen.findByText(/100% vs previous period/)).toBeTruthy();
+    expect(await screen.findByText(/▲ 100%/)).toBeTruthy(); // expected rent doubled vs the previous period
   });
 
   it('renews a contract and opens the new draft', async () => {

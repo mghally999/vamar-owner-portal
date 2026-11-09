@@ -392,6 +392,34 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
   Excel exports use SheetJS.
 - **Settings** live in `app_settings` (one row per key) rather than Worker variables so admins change
   them from the dashboard; every change is audited.
+- **One period bar** on the dashboard (Overview, Reports, Expenses, Cheques) keeps its state in the
+  URL (`?preset=` or `?from=&to=`, plus `&compare=1`) so a refresh or a shared link shows the same
+  period. The range picker commits on the second click (before or after the first, or the same day).
+- **Dashboard calendar colours** come from the status palette tokens so both themes carry them, and
+  the kind's name always sits next to its colour (legend, filters, side panel). Only manual events
+  can be dragged; other items explain where their date is changed (with the reason audited). Busy
+  days show three items and "+n more". Month and weekday names are our fixed Arabic and English
+  names (FullCalendar's locale files are not used), digits Western, `direction="rtl"` in Arabic.
+- **Owner app tabs**: Home, Cheques, Expenses, Properties, Disputes (five fit at 360 px with 11 px
+  labels). The calendar and maintenance are stack screens reached from Home, Cheques and units.
+  The chosen period is shared by Home, Cheques, Expenses and the statement while the app runs.
+- **Push alerts are deduplicated per owner** (`type:ownerId:entityId:date`), so every co-owner of a
+  unit or building gets the alert once. Rows written before this change used the old key; a
+  same-day re-run right after deploying it could send one alert twice.
+- **A discarded recurring draft is voided, not deleted** ("discarded draft"), so the daily job knows
+  that due date was handled and does not recreate it; drafts typed by staff are still deleted.
+- **The monthly summary** goes out on the 1st and is retried on the 2nd and 3rd if it failed, keyed
+  on the month so it is never sent twice.
+- **Owners' amounts follow the ownership valid on the date** everywhere (summary, cheque lists with a
+  period, calendar, unit history); a buyer never sees the seller's earlier cheques. Projected fixed
+  costs use today's owners because future ownership is unknown.
+- **An owner's unit history** shows only that owner's own ownership rows, and contract rent and
+  claimed amounts as their share.
+- **Downloaded files** (invoices, photos, cheque images, court papers) keep their own
+  `sandbox; default-src 'none'` content policy; the page policy no longer overwrites it.
+- **Typed dates** accept `dd/mm/yyyy` and `YYYY-MM-DD` (pasted from spreadsheets).
+- **Weekend and holiday warnings** on cheque due dates, replacement cheques, hearings and manual
+  events are warnings, never blocks; a holiday wins over a weekend in the wording.
 
 ## Operations
 

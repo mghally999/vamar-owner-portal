@@ -4,8 +4,9 @@
  * 2. active contracts ending in exactly 60 / 30 days -> push
  * 3. mark active contracts past their end date as expired (with its audit row, in one transaction)
  * 4. retention: stale rate-limit windows, dead sessions, old notification rows
- * 5. v2: draft expenses from the recurring rules, hearing reminders 3 days before, and on the
- *    1st of the month a summary of the month that ended (collected, expenses, net) per owner
+ * 5. v2: draft expenses from the recurring rules, hearing reminders 3 days before, and a summary
+ *    of the month that ended (collected, expenses, net) per owner, sent on the 1st; the 2nd and
+ *    3rd retry it, keyed on the 1st, so a failed run is made good and nothing is sent twice
  *
  * Each step runs on its own: a failure is recorded in the summary and the next step still runs.
  * Notifications are idempotent through notification_log.dedupe_key and transport failures are
@@ -124,7 +125,7 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
       summary.failed += r.failed;
     });
     await step('monthly', async () => {
-      if (!t.endsWith('-01')) return;
+      if (Number(t.slice(8, 10)) > MONTHLY_SUMMARY_RETRY_DAYS) return;
       const pending = await collectMonthlySummaries(db, t);
       summary.monthlySummaries = pending.length;
       const r = await deliver(env, db, pending);
@@ -315,9 +316,13 @@ async function collectHearingReminders(db: Db, t: PlainDate): Promise<PendingNot
   return pending;
 }
 
+/** The monthly summary goes out on the 1st and is retried on the following days up to this one. */
+export const MONTHLY_SUMMARY_RETRY_DAYS = 3;
+
 /**
- * On the 1st: last month's collected rent, posted expenses and net for every active owner, in one
- * query each. The dedupe key is per owner and day, so a re-run never sends twice.
+ * Last month's collected rent, posted expenses and net for every active owner, in one query each.
+ * The dedupe key carries the owner and the month's 1st, so the retries on the 2nd and 3rd only
+ * send what the 1st did not.
  */
 async function collectMonthlySummaries(db: Db, t: PlainDate): Promise<PendingNotification[]> {
   const from = firstDayOfMonth(addMonthsClamped(t, -1));
@@ -351,7 +356,7 @@ async function collectMonthlySummaries(db: Db, t: PlainDate): Promise<PendingNot
       ownerId: r.owner_id,
       type: 'monthly_summary' as const,
       entityId: r.owner_id,
-      date: t,
+      date: firstDayOfMonth(t),
       params: {
         type: 'monthly_summary' as const,
         month: from,

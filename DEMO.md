@@ -94,7 +94,55 @@ registered, contact Vamar" screen.
 8. **Language**: switch the dashboard to English from the sidebar (same Western digits), and in
    the app from Settings (the app reloads in LTR).
 
+## v2 click-through (expenses, periods, calendar, records)
+
+Use the same accounts as above. The seed carries eighteen months of fixed costs, a lift repair with
+its invoice, an AC breakdown with before and after photos, legal fees on the bounced-cheque case, a
+unit under maintenance, a reserved unit, a hearing in seven days and the public holidays.
+
+**Owner app** (sign in as **+971500000001**, Khalid):
+
+1. **Home**: the chips at the top switch the period: This month, Next month, Next 6 months, This year;
+   **More** gives last month, last year, a year, a month or a custom range. The cards follow:
+   expected rent, collected, outstanding, at risk, expenses (fixed and variable) and net ("projected
+   net" for a future period). Tap any card to open the list behind it. Below: the 12-month chart,
+   the next cheque, contracts ending soon, open maintenance and the calendar.
+2. **Expenses tab**: monthly salaries and DEWA, the lift repair; each row shows the category, the
+   reason, the property, the date and the invoice value (VAT when there is any). Open the lift repair:
+   the invoice image (pinch to zoom), the vendor and the job it paid for.
+3. **Calendar** (from Home): year, month and week views and the agenda; arrows change the month, the
+   title jumps to any month or year, **Today** comes back; dots by kind with a legend. Tap a day, then
+   an item to open it. The Cheques tab has the same calendar behind its List and Calendar switch.
+4. **Properties**, a unit: the status badge, the property numbers and the history timeline with its
+   filters.
+5. **Disputes**: the case number with the cheque numbers; open it for the bank, amount, due date,
+   bounce date and reason.
+6. Home: **Statement (PDF)** for the chosen period.
+
+**Dashboard** (sign in as the admin):
+
+1. **Overview**: the period bar at the top (chips, the two-month range picker, **Compare with the
+   previous period**); the cards and the chart follow, and the address bar keeps the period.
+2. **Expenses → New expense**: Al Noor Tower, category Lifts (repairs), vendor Gulf Lifts (VAT 5 %
+   fills in), an amount: the table under the form shows each owner's share as you type. **Save as
+   draft**, then **Post**. Retype the same invoice number from the same vendor to see the duplicate
+   warning. **Recurring rules** lists the fixed costs that repeat; the drafts they create wait in the
+   **Drafts queue**.
+3. **Work orders**: switch to **Board** to see open, scheduled, in progress, done and cancelled; open
+   the AC job for the photos and its invoice.
+4. **Calendar**: year, month, week and list views; filter by building, owner or kind; weekends and
+   holidays are shaded; click an item for the side panel; drag a manual event to move it.
+5. **Reports**: owner statement, building P&L, expenses by category, collection rate, occupancy and
+   outstanding; **Export to Excel** and **Export to PDF**.
+6. **Buildings** → a unit: the record page with status (**Change status** asks for a reason),
+   identifiers and history. **Disputes**: type a cheque number in the search.
+7. **Ctrl+K** anywhere: search an owner, a phone, a unit, a title deed, a Makani number, a cheque, a
+   case or an invoice number.
+
 ## Screenshots
+
+**v2 features**: `demo/screenshots/v3` (to be generated with the same commands; `node
+tooling/dev/app-screenshots.mjs` now writes `v3/app` and includes the new screens).
 
 **Current design (v2)**: `demo/screenshots/v2/dashboard` (every page at 1440 px and 390 px, Arabic
 and English, Default and White themes; regenerate with `SCREENSHOT_THEME=white pnpm --filter

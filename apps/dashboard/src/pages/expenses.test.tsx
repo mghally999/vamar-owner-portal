@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail, page } from '@/test/fixtures';
 import { expenseRow, expenseTotals, v2Routes } from '@/test/fixtures-v2';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -76,7 +76,7 @@ describe('ExpensesPage', () => {
     await screen.findByText('Guard salaries October');
     expect(api.last('GET', '/api/staff/expenses').query['status']).toBe('draft');
     await user.click(screen.getByRole('tab', { name: 'All' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
+    await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Unit' }), 'unit-801');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Category' }), 'cat-lift');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Kind' }), 'variable');

@@ -15,6 +15,9 @@ The download page picks the right option for the phone that opens it: the Androi
 
 ## Screenshots
 
+The images below show the first release; the v2 screens (expenses, calendar, reports, unit records)
+will be added under `demo/screenshots/v3` when that set is generated.
+
 **Owner app**
 
 <p>
@@ -36,8 +39,19 @@ The download page picks the right option for the phone that opens it: the Androi
 
 ## What it does
 
-- **Owner app:** phone and OTP sign-in, monthly cheque overview, cheque statuses (upcoming, cleared, bounced), properties and units, shared ownership, disputes, PDF statements, update check, Arabic and English, Default and White themes.
-- **Staff dashboard:** owners, buildings, units, contracts, cheques, disputes, Excel import (owners, buildings, units, tenants, ownership shares, contracts and cheques) with a ready template, staff users with roles, two-step login (TOTP) and a full audit log.
+- **Owner app:** phone and OTP sign-in; Home for any period (this month, next month, the next six
+  months, this year, last year or any range) with expected rent, collected, outstanding, at risk,
+  fixed and variable expenses and net, and a 12-month chart; an Expenses tab with the reason, the
+  invoice value and the invoice itself; a calendar (year, month, week, agenda) of cheques due,
+  contract ends, hearings, maintenance and holidays; units with their status, property numbers
+  (title deed, plot, Makani, DEWA/SEWA) and history; maintenance jobs with photos; disputes with case
+  and cheque numbers; PDF statements for any period; Arabic and English, Default and White themes.
+- **Staff dashboard:** one period bar for Overview, Cheques, Expenses and Reports with comparison to
+  the previous period; owners, buildings, units with status and identifiers, contracts, cheques,
+  disputes linked to their bounced cheques; expenses (fixed and variable, VAT, invoice upload, the
+  owners' shares split by area, per unit or per owner, recurring fixed costs); work orders as a list
+  and a board; a calendar; reports with Excel and PDF export; Ctrl+K search; Excel import of eight
+  sheets with a ready template; staff users with roles, two-step login (TOTP) and a full audit log.
 - **Security:** every owner only ever sees their own data, staff actions are role-checked on the server, and every change is recorded in the audit log.
 
 ## Stack

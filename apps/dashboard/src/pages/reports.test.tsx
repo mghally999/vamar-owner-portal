@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, chequeRow, owner, page } from '@/test/fixtures';
 import { reportSummary, v2Routes } from '@/test/fixtures-v2';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -39,14 +39,15 @@ describe('ReportsPage', () => {
       preset: 'last_3_months',
     });
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
+    await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/reports/summary').query['buildingId']).toBe('bld-1');
     });
     await user.click(screen.getByRole('tab', { name: 'Expenses by category' }));
     expect(await screen.findByText('Building staff salaries')).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Rent collection rate' }));
-    expect(await screen.findByText('75%')).toBeTruthy();
+    // The total and each month show their collection rate.
+    expect((await screen.findAllByText('75%')).length).toBeGreaterThan(1);
     await user.click(screen.getByRole('tab', { name: 'Occupancy over time' }));
     expect(await screen.findByText(/30 \/ 40/)).toBeTruthy();
     await user.click(screen.getByRole('tab', { name: 'Outstanding and bounced' }));
@@ -94,11 +95,10 @@ describe('ReportsPage', () => {
       print: vi.fn(),
     };
     const open = vi.spyOn(window, 'open').mockReturnValue(win as unknown as Window);
-    vi.stubGlobal('URL', {
-      ...URL,
-      createObjectURL: vi.fn(() => 'blob:r'),
-      revokeObjectURL: vi.fn(),
-    });
+    // Only the blob helpers are stubbed: the router still needs the real URL class.
+    const urlStatics = URL as unknown as Record<string, unknown>;
+    urlStatics['createObjectURL'] = vi.fn(() => 'blob:r');
+    urlStatics['revokeObjectURL'] = vi.fn();
     const { user } = await renderApp('/reports?preset=last_3_months', { routes: routes() });
     await screen.findByRole('heading', { name: /Building P&L/ });
     await user.click(screen.getByRole('button', { name: 'Export to Excel' }));
@@ -135,7 +135,7 @@ describe('ReportsPage', () => {
     await screen.findByRole('heading', { name: /Building P&L/ });
     await user.click(screen.getByRole('button', { name: 'Export to PDF' }));
     expect(await screen.findByText('Something went wrong. Please try again.')).toBeTruthy();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
+    await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
     expect(within(document.body).queryByText('Choose an owner to see their statement.')).toBeNull();
   });

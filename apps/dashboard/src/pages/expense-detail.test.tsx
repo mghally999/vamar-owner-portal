@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail } from '@/test/fixtures';
 import { attachment, expenseDetail, expenseRow, v2Routes } from '@/test/fixtures-v2';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -75,7 +75,12 @@ describe('ExpenseNewPage', () => {
     expect(
       screen.getByText('Fill in the building, date and amount to see the split.'),
     ).toBeTruthy();
-    await user.selectOptions(screen.getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    const building = screen.getByRole('combobox', { name: /^Building/ });
+    // The buildings arrive after the form renders: pick one once it is in the list.
+    await vi.waitFor(() => {
+      expect(building.querySelector('option[value="bld-1"]')).not.toBeNull();
+    });
+    await pickOption(user, building, 'bld-1');
     await user.selectOptions(screen.getByRole('combobox', { name: /^Category/ }), 'cat-lift');
     await user.selectOptions(screen.getByRole('combobox', { name: /^Vendor/ }), 'ven-lifts');
     await user.type(screen.getByRole('textbox', { name: /^Invoice no\./ }), 'GL-TEST-1');
@@ -151,7 +156,7 @@ describe('ExpenseNewPage', () => {
     });
     await screen.findByText('New expense');
     await user.click(screen.getByRole('radio', { name: 'One unit' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    await pickOption(user, screen.getByRole('combobox', { name: /^Building/ }), 'bld-1');
     await user.selectOptions(await screen.findByRole('combobox', { name: /^Unit/ }), 'unit-801');
     await user.selectOptions(screen.getByRole('combobox', { name: /^Category/ }), 'cat-ac');
     await user.click(screen.getByRole('button', { name: 'New vendor' }));

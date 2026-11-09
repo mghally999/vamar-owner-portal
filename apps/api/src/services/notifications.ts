@@ -28,7 +28,7 @@ import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { fetchWithRetry, OutboundError } from '../util/outbound.js';
 import { expenseOwnerIds } from './expenses.js';
-import { workOrderOwnerIds } from './work-orders.js';
+import { ownerVisibleCost, workOrderOwnerIds } from './work-orders.js';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 const EXPO_TIMEOUT_MS = 10_000;
@@ -117,7 +117,7 @@ export async function deliver(
       report.skipped += 1;
       continue;
     }
-    const key = dedupeKey(p.type, p.entityId, p.date);
+    const key = dedupeKey(p.type, p.ownerId, p.entityId, p.date);
     // Claim the key. A conflict means it was handled before, unless that attempt failed in
     // transport, in which case the row is claimed again.
     const claimed = await db
@@ -358,6 +358,7 @@ export async function queueWorkOrderDoneAlert(env: Bindings, workOrderId: string
         bEn: schema.buildings.nameEn,
         costFils: schema.expenses.totalFils,
         expenseStatus: schema.expenses.status,
+        expenseVisibleToOwner: schema.expenses.visibleToOwner,
       })
       .from(schema.workOrders)
       .innerJoin(schema.buildings, eq(schema.buildings.id, schema.workOrders.buildingId))
@@ -366,7 +367,12 @@ export async function queueWorkOrderDoneAlert(env: Bindings, workOrderId: string
       .where(eq(schema.workOrders.id, workOrderId));
     if (!row) return;
     const ownerIds = await workOrderOwnerIds(db, workOrderId);
-    const cost = row.expenseStatus === 'posted' ? row.costFils : null;
+    // The cost is told only when the paying expense is posted and visible to owners.
+    const cost = ownerVisibleCost({
+      status: row.expenseStatus,
+      visibleToOwner: row.expenseVisibleToOwner,
+      totalFils: row.costFils,
+    });
     await queueToOwners(env, 'work_order_done', workOrderId, ownerIds, (lang) => ({
       type: 'work_order_done',
       title: lang === 'ar' ? row.titleAr : row.titleEn,

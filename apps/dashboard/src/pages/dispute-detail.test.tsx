@@ -83,10 +83,8 @@ function routes(extra: Record<string, unknown> = {}) {
 describe('DisputeDetailPage', () => {
   it('shows the case, its updates and attachments', async () => {
     await renderApp('/disputes/dsp-1', { routes: routes() });
-    // The first render also loads the date-picker chunk; give a busy machine time.
-    expect(
-      await screen.findByRole('heading', { name: 'Case RDC-2026-0412' }, { timeout: 15_000 }),
-    ).toBeTruthy();
+    // The first render also loads the date-picker chunk: the suite's 30 s wait covers a busy machine.
+    expect(await screen.findByRole('heading', { name: 'Case RDC-2026-0412' })).toBeTruthy();
     expect(screen.getByText('Rent arrears')).toBeTruthy();
     expect(screen.getByText('Al Noor Tower · 801')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Contract' }).getAttribute('href')).toBe(

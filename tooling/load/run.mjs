@@ -22,6 +22,9 @@ const tokens = JSON.parse(readFileSync(tokensFile, 'utf8'));
 const month = new Date().toISOString().slice(0, 7);
 
 const year = month.slice(0, 4);
+// V2=1 (set by the load workflow when the schema has the v2 tables) adds the v2 endpoints to the
+// mixed traffic; without it the paths are those of the earlier audit, so old commits compare fairly.
+const v2 = process.env.V2 === '1';
 const staffPaths = [
   '/api/staff/overview',
   `/api/staff/cheques?month=${month}`,
@@ -29,19 +32,27 @@ const staffPaths = [
   '/api/staff/contracts?status=active',
   '/api/staff/audit',
   '/api/staff/disputes',
-  '/api/staff/reports/summary?preset=this_year&compare=1',
-  '/api/staff/expenses?preset=this_month',
-  `/api/staff/calendar?from=${month}-01&to=${month}-28`,
-  '/api/staff/work-orders?status=open',
+  ...(v2
+    ? [
+        '/api/staff/reports/summary?preset=this_year&compare=1',
+        '/api/staff/expenses?preset=this_month',
+        `/api/staff/calendar?from=${month}-01&to=${month}-28`,
+        '/api/staff/work-orders?status=open',
+      ]
+    : []),
 ];
 const ownerPaths = [
   '/api/owner/home',
-  '/api/owner/summary?preset=this_month',
   '/api/owner/cheques',
   '/api/owner/units',
-  '/api/owner/expenses?preset=last_6_months',
-  `/api/owner/calendar?from=${year}-01-01&to=${year}-12-31`,
   '/api/owner/disputes',
+  ...(v2
+    ? [
+        '/api/owner/summary?preset=this_month',
+        '/api/owner/expenses?preset=last_6_months',
+        `/api/owner/calendar?from=${year}-01-01&to=${year}-12-31`,
+      ]
+    : []),
 ];
 const owner = (n) => (n % 10 === 0 ? tokens.heavyOwner : tokens.owners[n % tokens.owners.length]);
 

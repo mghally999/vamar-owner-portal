@@ -11,7 +11,7 @@ import {
   workOrderDetail,
   workOrderRow,
 } from '@/test/fixtures-v2';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -64,7 +64,7 @@ describe('WorkOrdersPage', () => {
     expect(within(row).getByText('In progress')).toBeTruthy();
     expect(within(row).getByText('Al Noor Tower · 801')).toBeTruthy();
     expect(screen.getByText('AED 13,020')).toBeTruthy();
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
+    await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'done');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'urgent');
     await user.type(screen.getByRole('textbox', { name: 'Search' }), 'lift');
@@ -119,7 +119,12 @@ describe('WorkOrderDetailPage', () => {
       }),
     });
     expect(await screen.findByRole('heading', { name: 'New work order' })).toBeTruthy();
-    await user.selectOptions(screen.getByRole('combobox', { name: /^Building/ }), 'bld-1');
+    const building = screen.getByRole('combobox', { name: /^Building/ });
+    // The buildings arrive after the form renders: pick one once it is in the list.
+    await vi.waitFor(() => {
+      expect(building.querySelector('option[value="bld-1"]')).not.toBeNull();
+    });
+    await pickOption(user, building, 'bld-1');
     await user.selectOptions(await screen.findByRole('combobox', { name: /^Unit/ }), 'unit-801');
     await user.selectOptions(screen.getByRole('combobox', { name: /^Priority/ }), 'urgent');
     await user.type(screen.getByRole('textbox', { name: /^Title \(Arabic\)/ }), 'تسريب');

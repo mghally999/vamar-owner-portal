@@ -205,3 +205,61 @@ endpoint); `GET /api/owner/summary?preset=this_year` and `GET /api/staff/reports
 تم بناء واجهة البرمجة الكاملة للمصروفات وأوامر الصيانة وسجل العقار والتقويم والتقارير والبحث
 والإعدادات، مع ملخص المالك لأي فترة في طلب واحد، وربط الشيكات المرتجعة بالقضايا، وتنبيهات شهرية
 وتذكير بالجلسات وإشعار بإنجاز الصيانة وبالمصروفات الكبيرة، وبيانات تجريبية لثمانية عشر شهراً.
+
+## v2 phase 3, dashboard (2 to 9 Nov 2026)
+
+**Built.** One period bar, in the style of the Foodics console, on Overview, Cheques, Expenses and
+Reports: preset chips (today to last year, custom range), a two-month range picker in Arabic with
+Western digits and typed `dd/mm/yyyy` input, a compare-with-previous-period switch, all kept in the
+URL so a refresh or a shared link shows the same period. Every plain date field became the shared
+date picker, with a weekend and holiday warning on cheque, replacement and hearing dates. Overview
+shows expected rent, collected, outstanding, at risk, expenses fixed and variable, and net, with a
+month-by-month chart. New pages: Expenses (filters, totals, the drafts queue, the form with the live
+share of each owner, VAT from the vendor's TRN, invoice upload, duplicate and outlier warnings, post,
+and void with a corrected copy for admins), recurring rules, Work orders (list and board by status,
+photos, the paying invoice), Reports (owner statement, building P&L, expenses by category, collection
+rate, occupancy over time, outstanding and bounced; Excel and PDF exports in the browser), the
+Calendar (year, month, week and list views, filters and a colour legend, weekends and holidays
+shaded, a side panel per item, drag to move manual events only), the unit record page (property
+number and identifiers, status with reason and history, owners, contracts, the history timeline),
+building identifiers and history, dispute cheque links (a bounced-cheque case needs a cheque; the
+list shows and searches cheque numbers), Settings, Holidays, Expense categories and Vendors, and a
+Ctrl+K search across owners, phones, units, deeds, Makani, cheques, cases and invoices. The import
+page reads the Expenses sheet and the identifier columns.
+
+**Try it.** `pnpm dev`, sign in as the admin, then `/` (period bar), `/expenses/new` (pick Al Noor
+Tower and watch the owner shares), `/work-orders` (Board), `/calendar`, `/reports` (Excel, PDF),
+`/units/<id>` from a building page, `/disputes` (type a cheque number), `/settings`, and Ctrl+K.
+Not deployed yet; screenshots, the load test and the verification run come in the next phases.
+
+تم بناء لوحة التحكم الخاصة بالنسخة الثانية: شريط فترة واحد على طريقة فودكس يحفظ الفترة في الرابط، ومنتقي
+تواريخ عربي في كل الشاشات مع تنبيه عند الجمعة والسبت والعطلات، وشاشات المصروفات وقواعدها المتكررة مع عرض
+حصة كل مالك قبل الترحيل، وأوامر الصيانة كقائمة ولوحة، والتقارير مع التصدير إلى إكسل وPDF، والتقويم السنوي
+والشهري والأسبوعي، وسجل كل وحدة بأرقامها وحالتها وتاريخها، وربط الشيكات المرتجعة بالقضايا، والإعدادات
+والعطلات والفئات والموردين، والبحث السريع بلوحة المفاتيح.
+
+## v2 phase 4, owner app (2 Nov 2026)
+
+**Built.** Home has a period switcher (This month, Next month, Next 6 months, This year, and a sheet
+for last month, last year, a year, a month or a custom range) over the owner summary: expected rent,
+collected, outstanding, at risk, expenses fixed and variable, net or projected net with the "before
+Vamar's management fee" note, a 12-month chart of rent against expenses, and rows for the next
+cheque, contracts ending, open maintenance and the calendar; every number opens the list behind it.
+A fifth tab lists expenses with category, reason, property, date, invoice value, VAT and the owner's
+share; the detail shows the invoice (zoomable), the vendor and the linked job. The calendar has year,
+month, week and agenda views built in the app, RTL with Western digits, coloured dots with a legend
+and the Hijri line when the admin turns it on; the Cheques tab gets a List and Calendar switch. Units
+show the status badge, the property record and the history timeline with filters. Disputes show the
+case and cheque numbers with bank, amount and dates. The PDF statement covers any period. New pushes
+(monthly summary, hearing reminder, finished job, large expense) open their screens. JavaScript only:
+it reaches installed apps through an over-the-air update, no new download.
+
+**Try it.** `pnpm build:web` with the local API running, then the web app at `/app/`, `/app/expenses`,
+`/app/calendar`, `/app/work-orders`, a unit and a dispute; tests: `pnpm --filter @vamar/mobile test`
+(238 component tests). Not published yet: the over-the-air update goes out in the shipping phase.
+
+تم تحديث تطبيق الملاك: الصفحة الرئيسية تعرض المتوقع والمحصّل والمتبقي والمعرّض للخطر والمصروفات الثابتة
+والمتغيرة والصافي لأي فترة يختارها المالك، هذا الشهر أو الشهر القادم أو الستة أشهر القادمة أو السنة أو السنة
+الماضية أو أي فترة، مع رسم بياني لاثني عشر شهراً. وأُضيف قسم المصروفات بسبب كل مصروف وقيمة فاتورته وصورتها،
+وتقويم سنوي وشهري وأسبوعي، وسجل كل وحدة وأرقامها، وأرقام الشيكات في القضايا، وكشف حساب لأي فترة، وإشعارات
+جديدة. ويصل التحديث إلى التطبيقات المثبتة تلقائياً دون تحميل جديد.

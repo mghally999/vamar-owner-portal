@@ -20,6 +20,9 @@ export default defineConfig({
     // Unit tests only; the Playwright suite in e2e/ runs through `pnpm e2e`.
     include: ['src/**/*.test.{ts,tsx}'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
+    // Each jsdom worker takes a few hundred MB: on the 8 GB dev laptop more than two workers swap
+    // and lazy pages miss their waits. CI runners (16 GB, four cores) use four.
+    maxWorkers: process.env['CI'] ? 4 : 2,
     coverage: {
       provider: 'v8',
       // The whole app source: every page, lib and ui module. Left out are the tests, the type-only

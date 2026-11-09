@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { building } from '@/test/fixtures';
 import type { ApiCall } from '@/test/api';
 import { calendarEvent, calendarItems, holidays, settings } from './test-fixtures';
+import { pickOption } from '@/test/render';
 import { renderV2 } from './test-render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -111,7 +112,7 @@ describe('CalendarPage', () => {
     await user.type(within(dialog).getByLabelText(/Title \(Arabic\)/), 'اجتماع');
     await user.type(within(dialog).getByLabelText(/Title \(English\)/), 'Meeting');
     await user.selectOptions(within(dialog).getByLabelText(/Event type/), 'meeting');
-    await user.selectOptions(within(dialog).getByLabelText(/^Building/), 'bld-1');
+    await pickOption(user, within(dialog).getByLabelText(/^Building/), 'bld-1');
     await user.click(within(dialog).getByRole('checkbox', { name: 'Owner can see this event' }));
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await vi.waitFor(() => {

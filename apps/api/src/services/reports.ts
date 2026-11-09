@@ -233,8 +233,10 @@ export async function reportSummary(
     );
   const occQ = db.execute(sql`
     with months as (
-      select (date_trunc('month', gs) + interval '1 month - 1 day')::date as month_end
-      from generate_series(${period.from}::date, ${period.to}::date, interval '1 month') gs
+      -- One row per calendar month the period touches (a period starting on the 20th still gets
+      -- its last month); each is measured on its last day, clipped to the period's end.
+      select least((gs + interval '1 month - 1 day')::date, ${period.to}::date) as month_end
+      from generate_series(date_trunc('month', ${period.from}::date), ${period.to}::date, interval '1 month') gs
     ),
     scope as (select u.id from units u where ${sql.join(unitScope, sql` and `)})
     select to_char(m.month_end, 'YYYY-MM') as month,

@@ -25,6 +25,14 @@ const PAGES: { name: string; path: string; settle?: (page: Page) => Promise<void
   { name: 'expense-categories', path: '/expense-categories' },
   { name: 'holidays', path: '/holidays' },
   { name: 'settings', path: '/settings' },
+  { name: 'overview-year', path: '/?preset=this_year&compare=1' },
+  { name: 'expenses', path: '/expenses?preset=this_year' },
+  { name: 'expense-drafts', path: '/expenses?status=draft' },
+  { name: 'expense-new', path: '/expenses/new' },
+  { name: 'expense-rules', path: '/expenses/rules' },
+  { name: 'work-orders', path: '/work-orders' },
+  { name: 'work-order-new', path: '/work-orders/new' },
+  { name: 'reports', path: '/reports?preset=this_year&compare=1' },
 ];
 
 for (const lang of ['ar', 'en'] as const) {
@@ -93,6 +101,31 @@ for (const lang of ['ar', 'en'] as const) {
         path: `${OUT}/dispute-detail-${lang}-${width}${SUFFIX}.png`,
         fullPage: true,
       });
+      // v2 detail pages: a posted expense with its invoice and a work order with photos
+      await page.goto('/expenses?preset=this_year&status=posted');
+      await page
+        .locator('a[href^="/expenses/"]:not([href$="/new"]):not([href$="/rules"])')
+        .first()
+        .click();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `${OUT}/expense-detail-${lang}-${width}${SUFFIX}.png`,
+        fullPage: true,
+      });
+      await page.goto('/work-orders');
+      await page.locator('a[href^="/work-orders/"]:not([href$="/new"])').first().click();
+      await page.waitForLoadState('networkidle');
+      await page.screenshot({
+        path: `${OUT}/work-order-detail-${lang}-${width}${SUFFIX}.png`,
+        fullPage: true,
+      });
+      // Ctrl+K search with a cheque number typed
+      await page.goto('/');
+      await page.waitForLoadState('networkidle');
+      await page.keyboard.press('Control+K');
+      await page.keyboard.type('D-20');
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${OUT}/search-${lang}-${width}${SUFFIX}.png` });
     });
   }
 }

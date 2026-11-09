@@ -228,9 +228,16 @@ function withShare<T extends { grossAmountFils: number | null; shareBp: number }
 
 export async function ownerCheques(db: Dbx, ownerId: string, q: OwnerChequeQuery) {
   const cursor = decodeCursor(q.cursor);
+  // With a date range (the period statement) each cheque is matched to the ownership valid on its
+  // due date, with the share of that day, as the summary counts it: a unit bought mid-period shows
+  // the buyer the cheques after the sale and the seller those before. Without one, the list is the
+  // owner's current units, as before.
+  const byDueDate = q.from !== undefined || q.to !== undefined;
   const conditions: (SQL | undefined)[] = [
     eq(unitOwnerships.ownerId, ownerId),
-    isNull(unitOwnerships.toDate),
+    byDueDate
+      ? sql`${unitOwnerships.fromDate} <= ${cheques.dueDate} and (${unitOwnerships.toDate} is null or ${unitOwnerships.toDate} > ${cheques.dueDate})`
+      : isNull(unitOwnerships.toDate),
     sql`${contracts.status} <> 'draft'`,
     sql`${cheques.amountFils} is not null`,
   ];

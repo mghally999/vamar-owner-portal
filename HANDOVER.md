@@ -17,6 +17,29 @@ documents linked from each section; this page is the map.
 - **API**: one Cloudflare Worker serves the API, the dashboard, the web app and `/download`.
   Data in Neon Postgres, files in R2, sign-in by Firebase Authentication.
 
+## What v2 added (November 2026)
+
+- **Expenses** for the owners: fixed costs (salaries, DEWA/SEWA, service charges, insurance, lift
+  contracts...) and variable costs (repairs, breakdowns, legal fees...), each with its reason, invoice
+  number and value, VAT and the invoice file. A posted expense is split to the owners by the ownership
+  on its invoice date; a mistake is voided by an admin and replaced by a corrected copy, nothing is
+  rewritten. Fixed costs that recur are **recurring rules**: the daily job turns each due date into a
+  draft for staff to check and post, and the owner app projects the future ones.
+- **Periods everywhere**: the owner app's Home and the dashboard's Overview, Cheques, Expenses and
+  Reports show any period (this month by default, this year one tap away) with expected rent,
+  collected, outstanding, at risk, expenses and net, and a comparison with the previous period.
+- **Work orders** (maintenance and breakdowns) with before and after photos and the paying invoice.
+- **Property records**: each unit's status (occupied comes from the contract; staff set vacant, under
+  maintenance, reserved or not available with a reason), its numbers (title deed, plot, Makani,
+  DEWA/SEWA account, municipality) and a history timeline. Buildings carry plot, Makani, deed, year and
+  floors.
+- **Disputes and cheques**: a bounced-cheque case is linked to its cheques; the case and cheque numbers
+  show everywhere the case appears, including the owner app and the hearing push.
+- **Calendar** in both the app and the dashboard, with the public holidays the admin maintains.
+- **Settings** (dashboard, **Settings** page, admin only): week start (Monday), the Hijri date (off),
+  the "before Vamar's management fee" label (on), the large-expense alert (AED 5,000) and whether
+  owners may open invoice files (on). Holidays, expense categories and vendors have their own pages.
+
 ## Where it runs
 
 | What                    | Address                                                           | Notes                                    |
@@ -65,7 +88,14 @@ the toolchain; the CI job "Docker image" proves it on every push.
    the production owner URL), then `pnpm build:web` and `npx wrangler deploy --var RELEASE:<sha>`,
    then the smoke test. Rollback: `npx wrangler rollback <previous version id>`
    (`npx wrangler deployments list`).
-4. **Owner app.** The APK is built for 64-bit ARM phones only (`arm64-v8a`, which keeps it near
+   **Daily job (v2).** The one cron trigger (08:00 Dubai) now also creates the draft expenses of the
+   recurring rules due in the last seven days, sends the hearing reminder three days before a hearing,
+   and on the 1st of each month sends every owner a summary of the month that ended (collected,
+   expenses, net). Each push is sent once (dedupe key). Staging has no cron: run it with
+   `POST /api/staff/jobs/daily` as an admin.
+4. **Owner app.** The v2 owner app is JavaScript only (no new native module): it reaches installed
+   apps of version 1.2.0 through `eas update --channel preview` (runtime 1.2.0), no new APK and no
+   change to `APP_LATEST_VERSION` or `APP_MIN_VERSION`. The APK is built for 64-bit ARM phones only (`arm64-v8a`, which keeps it near
    37 MB): it does not install on x86 emulators or Chromebooks; the download page says so. The
    `staging` build profile in `apps/mobile/eas.json` builds the same app against the staging API
    for testing. JavaScript-only fixes: `eas update --channel preview` reaches installed apps of
@@ -100,8 +130,9 @@ the toolchain; the CI job "Docker image" proves it on every push.
 
 GOLIVE.md is the runbook: decide the first admin, fill and rehearse the import template on
 staging, take a Neon restore point, rotate secrets and set `DEMO_TRIAL` to `"false"`,
-`pnpm golive:blank --confirm`, first sign-in, invite staff, import the seven sheets (owners,
-buildings, units, tenants, shares, contracts, cheques), check, tell the owners. The blank start
+`pnpm golive:blank --confirm`, first sign-in, invite staff, import the eight sheets (owners,
+buildings, units, tenants, shares, contracts, cheques, expenses; buildings and units now carry
+their identifier columns), check, tell the owners. The blank start
 was rehearsed on a scratch database on the staging Neon server on 23 Oct 2026 (log on the dev
 machine only) and on a local scratch database during the independent check of 24 Oct 2026.
 

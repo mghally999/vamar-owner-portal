@@ -4,7 +4,13 @@
  * Export to Excel (SheetJS) and PDF (print view) in the browser.
  */
 import { useMemo, useState } from 'react';
-import { formatMonth, formatPeriod, todayInDubai, type PlainDate } from '@vamar/shared';
+import {
+  formatMonth,
+  formatPeriod,
+  todayInDubai,
+  type Period,
+  type PlainDate,
+} from '@vamar/shared';
 import { exportExcel, exportPdf, type ExportSheet } from '@/lib/export';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -71,7 +77,11 @@ export function ReportsPage() {
     status: 'upcoming,deposited,bounced',
   });
   const d = q.data;
-  const periodLabel = formatPeriod(period.period, lang);
+  /** The period the server resolved (authoritative); the browser's own until the answer arrives. */
+  const shown: Period = d
+    ? { from: d.period.from as PlainDate, to: d.period.to as PlainDate }
+    : period.period;
+  const periodLabel = formatPeriod(shown, lang);
   const buildingLabel = buildingId
     ? pick(
         buildings.data?.find((b) => b.id === buildingId)?.nameAr ?? '',
@@ -187,10 +197,7 @@ export function ReportsPage() {
               size="sm"
               disabled={!d}
               onClick={() => {
-                void exportExcel(
-                  `vamar-${report}-${period.period.from}-${period.period.to}.xlsx`,
-                  sheets,
-                );
+                void exportExcel(`vamar-${report}-${shown.from}-${shown.to}.xlsx`, sheets);
               }}
             >
               {t('report_export_excel')}

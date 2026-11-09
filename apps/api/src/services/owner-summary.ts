@@ -347,6 +347,8 @@ export async function ownerSummary(
     if (dates.length === 0) continue;
     let mine: number;
     try {
+      // Future due dates are split with today's ownership: who will own a unit later is not
+      // known yet. Actual expenses and rent always use the ownership valid on their own date.
       const allocationUnits = await allocationUnitsFor(
         db,
         rule.scope,

@@ -45,7 +45,9 @@ describe('date helpers', () => {
     expect(parseTypedDate('5-1-2026')).toBe('2026-01-05');
     expect(parseTypedDate('٠١.٠٢.٢٠٢٦')).toBe('2026-02-01');
     expect(parseTypedDate('31/02/2026')).toBeNull();
-    expect(parseTypedDate('2026-10-15')).toBeNull();
+    // A date pasted as YYYY-MM-DD is accepted; an impossible one is not.
+    expect(parseTypedDate('2026-10-15')).toBe('2026-10-15');
+    expect(parseTypedDate('2026-02-30')).toBeNull();
     expect(parseTypedDate('')).toBeNull();
     expect(formatTypedDate('2026-10-15')).toBe('15/10/2026');
     expect(formatTypedDate(null)).toBe('');

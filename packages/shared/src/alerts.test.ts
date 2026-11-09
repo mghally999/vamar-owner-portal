@@ -57,13 +57,21 @@ describe('selectContractsToExpire', () => {
 });
 
 describe('dedupeKey', () => {
-  it('is stable per type, entity and day so a cron re-run cannot double-send', () => {
-    expect(dedupeKey('cheque_due_soon', 'abc', today)).toBe('cheque_due_soon:abc:2026-10-07');
-    expect(dedupeKey('cheque_due_soon', 'abc', today)).toBe(
-      dedupeKey('cheque_due_soon', 'abc', today),
+  it('is stable per type, owner, entity and day so a cron re-run cannot double-send', () => {
+    expect(dedupeKey('cheque_due_soon', 'o1', 'abc', today)).toBe(
+      'cheque_due_soon:o1:abc:2026-10-07',
     );
-    expect(dedupeKey('cheque_due_soon', 'abc', '2026-10-08')).not.toBe(
-      dedupeKey('cheque_due_soon', 'abc', today),
+    expect(dedupeKey('cheque_due_soon', 'o1', 'abc', today)).toBe(
+      dedupeKey('cheque_due_soon', 'o1', 'abc', today),
+    );
+    expect(dedupeKey('cheque_due_soon', 'o1', 'abc', '2026-10-08')).not.toBe(
+      dedupeKey('cheque_due_soon', 'o1', 'abc', today),
+    );
+  });
+
+  it('differs per owner so every co-owner of the same item is alerted', () => {
+    expect(dedupeKey('large_expense', 'o1', 'x', today)).not.toBe(
+      dedupeKey('large_expense', 'o2', 'x', today),
     );
   });
 });

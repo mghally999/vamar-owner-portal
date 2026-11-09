@@ -3,7 +3,7 @@ import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail, contractDetail, page, tenant, unit } from '@/test/fixtures';
-import { renderApp } from '@/test/render';
+import { renderApp, pickOption } from '@/test/render';
 import type { Tenant } from '@/lib/types';
 
 vi.mock('@/lib/firebase', () => ({
@@ -53,7 +53,7 @@ async function typeDate(
 }
 
 async function fillContract(user: Awaited<ReturnType<typeof renderApp>>['user']) {
-  await user.selectOptions(await screen.findByLabelText(/^Building/), 'bld-1');
+  await pickOption(user, await screen.findByLabelText(/^Building/), 'bld-1');
   const unitSelect = screen.getByLabelText(/^Unit/);
   await within(unitSelect).findByRole('option', { name: /802/ });
   // Occupied and inactive units stay hidden until "show all" is ticked.

@@ -7,7 +7,7 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router';
-import { configure, render, screen } from '@testing-library/react';
+import { configure, render, screen, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import type { StaffUser } from '@/lib/api';
@@ -77,4 +77,20 @@ export async function renderApp(path: string, opts: RenderAppOptions = {}) {
   // The shell footer shows the signed-in name once the session has been restored.
   if (me) await screen.findByText(me.name);
   return { ...utils, api, router, queryClient, user: userEvent.setup() };
+}
+
+/**
+ * Choose an option of a select whose options arrive from the API (buildings, units...): waits for
+ * the option to be in the list first, so the test never races the request.
+ */
+export async function pickOption(
+  user: { selectOptions: (el: Element, value: string) => Promise<void> },
+  select: Element,
+  value: string,
+): Promise<void> {
+  await waitFor(() => {
+    if (!select.querySelector(`option[value="${value}"]`))
+      throw new Error(`no option ${value} yet`);
+  });
+  await user.selectOptions(select, value);
 }

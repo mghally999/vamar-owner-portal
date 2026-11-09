@@ -61,6 +61,11 @@ jobs:
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tooling/postgres/init/01-roles.sql
           pnpm db:migrate
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f ../tools/tooling/load/large-dataset.sql
+          # The v2 tables exist from migration 0006 on; older commits are measured without them.
+          if [ "$(psql "$DATABASE_URL" -tAc "select to_regclass('public.expenses') is not null")" = "t" ]; then
+            psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f ../tools/tooling/load/large-dataset-v2.sql
+            echo "V2=1" >> "$GITHUB_ENV"
+          fi
           psql "$DATABASE_URL" -c 'analyze'
       - name: Start the API (Node server, one process, like the audit)
         working-directory: app/apps/api
@@ -84,6 +89,12 @@ jobs:
             node run.mjs $B tokens.json office 50 15
             node run.mjs $B tokens.json overview 50 15
             node run.mjs $B tokens.json ownerhome 100 15
+            # v2: the owner period summary must stay under 300 ms at p95, and the staff reports.
+            if [ "${V2:-}" = "1" ]; then
+              node run.mjs $B tokens.json summary 100 15
+              node run.mjs $B tokens.json summary 50 15 --max-p95 300
+              node run.mjs $B tokens.json reports 20 15
+            fi
           } | tee results.jsonl
           {
             echo "### Load on \`${{ inputs.ref }}\` ($(cd $GITHUB_WORKSPACE/app && git rev-parse --short HEAD))"

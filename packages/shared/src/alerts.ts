@@ -80,12 +80,20 @@ export function selectContractsToExpire<T extends ContractForAlert>(
 }
 
 /**
- * `type:entityId:date`, unique in notification_log. Daily alerts use the business date so a
- * cron re-run on the same day cannot double-send; instant alerts (bounce, new device) use the
- * date too, which also collapses an accidental double trigger within the same day.
+ * `type:ownerId:entityId:date`, unique in notification_log. The owner is part of the key so every
+ * owner of a shared unit or building gets the alert; daily alerts use the business date so a cron
+ * re-run on the same day cannot double-send; instant alerts (bounce, new device) use the date too,
+ * which also collapses an accidental double trigger within the same day. Rows written before the
+ * owner was added use the old `type:entityId:date` form, so a re-run on the day of the change
+ * could send one alert again; nothing older is affected.
  */
-export function dedupeKey(type: NotificationType, entityId: string, date: PlainDate): string {
-  return `${type}:${entityId}:${date}`;
+export function dedupeKey(
+  type: NotificationType,
+  ownerId: string,
+  entityId: string,
+  date: PlainDate,
+): string {
+  return `${type}:${ownerId}:${entityId}:${date}`;
 }
 
 /** Expo accepts at most 100 messages per push request. */
