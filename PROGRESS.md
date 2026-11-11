@@ -263,3 +263,25 @@ it reaches installed apps through an over-the-air update, no new download.
 الماضية أو أي فترة، مع رسم بياني لاثني عشر شهراً. وأُضيف قسم المصروفات بسبب كل مصروف وقيمة فاتورته وصورتها،
 وتقويم سنوي وشهري وأسبوعي، وسجل كل وحدة وأرقامها، وأرقام الشيكات في القضايا، وكشف حساب لأي فترة، وإشعارات
 جديدة. ويصل التحديث إلى التطبيقات المثبتة تلقائياً دون تحميل جديد.
+
+## v2 phase 5, review, screenshots and speed (10 to 11 Nov 2026)
+
+**Built.** Every screen was photographed and reviewed: 56 owner app screenshots (iPhone 13, Default
+and White themes, Arabic and English) and 264 dashboard screenshots (both themes, Arabic and English,
+1440 and 390 px), with no two files identical. The review fixed what it found: Home's period chips wrap
+so This year and More are always one tap away, no tile label or amount is cut, the `?preset=` link
+from a push opens the right period on the web app, the job priority reads as a normal row, chart month
+names keep their shape, and the dashboard menu fits a 900 px screen. The demo data now reads as a
+real Arabic portfolio: Arabic bounce reasons, hearing dates in words and on working days, and real
+looking Makani, DEWA and SEWA, title deed and municipality numbers. The owner summary meets its budget
+with 200,000 expenses: p95 295 ms at 50 simultaneous owners (it was 2,081 ms), and the old Home went
+from 412 to 625 requests a second, by computing only the months of the period, reusing one date
+formatter and one token key, and looking up counts and shares through their indexes.
+
+**Try it.** Screenshots in `demo/screenshots/v3/app` and `demo/screenshots/v3/dashboard`; the load
+numbers in the Load comparison workflow runs 42975758808 and 42976397036.
+
+تم مراجعة كل شاشات التطبيق ولوحة التحكم بالعربي والإنجليزي وفي الثيمين، وتصحيح كل ما ظهر: أزرار الفترة كلها ظاهرة،
+ولا رقم ولا عنوان مقطوع، ورابط الإشعار يفتح الفترة الصحيحة، وأسماء الشهور في الرسم البياني واضحة، والقائمة الجانبية
+كاملة على الشاشة. وأصبحت بيانات العرض عربية واقعية بأسباب الارتجاع ومواعيد الجلسات في أيام العمل وأرقام مكاني
+وديوا وسند الملكية. وصار ملخص المالك يفتح في أقل من 300 جزء من الثانية حتى مع 200 ألف مصروف و50 مالكاً في نفس اللحظة.
