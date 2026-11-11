@@ -8,6 +8,7 @@
 import {
   addDays,
   addMonthsClamped,
+  formatDate,
   generateChequeSchedule,
   suggestEqualAmounts,
   todayInDubai,
@@ -101,6 +102,20 @@ function rng(seed: number) {
 }
 
 const BANKS = ['Emirates NBD', 'ADCB', 'Mashreq', 'FAB', 'Dubai Islamic Bank', 'RAKBANK'];
+
+/** Return reasons as the bank's return memo states them, in the office's language. */
+const BOUNCE_REASONS = ['رصيد غير كافٍ', 'توقيع غير مطابق', 'الحساب مجمّد'] as const;
+
+/** The first day on or after `date` the Rental Dispute Centre sits: not a weekend nor a holiday. */
+export function firstWorkingDay(date: PlainDate, holidays: ReadonlySet<string>): PlainDate {
+  let d = date;
+  for (let i = 0; i < 30; i += 1) {
+    const weekday = new Date(`${d}T00:00:00Z`).getUTCDay(); // 0 Sunday, 6 Saturday
+    if (weekday !== 0 && weekday !== 6 && !holidays.has(d)) return d;
+    d = addDays(d, 1);
+  }
+  return d;
+}
 
 export async function seed(
   db: SeedDb,
@@ -358,6 +373,7 @@ export async function seed(
   const monthsAgoStart = (months: number): PlainDate => addMonthsClamped(today, -months);
 
   let bounceBudget = 3;
+  let bounceCount = 0;
   const addContract = (
     unit: UnitSeed,
     startDate: PlainDate,
@@ -405,6 +421,10 @@ export async function seed(
           ? 'cleared'
           : statusFor(sc.dueDate, sc.seq, chequeCount, bounceSeq);
       const amountFils = draft && sc.seq > 1 ? null : (amounts[sc.seq - 1] ?? null);
+      const bounceReason =
+        chequeStatus === 'bounced'
+          ? (BOUNCE_REASONS[bounceCount++ % BOUNCE_REASONS.length] ?? BOUNCE_REASONS[0])
+          : null;
       const chequeId = uuidv7();
       const changedAt = new Date(Date.parse(sc.dueDate) + 2 * 86_400_000);
       chequeRows.push({
@@ -422,7 +442,7 @@ export async function seed(
           : null,
         clearedAt: chequeStatus === 'cleared' ? changedAt : null,
         bouncedAt: chequeStatus === 'bounced' ? changedAt : null,
-        bounceReason: chequeStatus === 'bounced' ? 'Insufficient funds' : null,
+        bounceReason,
         replacesChequeId: null,
         imageKey: null,
       });
@@ -452,7 +472,7 @@ export async function seed(
             chequeId,
             fromStatus: 'deposited',
             toStatus: chequeStatus,
-            note: chequeStatus === 'bounced' ? 'Insufficient funds' : '',
+            note: bounceReason ?? '',
             actorStaffId: admin.id,
             at: changedAt,
           });
@@ -541,6 +561,12 @@ export async function seed(
   );
   type DisputeRow = typeof s.disputes.$inferInsert & { id: string };
   const disputeRows: DisputeRow[] = [];
+  // Hearings fall on working days: the public holidays come from migration 0007.
+  const holidaySet = new Set<string>(
+    (await db.select({ date: s.holidays.date }).from(s.holidays)).map((h) => h.date),
+  );
+  const hearingOn = (daysFromToday: number) =>
+    firstWorkingDay(addDays(today, daysFromToday), holidaySet);
   if (bouncedContract) {
     disputeRows.push({
       id: uuidv7(),
@@ -551,10 +577,11 @@ export async function seed(
       type: 'bounced_cheque',
       amountClaimedFils: bouncedCheque?.amountFils ?? null,
       status: 'in_progress',
-      nextHearingDate: addDays(today, 21),
+      nextHearingDate: hearingOn(21),
       openedAt: new Date(Date.parse(addDays(today, -12))),
       closedAt: null,
-      notes: 'Tenant was notified twice by phone; legal notice sent via Rental Dispute Centre.',
+      notes:
+        'تم التواصل مع المستأجر هاتفياً مرتين، وأُرسل إنذار قانوني عبر مركز فض المنازعات الإيجارية.',
       createdBy: admin.id,
     });
   }
@@ -568,10 +595,11 @@ export async function seed(
       type: 'rent_arrears',
       amountClaimedFils: AED(23_750),
       status: 'hearing_scheduled',
-      nextHearingDate: addDays(today, 9),
+      // About a week away, so the hearing reminder and the calendar have something close.
+      nextHearingDate: hearingOn(7),
       openedAt: new Date(Date.parse(addDays(today, -40))),
       closedAt: null,
-      notes: 'Partial payment received in cash; remaining balance disputed by tenant.',
+      notes: 'استُلمت دفعة جزئية نقداً، والمستأجر يعترض على المبلغ المتبقي.',
       createdBy: admin.id,
     });
   }
@@ -591,7 +619,7 @@ export async function seed(
       updates.push({
         id: uuidv7(),
         disputeId: d.id,
-        note: 'Internal: awaiting RDC case number.',
+        note: 'داخلي: بانتظار رقم القضية من مركز فض المنازعات الإيجارية.',
         visibleToOwner: false,
         actorStaffId: admin.id,
         at: new Date(),
@@ -600,7 +628,7 @@ export async function seed(
         updates.push({
           id: uuidv7(),
           disputeId: d.id,
-          note: `تم تحديد جلسة بتاريخ ${d.nextHearingDate}.`,
+          note: `تم تحديد جلسة بتاريخ ${formatDate(d.nextHearingDate as PlainDate, 'ar')}.`,
           visibleToOwner: true,
           actorStaffId: admin.id,
           at: new Date(),

@@ -484,7 +484,7 @@ describe('disputes and cheques', () => {
         bounceReason: string;
       }[];
     }>(`/api/staff/disputes/${bounced!.id}`, { token: viewer });
-    expect(detail.body.cheques[0]).toMatchObject({ bounceReason: 'Insufficient funds' });
+    expect(detail.body.cheques[0]).toMatchObject({ bounceReason: 'رصيد غير كافٍ' });
     expect(detail.body.cheques[0]!.bankName.length).toBeGreaterThan(0);
 
     const noCheques = await w.json<{ error: { details: { path: string }[] } }>(

@@ -4,7 +4,7 @@
  * breakdown with before and after photos, legal fees on the bounced-cheque case), work orders,
  * unit statuses and identifiers, the cheques behind the dispute, calendar events. Everything is
  * relative to "today" so the demo always has a draft waiting for staff, a job scheduled next
- * week and a hearing in seven days.
+ * week and a hearing about a week away.
  */
 import {
   addDays,
@@ -182,7 +182,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       ctx.buildings.safa.id,
       {
         plotNo: '373-0442',
-        makaniNo: '1844763250',
+        makaniNo: '2184476325',
         titleDeedNo: 'AB-2009-0373',
         completionYear: 2010,
         floorsCount: 4,
@@ -212,7 +212,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       ctx.buildings.nahda.id,
       {
         plotNo: '241-0906',
-        makaniNo: '3192674580',
+        makaniNo: '2961847350',
         titleDeedNo: 'NH-2013-0241',
         completionYear: 2014,
         floorsCount: 3,
@@ -222,20 +222,43 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
   for (const [id, fields] of buildingIds)
     await db.update(s.buildings).set(fields).where(eqId(s.buildings.id, id));
 
-  // Unit identifiers: deterministic numbers derived from the position in the list.
-  for (const [i, u] of ctx.units.entries()) {
-    const bIndex = Object.values(ctx.buildings).findIndex((b) => b.id === u.buildingId) + 1;
+  // Unit identifiers: realistic-looking and deterministic. Makani starts with the building's
+  // first digits (2 in Dubai, 7 in Sharjah); utility numbers are DEWA premise numbers (9 digits)
+  // in Dubai and SEWA account numbers (10 digits) in Sharjah; the title deed and municipality
+  // numbers extend the building's own with the unit number.
+  const sharjah = new Set<string>([ctx.buildings.khan.id, ctx.buildings.mamzar.id]);
+  let idSeed = 3_461_180;
+  const digits = (n: number) => {
+    let out = '';
+    for (let k = 0; k < n; k += 1) {
+      idSeed = (idSeed * 1_103_515_245 + 12_345) & 0x7fffffff;
+      out += String(Math.floor((idSeed / 0x7fffffff) * 10) % 10);
+    }
+    return out;
+  };
+  const nonZeroDigit = () => String(1 + (Number(digits(1)) % 9));
+  const usedMakani = new Set<string>(buildingIds.map(([, f]) => f.makaniNo));
+  for (const u of ctx.units) {
+    const record = buildingIds.find(([id]) => id === u.buildingId)?.[1];
+    const prefix = (record?.makaniNo ?? '2000000000').slice(0, 4);
+    let makaniNo = prefix + digits(6);
+    while (usedMakani.has(makaniNo)) makaniNo = prefix + digits(6);
+    usedMakani.add(makaniNo);
+    const unitRef = u.unitNo.replace(/[^0-9A-Za-z]/g, '');
+    const dewaPremiseNo = sharjah.has(u.buildingId)
+      ? `1${digits(8)}${nonZeroDigit()}`
+      : `${3 + (Number(digits(1)) % 4)}${digits(7)}${nonZeroDigit()}`;
     await db
       .update(s.units)
       .set({
-        titleDeedNo: `TD-${bIndex}-${String(1000 + i).slice(1)}`,
-        plotNo: buildingIds.find(([id]) => id === u.buildingId)?.[1].plotNo ?? null,
-        makaniNo: String(2000000000 + bIndex * 10_000_000 + i * 1_237),
-        dewaPremiseNo: String(300000000 + bIndex * 1_000_000 + i * 977),
-        municipalityNo: `${bIndex}${String(i + 1).padStart(3, '0')}-${u.unitNo.replace(/[^0-9]/g, '') || '0'}`,
+        titleDeedNo: record ? `${record.titleDeedNo}-${unitRef}` : null,
+        plotNo: record?.plotNo ?? null,
+        makaniNo,
+        dewaPremiseNo,
+        municipalityNo: record ? `${record.plotNo}-${unitRef}` : null,
         handoverDate: addMonthsClamped(
-          `${buildingIds.find(([id]) => id === u.buildingId)?.[1].completionYear ?? 2015}-06-01` as PlainDate,
-          i % 5,
+          `${record?.completionYear ?? 2015}-06-01` as PlainDate,
+          ctx.units.indexOf(u) % 5,
         ),
       })
       .where(eqId(s.units.id, u.id));
@@ -825,8 +848,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       titleAr: 'توقف المصعد رقم 2',
       titleEn: 'Lift 2 out of service',
-      description:
-        'Lift stuck between floors 12 and 13; control board fault reported by the guard.',
+      description: 'توقف المصعد بين الطابقين 12 و13، وأبلغ الحارس عن عطل في لوحة التحكم.',
       priority: 'urgent',
       status: 'done',
       reportedOn: addDays(liftRepair.invoiceDate as PlainDate, -9),
@@ -841,7 +863,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: safa102.id,
       titleAr: 'عطل في التكييف',
       titleEn: 'AC not cooling',
-      description: 'Tenant reports the living-room AC blowing warm air; compressor failure.',
+      description: 'أبلغ المستأجر أن مكيف الصالة يخرج هواءً ساخناً، والسبب عطل في الضاغط.',
       priority: 'urgent',
       status: 'done',
       reportedOn: addDays(acRepair.invoiceDate as PlainDate, -3),
@@ -856,7 +878,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: khan302.id,
       titleAr: 'تجديد الوحدة قبل التأجير',
       titleEn: 'Refurbishment before letting',
-      description: 'Repaint, bathroom fittings and kitchen cabinet doors.',
+      description: 'دهان كامل، وتبديل تجهيزات الحمامات وأبواب خزائن المطبخ.',
       priority: 'normal',
       status: 'in_progress',
       reportedOn: addDays(today, -6),
@@ -871,7 +893,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       titleAr: 'الفحص السنوي لنظام الإطفاء',
       titleEn: 'Annual fire system inspection',
-      description: 'Civil Defence annual inspection of sprinklers and alarms.',
+      description: 'فحص الدفاع المدني السنوي لرشاشات الإطفاء وأجهزة الإنذار.',
       priority: 'normal',
       status: 'scheduled',
       reportedOn: addDays(today, -2),
@@ -901,7 +923,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       titleAr: 'إعادة دهان ممر الطابق الثالث',
       titleEn: 'Repaint third-floor corridor',
-      description: 'Scuffed walls after the move-out.',
+      description: 'خدوش على الجدران بعد خروج المستأجر.',
       priority: 'low',
       status: 'open',
       reportedOn: today,
@@ -916,7 +938,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: unit(noor.id, '1502').id,
       titleAr: 'الإنتركم لا يعمل',
       titleEn: 'Intercom not working',
-      description: 'Duplicate of an earlier report; handset replaced by the technician.',
+      description: 'بلاغ مكرر لبلاغ سابق، وقام الفني بتبديل السماعة.',
       priority: 'low',
       status: 'cancelled',
       reportedOn: addDays(today, -40),
@@ -929,7 +951,8 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
   ];
   await db.insert(s.workOrders).values(workOrderRows);
 
-  // Disputes: the cheques behind the bounced-cheque case; the arrears hearing is in a week.
+  // Disputes: the cheques behind the bounced-cheque case. The hearing dates are set with the cases
+  // (on working days), so the "hearing set" update and the case always agree.
   if (bouncedCase?.contractId) {
     const bounced = ctx.cheques.filter(
       (q) => q.contractId === bouncedCase.contractId && q.status === 'bounced',
@@ -939,12 +962,6 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
         .insert(s.disputeCheques)
         .values(bounced.map((q) => ({ disputeId: bouncedCase.id, chequeId: q.id })));
   }
-  const arrears = ctx.disputes.find((d) => d.type === 'rent_arrears');
-  if (arrears)
-    await db
-      .update(s.disputes)
-      .set({ nextHearingDate: addDays(today, 7) })
-      .where(eqId(s.disputes.id, arrears.id));
 
   // Calendar events ----------------------------------------------------------------------------------
   const at = (date: PlainDate, hh: number, mm = 0) =>
@@ -962,7 +979,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       ownerId: ctx.owners.khalid.id,
       visibleToOwner: true,
-      notes: 'Walk the common areas and the roof with Mr Khalid.',
+      notes: 'جولة في المناطق المشتركة والسطح مع السيد خالد.',
       createdBy: adminId,
     },
     {
@@ -992,7 +1009,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       ownerId: null,
       visibleToOwner: true,
-      notes: 'Service charge budget for next year.',
+      notes: 'مناقشة ميزانية رسوم الخدمات للعام القادم.',
       createdBy: adminId,
     },
     {
@@ -1007,7 +1024,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       unitId: null,
       ownerId: null,
       visibleToOwner: false,
-      notes: 'Internal reminder for the ops team.',
+      notes: 'تذكير داخلي لفريق العمليات.',
       createdBy: adminId,
     },
     {

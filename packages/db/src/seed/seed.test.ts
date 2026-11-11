@@ -10,7 +10,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as schema from '../schema/index.js';
-import { seed, type SeedSummary } from './index.js';
+import { formatDate, type PlainDate } from '@vamar/shared';
+import { firstWorkingDay, seed, type SeedSummary } from './index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TODAY = '2026-10-07' as const;
@@ -147,6 +148,75 @@ describe('seed data', () => {
     );
     expect(disputes.rows.map((r) => r.type)).toEqual(['bounced_cheque', 'rent_arrears']);
     for (const r of disputes.rows) expect(r.visible).toBeGreaterThan(0);
+  });
+
+  it('reads as Arabic data: bounce reasons, hearings on working days, dated hearing notes', async () => {
+    const reasons = await db.execute<{ reason: string; note: string }>(
+      sql`SELECT q.bounce_reason AS reason, e.note FROM cheques q JOIN cheque_events e ON e.cheque_id = q.id AND e.to_status = 'bounced' WHERE q.status = 'bounced'`,
+    );
+    expect(reasons.rows.length).toBeGreaterThan(0);
+    for (const r of reasons.rows) {
+      expect(r.reason).toMatch(/[؀-ۿ]/);
+      expect(r.note).toBe(r.reason);
+    }
+
+    const hearings = await db.execute<{ d: string; note: string | null; holiday: boolean }>(
+      sql`SELECT d.next_hearing_date::text AS d,
+                 (SELECT u.note FROM dispute_updates u WHERE u.dispute_id = d.id AND u.note LIKE 'تم تحديد جلسة%') AS note,
+                 EXISTS (SELECT 1 FROM holidays h WHERE h.date = d.next_hearing_date) AS holiday
+          FROM disputes d WHERE d.next_hearing_date IS NOT NULL`,
+    );
+    expect(hearings.rows).toHaveLength(2);
+    for (const h of hearings.rows) {
+      const weekday = new Date(`${h.d}T00:00:00Z`).getUTCDay();
+      expect([0, 6]).not.toContain(weekday);
+      expect(h.holiday).toBe(false);
+      // The note carries the same date, written in words, never an ISO date.
+      expect(h.note).toContain(formatDate(h.d as PlainDate, 'ar'));
+      expect(h.note).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    }
+  });
+
+  it('first working day skips weekends and holidays', () => {
+    const holidays = new Set(['2026-12-01', '2026-12-02', '2026-12-03']);
+    // Saturday 28 Nov 2026 -> Monday 30 Nov; Tuesday 1 Dec (holiday) -> Friday 4 Dec.
+    expect(firstWorkingDay('2026-11-28', holidays)).toBe('2026-11-30');
+    expect(firstWorkingDay('2026-12-01', holidays)).toBe('2026-12-04');
+    expect(firstWorkingDay('2026-10-07', holidays)).toBe('2026-10-07');
+  });
+
+  it('unit identifiers look real and are unique', async () => {
+    const units = await db.execute<{
+      unit_no: string;
+      makani_no: string;
+      dewa_premise_no: string;
+      title_deed_no: string;
+      municipality_no: string;
+      b_makani: string;
+      b_deed: string;
+      plot_no: string;
+      area: string;
+    }>(
+      sql`SELECT u.unit_no, u.makani_no, u.dewa_premise_no, u.title_deed_no, u.municipality_no,
+                 b.makani_no AS b_makani, b.title_deed_no AS b_deed, b.plot_no, b.area
+          FROM units u JOIN buildings b ON b.id = u.building_id`,
+    );
+    expect(units.rows).toHaveLength(32);
+    const makani = new Set<string>();
+    for (const u of units.rows) {
+      expect(u.makani_no).toMatch(/^\d{10}$/);
+      expect(u.makani_no.slice(0, 4)).toBe(u.b_makani.slice(0, 4));
+      const sharjah = u.area.includes('Sharjah');
+      expect(u.makani_no[0]).toBe(sharjah ? '7' : '2');
+      expect(u.dewa_premise_no).toMatch(sharjah ? /^\d{10}$/ : /^\d{9}$/);
+      expect(u.dewa_premise_no).not.toMatch(/0$/);
+      const ref = u.unit_no.replace(/[^0-9A-Za-z]/g, '');
+      expect(u.title_deed_no).toBe(`${u.b_deed}-${ref}`);
+      expect(u.municipality_no).toBe(`${u.plot_no}-${ref}`);
+      makani.add(u.makani_no);
+    }
+    expect(makani.size).toBe(32);
+    expect(new Set(units.rows.map((u) => u.dewa_premise_no)).size).toBe(32);
   });
 
   it('database rejects invalid money and shares', async () => {
