@@ -21,12 +21,13 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { StatCard } from '@/ui/stat-card';
+import { TodayPanel } from './today-panel';
 
 /**
- * Overview: the period bar, the period's money as cards (expected, collected, outstanding, at
- * risk, expenses fixed and variable, net) from the report summary, a rent-versus-expenses chart,
- * then the action lists (bounced, due soon, ending soon, deletion requests). Every card links to
- * the list behind it.
+ * Overview: what needs action today (TodayPanel), the period bar, the period's money as cards
+ * (expected, collected, outstanding, at risk, expenses fixed and variable, net) from the report
+ * summary, a rent-versus-expenses chart, then the action lists (bounced, due soon, ending soon,
+ * deletion requests). Every card links to the list behind it.
  */
 export function OverviewPage() {
   const { t, pick, lang } = useI18n();
@@ -51,6 +52,7 @@ export function OverviewPage() {
   return (
     <Page>
       <PageHeader title={t('overview_title')} />
+      <TodayPanel />
       <PeriodBar state={period} holidays={holidays} />
 
       {summary.isError ? (

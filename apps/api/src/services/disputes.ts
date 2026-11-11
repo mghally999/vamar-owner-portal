@@ -31,6 +31,9 @@ export interface DisputeListQuery {
   buildingId?: string | undefined;
   /** Case number or cheque number. */
   search?: string | undefined;
+  /** Next hearing on or after / on or before (the Today panel's "hearings this week"). */
+  hearingFrom?: string | undefined;
+  hearingTo?: string | undefined;
   cursor?: string | undefined;
   limit: number;
 }
@@ -42,6 +45,10 @@ export async function listDisputes(db: Dbx, q: DisputeListQuery) {
   if (q.status) conditions.push(eq(disputes.status, q.status));
   if (q.unitId) conditions.push(eq(disputes.unitId, q.unitId));
   if (q.buildingId) conditions.push(eq(units.buildingId, q.buildingId));
+  // A hearing date left on a closed case is history, not a hearing to attend.
+  if (q.hearingFrom || q.hearingTo) conditions.push(sql`${disputes.status} <> 'closed'`);
+  if (q.hearingFrom) conditions.push(sql`${disputes.nextHearingDate} >= ${q.hearingFrom}`);
+  if (q.hearingTo) conditions.push(sql`${disputes.nextHearingDate} <= ${q.hearingTo}`);
   if (q.search) {
     const like = `%${q.search}%`;
     conditions.push(

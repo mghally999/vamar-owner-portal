@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { contractDetail, overview } from '@/test/fixtures';
 import { reportSummary, settings, v2Routes } from '@/test/fixtures-v2';
+import { staffToday } from '@/test/fixtures-today';
 import { renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -20,6 +21,7 @@ const routes = (extra: Record<string, unknown> = {}) =>
   v2Routes({
     'GET /api/staff/overview': overview(),
     'GET /api/staff/reports/summary': reportSummary(),
+    'GET /api/staff/today': staffToday(),
     ...extra,
   });
 

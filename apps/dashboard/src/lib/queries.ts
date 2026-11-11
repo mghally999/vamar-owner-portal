@@ -233,6 +233,7 @@ export function useContracts(filters: {
   status?: ContractStatus | undefined;
   buildingId?: string | undefined;
   endingWithinDays?: number | undefined;
+  withoutRenewal?: '1' | undefined;
 }) {
   return useInfiniteQuery({
     queryKey: keys.contracts(filters),

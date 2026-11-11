@@ -151,7 +151,7 @@ interface Projection {
 }
 
 /** One JSON column of a one-row result (pg and PGlite parse json, some drivers return text). */
-function jsonColumn(result: unknown, column: string): unknown {
+export function jsonColumn(result: unknown, column: string): unknown {
   const row = rowsOf<Record<string, unknown>>(result)[0];
   const value = row?.[column];
   if (value === undefined || value === null) throw new Error(`summary query returned no ${column}`);

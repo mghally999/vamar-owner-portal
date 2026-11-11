@@ -28,13 +28,18 @@ uploads it to the private R2 bucket `vamar-backups`. It needs an R2 API token.
 
 ## 3. Accounts for Phase C (one sign-in each, then the setup is scripted)
 
+Monitoring: uptime: done with GitHub Actions; error tracking (Sentry) still needs an account.
+
 - **Sentry**: create a free account at sentry.io, one organisation `vamar`, then run
   `npx sentry-wizard` is **not** needed; give the DSNs (one for the API, one for the dashboard, one
   for the app) by pasting them into `.local/sentry.env` as `SENTRY_DSN_API=`, `SENTRY_DSN_DASHBOARD=`,
   `SENTRY_DSN_MOBILE=`.
-- **Uptime check**: create a free account at betterstack.com (or uptimerobot.com) and add a monitor
-  for `https://vamar-owner-portal.vamar-api.workers.dev/readyz` every 3 minutes, alert to your
-  e-mail. Nothing in the code depends on it.
+- **Uptime (done, no account)**: `.github/workflows/uptime.yml` calls `/readyz` on production
+  and staging every 10 minutes; a target that fails three tries in a row gets an issue labelled
+  `outage` (GitHub e-mails repository watchers), and the issue is commented on and closed when it
+  answers again. It starts once the workflow is on `main`. To be sure the e-mail reaches you: on
+  the repository page choose **Watch > All Activity** (or **Custom > Issues**), or set the Actions
+  variable `UPTIME_MENTION` to your GitHub login with a leading at-sign.
 
 ## 4. Docker Desktop (resolved)
 

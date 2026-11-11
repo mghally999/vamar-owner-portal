@@ -22,6 +22,8 @@ export interface ContractListQuery {
   buildingId?: string | undefined;
   unitId?: string | undefined;
   endingWithinDays?: number | undefined;
+  /** Leave out contracts that already have a renewal (draft or later) pointing back at them. */
+  withoutRenewal?: boolean | undefined;
   cursor?: string | undefined;
   limit: number;
 }
@@ -38,6 +40,10 @@ export async function listContracts(db: Dbx, q: ContractListQuery, todayDate: Pl
       sql`${contracts.endDate} between ${todayDate} and ${addDays(todayDate, q.endingWithinDays)}`,
     );
   }
+  if (q.withoutRenewal)
+    conditions.push(
+      sql`not exists (select 1 from ${contracts} r where r.previous_contract_id = ${contracts.id})`,
+    );
   if (cursor) {
     conditions.push(
       or(

@@ -342,6 +342,8 @@ export function useDisputesV2(filters: {
   status?: DisputeStatus | undefined;
   buildingId?: string | undefined;
   search?: string | undefined;
+  hearingFrom?: string | undefined;
+  hearingTo?: string | undefined;
 }) {
   return useQuery({
     queryKey: v2keys.disputes(filters),

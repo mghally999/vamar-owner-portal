@@ -314,6 +314,8 @@ export const workOrderListQuerySchema = paginationQuerySchema.extend({
   priority: workOrderPrioritySchema.optional(),
   vendorId: uuidSchema.optional(),
   search: z.string().trim().max(80).optional(),
+  /** `1`: still open and past the scheduled date (the Today panel's link). */
+  overdue: z.literal('1').optional(),
 });
 
 // Property records ---------------------------------------------------------------------------

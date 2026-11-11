@@ -48,7 +48,7 @@ documents linked from each section; this page is the map.
 | Owner web app (iPhone)  | https://vamar-owner-portal.vamar-api.workers.dev/app/             | Add to Home Screen from Safari           |
 | App download (one link) | https://vamar-owner-portal.vamar-api.workers.dev/download         | QR code: `demo/download-qr.png`          |
 | Staging                 | https://vamar-owner-portal-staging.vamar-api.workers.dev          | Demo data lives here after go-live       |
-| Health                  | `/healthz` (the Worker answers), `/readyz` (the database answers) | Point the uptime check at `/readyz`      |
+| Health                  | `/healthz` (the Worker answers), `/readyz` (the database answers) | Checked every 10 min by `uptime.yml`     |
 | Repository              | https://github.com/mghally999/vamar-owner-portal                  | CI on every push, see below              |
 
 Accounts that own pieces of the system: Cloudflare (Workers, R2), Neon (database), Firebase
@@ -111,8 +111,17 @@ the toolchain; the CI job "Docker image" proves it on every push.
 
 - **Logs**: `npx wrangler tail` (production) shows one JSON line per API request with a request
   id; the same id is in the `x-request-id` header and in any error the user reports.
+- **Uptime**: the "Uptime" workflow (`.github/workflows/uptime.yml`) calls `/readyz` on
+  production and staging every 10 minutes with the built-in GitHub token. Three failed tries open
+  an issue labelled `outage` (status code, body excerpt, time); repository watchers get an e-mail.
+  While it stays down the issue gets a comment when the status changes and at most hourly
+  otherwise; on recovery the run comments and closes it. A red run means the monitor itself could
+  not read or write issues, not that the site is down. GitHub may start scheduled runs a few
+  minutes late. On a private repository each run counts as about one Actions minute (about 4,300 a
+  month); if that is more than the plan includes, change the cron to `*/20`.
 - **Errors**: set the `SENTRY_DSN` Worker secret (BLOCKED.md item 3) and every server error goes
-  to Sentry with personal data scrubbed; until then errors are in the logs only.
+  to Sentry with personal data scrubbed; until then errors are in the logs only. Error tracking
+  still needs the Sentry account.
 - **Backups**: **no backup has been taken yet.** The nightly workflow encrypts a database dump to
   R2 once its R2 key exists (BLOCKED.md item 1); until then it fails every night. Neon keeps 24
   hours of point-in-time history on the free plan. The restore drill script
@@ -139,7 +148,7 @@ machine only) and on a local scratch database during the independent check of 24
 ## Still open
 
 - **BLOCKED.md**: six items that need a click or an account from the project owner (backup key,
-  Firebase authorised domain for iPhone sign-in, Sentry and uptime accounts, keystore download,
+  Firebase authorised domain for iPhone sign-in, Sentry account (uptime is done), keystore download,
   Cloudflare deploy token). Each lists the exact clicks.
 - **FUTURE.md**: improvements deliberately left out of this round, each with the reason and size.
 - **Client decisions** still to take: who the first admin is; whether owners may export their

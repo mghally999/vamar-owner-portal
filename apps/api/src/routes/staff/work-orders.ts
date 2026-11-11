@@ -21,9 +21,15 @@ import { today } from '../../util/today.js';
 import { editor, idParam, viewer } from './common.js';
 
 export const workOrdersRoutes = new Hono<AppEnv>()
-  .get('/work-orders', viewer, zValidator('query', workOrderListQuerySchema), async (c) =>
-    c.json(await listWorkOrders(readDb(c), c.req.valid('query'))),
-  )
+  .get('/work-orders', viewer, zValidator('query', workOrderListQuerySchema), async (c) => {
+    const { overdue, ...q } = c.req.valid('query');
+    return c.json(
+      await listWorkOrders(readDb(c), {
+        ...q,
+        overdueBefore: overdue ? today(c.env) : undefined,
+      }),
+    );
+  })
   .post('/work-orders', editor, zValidator('json', createWorkOrderSchema), async (c) => {
     const row = await withTx(c, (tx) =>
       createWorkOrder(tx, actorFromContext(c, staffOf(c)), c.req.valid('json'), today(c.env)),

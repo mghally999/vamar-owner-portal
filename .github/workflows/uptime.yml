@@ -1,0 +1,126 @@
+name: Uptime
+
+# Every 10 minutes: GET /readyz on production and staging. 200 with "ok":true means the Worker
+# runs and the database answers (apps/api/src/app.ts). A target that fails three tries in a row
+# gets a GitHub issue labelled `outage`, and GitHub e-mails repository watchers about new issues:
+# that e-mail is the alert. While the target stays down, the issue gets a comment when the answer
+# changes and at most once an hour otherwise, so a night-long outage is not 50 e-mails. When the
+# target answers again, the run comments with the recovery time and closes the issue.
+#
+# Only the built-in GITHUB_TOKEN and the gh CLI of the runner are used: no account, no secret.
+# Optional repository variable UPTIME_MENTION (Settings > Secrets and variables > Actions >
+# Variables), for example a GitHub login with a leading at-sign: it is written into new outage
+# issues so that person is notified even if they do not watch the repository.
+#
+# GitHub starts scheduled runs only from the default branch, can start them some minutes late when
+# it is busy, and switches them off after 60 days without a commit in a public repository
+# (Actions > Uptime > Enable workflow turns them back on).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+# A late run must not overlap the next one and open or comment on the same issue twice.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    # Three tries of at most 15 s each with 20 s between them, per target: about 3 minutes at worst.
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      MENTION: ${{ vars.UPTIME_MENTION }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Check /readyz, open or update or close outage issues
+        shell: bash
+        run: |
+          # No -e: a failed check or API call on one target must not skip the other target.
+          set -uo pipefail
+          broken=0
+
+          stamp() { echo "$(date -u '+%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Dubai date '+%H:%M Dubai'))"; }
+
+          open_issue() { # title -> number of the open outage issue with that exact title, or nothing
+            gh issue list --label outage --state open --limit 100 --json number,title \
+              --jq ".[] | select(.title == \"$1\") | .number" | head -n 1
+          }
+
+          check() {
+            local name="$1" url="$2/readyz" code excerpt title num
+            title="Outage: $name does not answer /readyz"
+            for attempt in 1 2 3; do
+              rm -f body.txt curl.err
+              code="$(curl -sS -o body.txt -w '%{http_code}' --max-time 15 \
+                -H 'cache-control: no-cache' "$url" 2>curl.err)"
+              [ -n "$code" ] || code=000
+              if [ "$code" = 200 ] && grep -q '"ok":true' body.txt 2>/dev/null; then break; fi
+              [ "$attempt" = 3 ] || sleep 20
+            done
+
+            if ! num="$(open_issue "$title")"; then
+              echo "::error::could not list outage issues for $name"
+              broken=1
+              return
+            fi
+
+            if [ "$code" = 200 ] && grep -q '"ok":true' body.txt 2>/dev/null; then
+              echo "$name: up ($code)"
+              if [ -n "$num" ]; then
+                gh issue close "$num" --comment "Recovered: **$name** answers \`GET $url\` with 200 again at $(stamp). [Run]($RUN_URL)" \
+                  || broken=1
+              fi
+              return
+            fi
+
+            # The body is printed inside a code block: backticks and control characters removed.
+            excerpt="$( { cat body.txt 2>/dev/null; cat curl.err 2>/dev/null; } \
+              | LC_ALL=C tr -cd '[:print:]\n' | tr -d '`' | head -c 300)"
+            [ -n "$excerpt" ] || excerpt="(empty body)"
+            echo "::warning::$name is down: status $code: $excerpt"
+
+            local report
+            report="$(printf '%s\n\n- Status: %s (000 means no answer within 15 s)\n- Time: %s\n- Run: %s\n\nBody excerpt:\n\n```\n%s\n```\n\n<!-- uptime-status:%s -->' \
+              "**$name** did not answer \`GET $url\` with 200 after 3 tries." "$code" "$(stamp)" "$RUN_URL" "$excerpt" "$code")"
+
+            if [ -z "$num" ]; then
+              gh label create outage --color B60205 \
+                --description "Production or staging does not answer /readyz" --force >/dev/null || broken=1
+              if [ -n "${MENTION:-}" ]; then report="$report"$'\n\n'"cc $MENTION"; fi
+              gh issue create --title "$title" --label outage --body "$report" || broken=1
+              return
+            fi
+
+            # Last status written by this workflow on the issue (its body or a comment), and when.
+            local last last_at last_code age
+            last="$(gh issue view "$num" --json createdAt,body,comments --jq '
+              ([{createdAt, body}] + [.comments[] | {createdAt, body}])
+              | map(select(.body | test("uptime-status:[0-9]+")))
+              | last // empty
+              | "\(.createdAt) \(.body | capture("uptime-status:(?<c>[0-9]+)").c)"')" || broken=1
+            last_at="${last%% *}"
+            last_code="${last##* }"
+            age=999
+            if [ -n "$last_at" ]; then age=$(( ($(date -u +%s) - $(date -u -d "$last_at" +%s)) / 60 )); fi
+            if [ "$code" != "$last_code" ] || [ "$age" -ge 55 ]; then
+              gh issue comment "$num" --body "Still down. $report" || broken=1
+            else
+              echo "$name: still down, issue #$num noted the same status $age min ago"
+            fi
+          }
+
+          check production https://vamar-owner-portal.vamar-api.workers.dev
+          check staging https://vamar-owner-portal-staging.vamar-api.workers.dev
+
+          # A target being down is reported through the issue; a red run means the monitor itself
+          # could not read or write issues.
+          exit "$broken"

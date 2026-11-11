@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Link } from '@tanstack/react-router';
+import { Link, useSearch } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -7,6 +7,7 @@ import {
   DISPUTE_TYPES,
   DISPUTE_TYPE_LABEL,
   DISPUTE_STATUS_LABEL,
+  isPlainDate,
   parseAmountInput,
   type DisputeStatus,
   type DisputeType,
@@ -39,9 +40,10 @@ import { useDisputesV2, useUnitCheques } from '@/v2/queries';
 import { ChequePicker } from '@/v2/cheque-picker';
 import { DatePicker } from '@/ui/date-picker';
 import { useHolidaySet } from '@/lib/queries-v2';
+import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 
 export function DisputesPage() {
-  const { t, pick, lang } = useI18n();
+  const { t, pick, lang, date } = useI18n();
   const { t: tv2 } = useV2();
   const auth = useAuth();
   const qc = useQueryClient();
@@ -49,7 +51,17 @@ export function DisputesPage() {
   const [search, setSearch] = useState('');
   const debounced = useDebounced(search.trim(), 300);
   const [creating, setCreating] = useState(false);
-  const q = useDisputesV2({ status: status || undefined, search: debounced || undefined });
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
+  const url = useSearch({ strict: false }) as { hearingFrom?: unknown; hearingTo?: unknown };
+  const hearingFrom = isPlainDate(url.hearingFrom) ? url.hearingFrom : undefined;
+  const hearingTo = isPlainDate(url.hearingTo) ? url.hearingTo : undefined;
+  const dropSearch = useDropSearch();
+  const q = useDisputesV2({
+    status: status || undefined,
+    search: debounced || undefined,
+    hearingFrom,
+    hearingTo,
+  });
 
   return (
     <Page>
@@ -93,6 +105,14 @@ export function DisputesPage() {
           numeric
           className="w-64"
         />
+        {hearingFrom || hearingTo ? (
+          <FilterChip
+            label={t('filter_hearings', { from: date(hearingFrom), to: date(hearingTo) })}
+            onClear={() => {
+              dropSearch(['hearingFrom', 'hearingTo']);
+            }}
+          />
+        ) : null}
       </div>
       {q.isPending ? (
         <SkeletonRows cols={5} />

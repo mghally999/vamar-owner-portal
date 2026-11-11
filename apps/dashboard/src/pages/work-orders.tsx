@@ -1,5 +1,5 @@
 /** Work orders: a filtered list and a board by status, both linking to the detail page. */
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import {
   WORK_ORDER_PRIORITIES,
@@ -28,6 +28,7 @@ import {
   cx,
 } from '@/ui/primitives';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { Page } from '@/ui/shell';
 
 const statusChip: Record<WorkOrderStatus, string> = {
@@ -76,12 +77,17 @@ export function WorkOrdersPage() {
   const [priority, setPriority] = useState<WorkOrderPriority | ''>('');
   const [text, setText] = useState('');
   const search = useDebounced(text.trim(), 300);
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
+  const url = useSearch({ strict: false }) as { overdue?: unknown };
+  const overdue = String(url.overdue) === '1';
+  const dropSearch = useDropSearch();
   const buildings = useBuildings();
   const q = useWorkOrders({
     buildingId: buildingId || undefined,
     status: view === 'list' ? status || undefined : undefined,
     priority: priority || undefined,
     search: search || undefined,
+    overdue: overdue ? '1' : undefined,
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
 
@@ -179,6 +185,14 @@ export function WorkOrdersPage() {
           aria-label={t('search')}
           className="w-64"
         />
+        {overdue ? (
+          <FilterChip
+            label={t('filter_overdue')}
+            onClear={() => {
+              dropSearch(['overdue']);
+            }}
+          />
+        ) : null}
       </div>
 
       {q.isPending ? (

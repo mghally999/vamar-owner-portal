@@ -33,6 +33,8 @@ export interface WorkOrderListQuery {
   priority?: WorkOrderPriority | undefined;
   vendorId?: string | undefined;
   search?: string | undefined;
+  /** Open, scheduled or in progress with a scheduled date before this day. */
+  overdueBefore?: string | undefined;
   cursor?: string | undefined;
   limit: number;
 }
@@ -82,6 +84,10 @@ export async function listWorkOrders(db: Dbx, q: WorkOrderListQuery) {
   if (q.status) conditions.push(eq(workOrders.status, q.status));
   if (q.priority) conditions.push(eq(workOrders.priority, q.priority));
   if (q.vendorId) conditions.push(eq(workOrders.vendorId, q.vendorId));
+  if (q.overdueBefore)
+    conditions.push(
+      sql`${workOrders.status} in ('open', 'scheduled', 'in_progress') and ${workOrders.scheduledFor} < ${q.overdueBefore}`,
+    );
   if (q.search) {
     const like = `%${q.search}%`;
     conditions.push(

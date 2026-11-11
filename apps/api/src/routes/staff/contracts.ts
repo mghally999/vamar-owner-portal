@@ -38,6 +38,10 @@ export const contractsRoutes = new Hono<AppEnv>()
         buildingId: uuidSchema.optional(),
         unitId: uuidSchema.optional(),
         endingWithinDays: z.coerce.number().int().min(1).max(365).optional(),
+        withoutRenewal: z
+          .literal('1')
+          .optional()
+          .transform((v) => v === '1'),
       }),
     ),
     async (c) => c.json(await listContracts(readDb(c), c.req.valid('query'), today(c.env))),

@@ -21,6 +21,7 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 
 const STATUSES: ContractStatus[] = ['draft', 'active', 'expired', 'terminated', 'renewed'];
 
@@ -29,15 +30,25 @@ export function ContractsPage() {
   const auth = useAuth();
   const qc = useQueryClient();
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema yet
-  const search = useSearch({ strict: false }) as { endingWithinDays?: number };
+  const search = useSearch({ strict: false }) as {
+    endingWithinDays?: number;
+    withoutRenewal?: unknown;
+  };
   const [status, setStatus] = useState<ContractStatus | ''>('');
   const [buildingId, setBuildingId] = useState('');
   const [ending, setEnding] = useState(Boolean(search.endingWithinDays));
+  // The link may ask for another window (the Today panel uses 30 days); 60 is the page's own.
+  const linkedDays = Number(search.endingWithinDays);
+  const endingDays =
+    Number.isInteger(linkedDays) && linkedDays >= 1 && linkedDays <= 365 ? linkedDays : 60;
+  const withoutRenewal = String(search.withoutRenewal) === '1';
+  const dropSearch = useDropSearch();
   const buildings = useBuildings();
   const q = useContracts({
     status: status || undefined,
     buildingId: buildingId || undefined,
-    endingWithinDays: ending ? 60 : undefined,
+    endingWithinDays: ending ? endingDays : undefined,
+    withoutRenewal: withoutRenewal ? '1' : undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -95,8 +106,16 @@ export function ContractsPage() {
               setEnding(e.target.checked);
             }}
           />
-          {t('overview_ending')}
+          {t('contracts_endingWithin', { n: endingDays })}
         </label>
+        {withoutRenewal ? (
+          <FilterChip
+            label={t('filter_withoutRenewal')}
+            onClear={() => {
+              dropSearch(['withoutRenewal']);
+            }}
+          />
+        ) : null}
       </div>
 
       {q.isPending ? (
