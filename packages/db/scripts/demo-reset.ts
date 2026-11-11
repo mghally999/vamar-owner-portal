@@ -25,16 +25,16 @@ const rows = <T extends Row>(r: unknown): T[] => (r as { rows: T[] }).rows;
 const { db, pool } = createNodeDb(url);
 try {
   // 1. Capture what must survive.
-  const staff = rows<{
-    email: string;
-    firebase_uid: string;
-    totp_secret_enc: string | null;
-    totp_enabled: boolean;
-  }>(
-    await db.execute(
-      sql`select email, firebase_uid, totp_secret_enc, totp_enabled from staff_users`,
-    ),
-  );
+  // Whole rows: staff accounts the seed does not create (a tester, an account added by hand) are
+  // put back as they were.
+  const staff = rows<
+    Row & {
+      email: string;
+      firebase_uid: string;
+      totp_secret_enc: string | null;
+      totp_enabled: boolean;
+    }
+  >(await db.execute(sql`select * from staff_users`));
   const devices = rows<Row & { phone_e164: string }>(
     await db.execute(sql`
       select d.*, o.phone_e164 from devices d join owners o on o.id = d.owner_id`),
@@ -67,22 +67,7 @@ try {
     // 3. Seed again.
     const summary = await seed(tx, undefined, demoFilesHook());
 
-    // 4. Re-attach logins to the new rows.
-    for (const s of staff) {
-      await tx.execute(sql`
-        update staff_users set firebase_uid = ${s.firebase_uid}, totp_secret_enc = ${s.totp_secret_enc},
-          totp_enabled = ${s.totp_enabled} where email = ${s.email}`);
-    }
-    const ownerIds = new Map(
-      rows<{ id: string; phone_e164: string }>(
-        await tx.execute(sql`select id, phone_e164 from owners`),
-      ).map((o) => [o.phone_e164, o.id]),
-    );
-    const staffIds = new Map(
-      rows<{ id: string; email: string }>(
-        await tx.execute(sql`select id, email from staff_users`),
-      ).map((u) => [u.email, u.id]),
-    );
+    // 4. Re-attach logins to the new rows; staff the seed does not create come back whole.
     const insert = async (table: string, row: Row, drop: string[]) => {
       const cols = Object.keys(row).filter((c) => !drop.includes(c));
       await tx.execute(sql`
@@ -94,6 +79,32 @@ try {
           sql`, `,
         )}) on conflict do nothing`);
     };
+    const seededStaff = new Set(
+      rows<{ email: string }>(await tx.execute(sql`select email from staff_users`)).map(
+        (u) => u.email,
+      ),
+    );
+    let staffKept = 0;
+    for (const s of staff) {
+      if (seededStaff.has(s.email)) {
+        await tx.execute(sql`
+          update staff_users set firebase_uid = ${s.firebase_uid}, totp_secret_enc = ${s.totp_secret_enc},
+            totp_enabled = ${s.totp_enabled} where email = ${s.email}`);
+      } else {
+        await insert('staff_users', s, []);
+        staffKept++;
+      }
+    }
+    const ownerIds = new Map(
+      rows<{ id: string; phone_e164: string }>(
+        await tx.execute(sql`select id, phone_e164 from owners`),
+      ).map((o) => [o.phone_e164, o.id]),
+    );
+    const staffIds = new Map(
+      rows<{ id: string; email: string }>(
+        await tx.execute(sql`select id, email from staff_users`),
+      ).map((u) => [u.email, u.id]),
+    );
     let kept = 0;
     for (const d of devices) {
       const id = ownerIds.get(d.phone_e164);
@@ -116,10 +127,14 @@ try {
         kept++;
       }
     }
-    return { summary, kept };
+    return { summary, kept, staffKept };
   });
   console.info(`[${label}] demo files written to`, demoFilesDir());
-  console.info(`[${label}] demo data restored`, { ...result.summary, loginsKept: result.kept });
+  console.info(`[${label}] demo data restored`, {
+    ...result.summary,
+    loginsKept: result.kept,
+    otherStaffKept: result.staffKept,
+  });
 } finally {
   await pool.end();
 }
