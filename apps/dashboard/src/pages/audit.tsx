@@ -15,7 +15,12 @@ import {
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
 
-const ENTITY_TYPES = [
+/**
+ * Every entity type the API writes to the audit log (apps/api/src/services: audit(... entityType)).
+ * The filter used to stop at the first release's records, so an owner's answer to a repair
+ * approval, a work order, an expense or a budget change could not be filtered for.
+ */
+export const ENTITY_TYPES = [
   'owner',
   'building',
   'unit',
@@ -23,6 +28,19 @@ const ENTITY_TYPES = [
   'contract',
   'cheque',
   'dispute',
+  'expense',
+  'expense_category',
+  'recurring_rule',
+  'vendor',
+  'work_order',
+  'repair_approval',
+  'budget',
+  'message_thread',
+  'message',
+  'calendar_event',
+  'holiday',
+  'settings',
+  'import',
   'staff_user',
   'attachment',
 ];

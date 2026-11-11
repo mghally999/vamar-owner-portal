@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { auditRow, page, staffRow } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { ENTITY_TYPES } from './audit';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -83,6 +84,34 @@ describe('AuditPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Load more' }));
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/audit').query['cursor']).toBe('older');
+    });
+  });
+
+  it('filters on every entity the API audits, approvals and work orders included', async () => {
+    const { api, user } = await renderApp('/audit', {
+      routes: {
+        'GET /api/staff/staff': { items: [staffRow()] },
+        'GET /api/staff/audit': page(ROWS),
+      },
+    });
+    await screen.findByText('owner.create');
+    const entity = screen.getByRole('combobox', { name: 'Entity' });
+    const options = Array.from(entity.querySelectorAll('option')).map((o) => o.value);
+    for (const type of [
+      'expense',
+      'work_order',
+      'repair_approval',
+      'budget',
+      'message_thread',
+      'calendar_event',
+      'settings',
+    ]) {
+      expect(options).toContain(type);
+    }
+    expect(options).toEqual(['', ...ENTITY_TYPES]);
+    await user.selectOptions(entity, 'repair_approval');
+    await vi.waitFor(() => {
+      expect(api.last('GET', '/api/staff/audit').query['entityType']).toBe('repair_approval');
     });
   });
 
