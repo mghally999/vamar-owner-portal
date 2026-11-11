@@ -92,10 +92,13 @@ jobs:
             node run.mjs $B tokens.json overview 50 15
             node run.mjs $B tokens.json ownerhome 100 15
             # v2: the owner period summary must stay under 300 ms at p95, and the staff reports.
+            # The budget is checked last, so a miss still leaves every other number in the table.
             if [ "${V2:-}" = "1" ]; then
               node run.mjs $B tokens.json summary 100 15
-              node run.mjs $B tokens.json summary 50 15 --max-p95 300
+              node run.mjs $B tokens.json summary 20 15
+              node run.mjs $B tokens.json summary 10 15
               node run.mjs $B tokens.json reports 20 15
+              node run.mjs $B tokens.json summary 50 15 --max-p95 300
             fi
           } | tee results.jsonl
           {
