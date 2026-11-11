@@ -13,10 +13,10 @@ import {
   isFuturePeriod,
   monthBuckets,
   previousPeriod,
-  projectFixedExpenses,
   recurringDueDates,
   resolvePeriodQuery,
   type AllocationMethod,
+  type AllocationUnit,
   type ChequeStatus,
   type Period,
   type PeriodPreset,
@@ -264,30 +264,41 @@ export async function ownerSummary(
              coalesce(sum(fils), 0)::bigint as total, count(distinct xid)::int as n
       from spent_src group by 1, 2, 3
     ),
-    next_cheque as (
-      select q.id, q.due_date as "dueDate", q.amount_fils as "amountFils", mu.share_bp as "shareBp",
-             q.status, u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
-             b.name_en as "buildingNameEn", t.name as "tenantName"
+    -- The next cheque and the contracts ending are chosen first and named after (unit, building,
+    -- tenant), so the planner solves two small joins instead of one of seven tables: planning is
+    -- most of the cost of this statement for a typical owner.
+    next_pick as (
+      select q.id, q.due_date, q.amount_fils, mu.share_bp, q.status, c.unit_id, c.tenant_id
       from cheques q
       join contracts c on c.id = q.contract_id and c.status <> 'draft'
       join my_units mu on mu.unit_id = c.unit_id
-      join units u on u.id = c.unit_id
-      join buildings b on b.id = u.building_id
-      join tenants t on t.id = c.tenant_id
       where q.amount_fils is not null and q.status in ('upcoming', 'deposited')
         and q.due_date >= ${todayDate}
       order by q.due_date, q.id limit 1
     ),
-    ending as (
-      select c.id, u.id as "unitId", u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
-             b.name_en as "buildingNameEn", t.name as "tenantName", c.end_date as "endDate"
+    next_cheque as (
+      select p.id, p.due_date as "dueDate", p.amount_fils as "amountFils", p.share_bp as "shareBp",
+             p.status, u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
+             b.name_en as "buildingNameEn", t.name as "tenantName"
+      from next_pick p
+      join units u on u.id = p.unit_id
+      join buildings b on b.id = u.building_id
+      join tenants t on t.id = p.tenant_id
+    ),
+    ending_pick as (
+      select c.id, c.unit_id, c.tenant_id, c.end_date
       from contracts c
       join my_units mu on mu.unit_id = c.unit_id
-      join units u on u.id = c.unit_id
-      join buildings b on b.id = u.building_id
-      join tenants t on t.id = c.tenant_id
       where c.status = 'active' and c.end_date between ${todayDate} and ${addDays(todayDate, 90)}
       order by c.end_date limit 5
+    ),
+    ending as (
+      select p.id, u.id as "unitId", u.unit_no as "unitNo", b.name_ar as "buildingNameAr",
+             b.name_en as "buildingNameEn", t.name as "tenantName", p.end_date as "endDate"
+      from ending_pick p
+      join units u on u.id = p.unit_id
+      join buildings b on b.id = u.building_id
+      join tenants t on t.id = p.tenant_id
     )
     select json_build_object(
       'rent', coalesce((select json_agg(r) from rent r), '[]'::json),
@@ -382,6 +393,7 @@ export async function ownerSummary(
   }
 
   // Projections: the owner's part of each future due date of each rule, by month.
+  const unitsByScope = new Map<string, AllocationUnit[] | null>();
   for (const rule of rules) {
     const dates = recurringDueDates(
       {
@@ -393,18 +405,30 @@ export async function ownerSummary(
       period,
     ).filter((d) => d > todayDate);
     if (dates.length === 0) continue;
+    if (!rule.active) continue;
+    // Future due dates are split with today's ownership: who will own a unit later is not known
+    // yet. Actual expenses and rent always use the ownership valid on their own date. Rules of
+    // the same building share one list of units and owners (null: the scope cannot be split).
+    const scopeKey = `${rule.scope}|${rule.buildingId}|${rule.unitId ?? ''}`;
+    let allocationUnits = unitsByScope.get(scopeKey);
+    if (allocationUnits === undefined) {
+      try {
+        allocationUnits = buildAllocationUnits(
+          scopeUnits,
+          scopeOwnerships,
+          rule.scope,
+          rule.buildingId,
+          rule.unitId,
+          todayDate,
+        );
+      } catch {
+        allocationUnits = null;
+      }
+      unitsByScope.set(scopeKey, allocationUnits);
+    }
+    if (allocationUnits === null) continue;
     let mine: number;
     try {
-      // Future due dates are split with today's ownership: who will own a unit later is not
-      // known yet. Actual expenses and rent always use the ownership valid on their own date.
-      const allocationUnits = buildAllocationUnits(
-        scopeUnits,
-        scopeOwnerships,
-        rule.scope,
-        rule.buildingId,
-        rule.unitId,
-        todayDate,
-      );
       mine = allocateExpense(rule.amountFils + rule.vatFils, rule.allocationMethod, allocationUnits)
         .filter((a) => a.ownerId === ownerId && (!q.unitId || a.unitId === q.unitId))
         .reduce((acc, a) => acc + a.amountFils, 0);
@@ -412,23 +436,10 @@ export async function ownerSummary(
       continue;
     }
     if (mine === 0) continue;
-    const projected = projectFixedExpenses(
-      [
-        {
-          ...rule,
-          startDate: rule.startDate as PlainDate,
-          endDate: rule.endDate as PlainDate | null,
-          amountFils: mine,
-          vatFils: 0,
-        },
-      ],
-      period,
-      todayDate,
-    );
-    for (const p of projected) {
-      expenses.projectedFixedFils += p.totalFils;
-      const b = buckets.get(p.dueDate.slice(0, 7));
-      if (b) b.projectedFixedFils += p.totalFils;
+    for (const dueDate of dates) {
+      expenses.projectedFixedFils += mine;
+      const b = buckets.get(dueDate.slice(0, 7));
+      if (b) b.projectedFixedFils += mine;
     }
   }
 

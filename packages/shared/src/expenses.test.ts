@@ -332,6 +332,54 @@ describe('recurring rules', () => {
       ),
     ).toThrow(RangeError);
   });
+  it('gives the same dates as walking every month from the start date', () => {
+    // The reference walks from the rule's start, month by month; the real one skips to the period.
+    const reference = (
+      rule: Parameters<typeof recurringDueDates>[0],
+      period: { from: PlainDate; to: PlainDate },
+    ): string[] => {
+      const step = { monthly: 1, quarterly: 3, yearly: 12 }[rule.frequency];
+      const [sy, sm] = rule.startDate.split('-').map(Number) as [number, number];
+      const dueIn = (index: number) => {
+        const y = Math.floor(index / 12);
+        const m = (index % 12) + 1;
+        const dim = new Date(Date.UTC(y, m, 0)).getUTCDate();
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${y}-${pad(m)}-${pad(Math.min(rule.dayOfMonth, dim))}`;
+      };
+      let index = sy * 12 + sm - 1;
+      if (dueIn(index) < rule.startDate) index += 1;
+      const last = rule.endDate !== null && rule.endDate < period.to ? rule.endDate : period.to;
+      const out: string[] = [];
+      for (; dueIn(index) <= last; index += step)
+        if (dueIn(index) >= period.from) out.push(dueIn(index));
+      return out;
+    };
+    const day = fc
+      .integer({ min: 0, max: 365 * 30 })
+      .map(
+        (n) =>
+          new Date(Date.UTC(2005, 0, 1) + n * 86_400_000).toISOString().slice(0, 10) as PlainDate,
+      );
+    fc.assert(
+      fc.property(
+        fc.constantFrom('monthly', 'quarterly', 'yearly' as const),
+        fc.integer({ min: 1, max: 31 }),
+        day,
+        fc.option(day, { nil: null }),
+        day,
+        fc.integer({ min: 0, max: 800 }),
+        (frequency, dayOfMonth, startDate, endDate, from, length) => {
+          const to = new Date(Date.parse(from) + length * 86_400_000)
+            .toISOString()
+            .slice(0, 10) as PlainDate;
+          const rule = { frequency, dayOfMonth, startDate, endDate };
+          expect(recurringDueDates(rule, { from, to })).toEqual(reference(rule, { from, to }));
+        },
+      ),
+      { numRuns: 2000 },
+    );
+  });
   it('knows the covered period and the next due date', () => {
     expect(coveredPeriod(D('2026-02-28'), 'monthly')).toEqual({
       from: '2026-02-01',

@@ -330,7 +330,14 @@ export function recurringDueDates(rule: RecurringRuleLike, period: Period): Plai
     anchor = addMonthsClamped(anchor, 1);
   const out: PlainDate[] = [];
   const last = rule.endDate !== null && rule.endDate < period.to ? rule.endDate : period.to;
-  for (let i = 0; ; i += 1) {
+  // Each due date falls in its own month, so the steps whose month is before the period's first
+  // month are skipped without being computed: a rule that started years ago costs the months of
+  // the period, not every month since its start.
+  const a = toParts(anchor);
+  const f = toParts(period.from);
+  const monthsToPeriod = f.year * 12 + f.month - (a.year * 12 + a.month);
+  const firstStep = monthsToPeriod > 0 ? Math.floor(monthsToPeriod / step) : 0;
+  for (let i = firstStep; ; i += 1) {
     const m = toParts(addMonthsClamped(anchor, i * step));
     const due = dueOn(m.year, m.month, rule.dayOfMonth);
     if (due > last) break;

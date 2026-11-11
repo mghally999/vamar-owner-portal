@@ -115,14 +115,20 @@ export function monthRange(year: number, month: number): { start: PlainDate; end
 
 /** The calendar date in Asia/Dubai for a given instant (defaults to now). */
 export function todayInDubai(now: Date = new Date()): PlainDate {
-  const fmt = new Intl.DateTimeFormat('en-CA', {
+  // en-CA yields YYYY-MM-DD
+  return assertPlainDate(dubaiDateFormat().format(now));
+}
+
+/** Built once: creating an Intl formatter costs far more than using one, and this runs per request. */
+let dubaiFormat: Intl.DateTimeFormat | undefined;
+function dubaiDateFormat(): Intl.DateTimeFormat {
+  dubaiFormat ??= new Intl.DateTimeFormat('en-CA', {
     timeZone: DUBAI_TZ,
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
   });
-  // en-CA yields YYYY-MM-DD
-  return assertPlainDate(fmt.format(now));
+  return dubaiFormat;
 }
 
 export type Lang = 'ar' | 'en';

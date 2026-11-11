@@ -5,6 +5,7 @@
  */
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
+import { todayInDubai } from '@vamar/shared';
 import type {
   CalendarItem,
   CalendarItemKind,
@@ -44,21 +45,19 @@ export interface CalendarRange {
 
 /** Asia/Dubai calendar date of an instant, for manual events. */
 function dubaiDate(at: Date): PlainDate {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Dubai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(at) as PlainDate;
+  return todayInDubai(at);
 }
 
+/** Built once: a range can hold thousands of events, and creating a formatter is the slow part. */
+let timeFormat: Intl.DateTimeFormat | undefined;
 function dubaiTime(at: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
+  timeFormat ??= new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Dubai',
     hour: '2-digit',
     minute: '2-digit',
     hour12: false,
-  }).format(at);
+  });
+  return timeFormat.format(at);
 }
 
 interface Scope {

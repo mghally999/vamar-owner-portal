@@ -5,6 +5,7 @@
  */
 import { and, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
+import { todayInDubai } from '@vamar/shared';
 import type {
   BuildingIdentifiersInput,
   PlainDate,
@@ -165,13 +166,7 @@ export interface TimelineQuery {
 }
 
 const AT_08 = 'T08:00:00+04:00';
-const dateOf = (iso: string): PlainDate =>
-  new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Dubai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date(iso)) as PlainDate;
+const dateOf = (iso: string): PlainDate => todayInDubai(new Date(iso));
 
 /**
  * One UNION ALL over the unit's history, ordered newest first with keyset pagination on
