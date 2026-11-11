@@ -570,8 +570,9 @@ export function MessageThreadPage() {
     <Page>
       {back}
       <header className="flex flex-col gap-2">
-        <h1 className="text-title font-semibold break-words" dir="auto">
-          {thread.subject}
+        {/* The owner's own words keep their direction; the heading keeps the page's alignment. */}
+        <h1 className="text-title font-semibold break-words">
+          <bdi>{thread.subject}</bdi>
         </h1>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[15px] text-ink-soft">
           <StatusChip status={thread.status} />

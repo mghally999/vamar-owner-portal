@@ -145,7 +145,7 @@ describe('TodayPanel', () => {
       name: /Unanswered owner messages/,
     });
     expect(within(messages).getByText('1')).toBeTruthy();
-    expect(within(messages).getByText(/^Oldest since /)).toBeTruthy();
+    expect(within(messages).getByText(/^Oldest waiting since /)).toBeTruthy();
     expect(target(messages)).toEqual({ path: '/messages', search: { waiting: '1' } });
     cleanup();
     await renderApp('/', {

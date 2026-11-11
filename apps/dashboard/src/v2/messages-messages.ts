@@ -50,7 +50,7 @@ const ar = {
   messages_headerUnread: 'رسائل الملاك، {n} غير مقروءة',
   messages_notFound: 'لم يتم العثور على هذه المحادثة.',
   today_messages: 'رسائل ملاك بلا رد',
-  today_messages_oldest: 'الأقدم منذ {date}',
+  today_messages_oldest: 'أقدمها ينتظر منذ {date}',
 };
 
 const en: Record<keyof typeof ar, string> = {
@@ -95,7 +95,7 @@ const en: Record<keyof typeof ar, string> = {
   messages_headerUnread: 'Owner messages, {n} unread',
   messages_notFound: 'This thread was not found.',
   today_messages: 'Unanswered owner messages',
-  today_messages_oldest: 'Oldest since {date}',
+  today_messages_oldest: 'Oldest waiting since {date}',
 };
 
 type Key = keyof typeof ar;
