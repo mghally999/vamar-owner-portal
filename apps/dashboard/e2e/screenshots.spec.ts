@@ -38,6 +38,12 @@ const PAGES: { name: string; path: string }[] = [
   { name: 'work-orders', path: '/work-orders' },
   { name: 'work-order-new', path: '/work-orders/new' },
   { name: 'reports', path: '/reports?preset=this_year&compare=1' },
+  // v3
+  { name: 'budgets', path: '/budgets' },
+  { name: 'bank-statement', path: '/cheques/bank-statement' },
+  { name: 'messages', path: '/messages' },
+  { name: 'messages-waiting', path: '/messages?waiting=1' },
+  { name: 'work-orders-awaiting', path: '/work-orders?approval=awaiting' },
 ];
 
 /** Detail pages: open the list, then follow the first visible link of each selector in turn. */
@@ -72,6 +78,41 @@ const DETAILS: { name: string; list: string; links: string[] }[] = [
     list: '/work-orders',
     links: ['a[href^="/work-orders/"]:not([href$="/new"])'],
   },
+  // v3: the job waiting for an owner's answer, an active contract ending soon (renewal
+  // suggestion) and a message thread. The first building (building-detail) has the budget section.
+  {
+    name: 'work-order-approval',
+    list: '/work-orders?approval=awaiting',
+    links: ['a[href^="/work-orders/"]:not([href$="/new"])'],
+  },
+  {
+    name: 'contract-renewal',
+    list: '/contracts?endingWithinDays=90',
+    links: ['a[href^="/contracts/"]:not([href$="/new"])'],
+  },
+  { name: 'message-thread', list: '/messages', links: ['a[href^="/messages/"]'] },
+];
+
+/** v3: pages caught after a click: the calendar's year view and the bulk bars with two rows ticked. */
+async function tickTwo(page: Page) {
+  const boxes = page
+    .getByRole('main')
+    .locator('tbody input[type="checkbox"]')
+    .filter({ visible: true });
+  await boxes.nth(0).check();
+  await boxes.nth(1).check();
+}
+const STATES: { name: string; path: string; act: (page: Page) => Promise<void> }[] = [
+  {
+    name: 'calendar-year',
+    path: '/calendar',
+    act: async (page) => {
+      await page.getByRole('tab', { name: /^(Year|سنة)$/ }).click();
+      await expect(page.locator('.vc-count').first()).toBeVisible({ timeout: 10_000 });
+    },
+  },
+  { name: 'cheques-bulk', path: '/cheques', act: tickTwo },
+  { name: 'expenses-bulk', path: '/expenses?preset=this_year&status=posted', act: tickTwo },
 ];
 
 /**
@@ -150,6 +191,21 @@ for (const lang of ['ar', 'en'] as const) {
           }
           await settle(page);
           await shoot(page, d.name, lang, width);
+        });
+      }
+
+      for (const st of STATES) {
+        test(st.name, async () => {
+          await page.goto(st.path);
+          await settle(page);
+          await st.act(page);
+          // Ticking a row scrolls it into view; a full-page picture of a scrolled page draws the
+          // sticky bulk bar where it is stuck, over the filters, and leaves its own place empty.
+          await page.evaluate(() => {
+            window.scrollTo(0, 0);
+          });
+          await page.waitForTimeout(300);
+          await shoot(page, st.name, lang, width);
         });
       }
 
