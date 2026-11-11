@@ -1,9 +1,8 @@
 /**
  * The owner's summary for a period: rent (expected, collected, outstanding, at risk), expenses
  * (fixed and variable, actual and projected), net and projected net, the comparison period and
- * monthly buckets, plus the rows Home shows under the cards. Two statements run together: one
- * round trip of latency. Shares follow the ownership valid on each cheque's due date and each
- * expense's invoice date.
+ * monthly buckets, plus the rows Home shows under the cards. One statement: one round trip.
+ * Shares follow the ownership valid on each cheque's due date and each expense's invoice date.
  */
 import { sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
@@ -128,6 +127,8 @@ interface Figures {
     total_units: number | string;
     occupied_units: number | string;
   };
+  /** Absent when the period has ended (nothing left to project). */
+  projection?: Projection;
 }
 
 interface Projection {
@@ -226,8 +227,46 @@ export async function ownerSummary(
     where uo.owner_id = ${ownerId} and uo.to_date is null
       ${q.unitId ? sql`and uo.unit_id = ${q.unitId}` : sql``}`;
 
-  // Statement 1: every figure and list of the screen as one JSON document, so a summary costs one
-  // round trip (one pooled connection locally, one HTTPS request on Neon) instead of six.
+  // The recurring rules that can touch the owner's units and, only when there are some, every unit
+  // of the owner's buildings with its owners (a building rule is split over all of them).
+  // Projections then allocate in memory, with no query per rule. Only due dates after today are
+  // projected, so a period that has ended leaves this part out.
+  const withProjection = period.to > todayDate;
+  const projectionCtes = withProjection
+    ? sql`,
+    blds as (select distinct building_id from all_units),
+    rules as (
+      select r.* from recurring_expense_rules r
+      where r.active and r.visible_to_owner and r.start_date <= ${period.to}
+        and (r.end_date is null or r.end_date >= ${todayDate})
+        and (r.unit_id in (select unit_id from all_units)
+             or (r.unit_id is null and r.building_id in (select building_id from blds)))
+        ${q.buildingId ? sql`and r.building_id = ${q.buildingId}` : sql``}
+        ${q.unitId ? sql`and (r.unit_id = ${q.unitId} or r.unit_id is null)` : sql``}
+    ),
+    su as (select id, size_sqft, building_id, active from units
+           where building_id in (select building_id from blds) and exists (select 1 from rules))`
+    : sql``;
+  const projectionField = withProjection
+    ? sql`,
+      'projection', json_build_object(
+        'rules', coalesce((select json_agg(json_build_object(
+          'id', id, 'scope', scope, 'buildingId', building_id, 'unitId', unit_id,
+          'frequency', frequency, 'dayOfMonth', day_of_month, 'startDate', start_date,
+          'endDate', end_date, 'amountFils', amount_fils, 'vatFils', vat_fils,
+          'allocationMethod', allocation_method, 'active', active)) from rules), '[]'::json),
+        'units', coalesce((select json_agg(json_build_object(
+          'id', id, 'sizeSqft', size_sqft, 'buildingId', building_id, 'active', active)) from su), '[]'::json),
+        'ownerships', coalesce((select json_agg(json_build_object(
+          'unitId', uo.unit_id, 'ownerId', uo.owner_id, 'shareBp', uo.share_bp,
+          'fromDate', uo.from_date, 'toDate', uo.to_date))
+          -- Unit by unit through the unit index (OFFSET 0 keeps it a per-unit lookup: as a join
+          -- the planner read all 7,800 ownership rows).
+          from su cross join lateral (select * from unit_ownerships o where o.unit_id = su.id offset 0) uo), '[]'::json))`
+    : sql``;
+
+  // One statement returns every figure and list of the screen as one JSON document: one round
+  // trip and one pooled connection locally, one HTTPS request on Neon.
   const figuresQ = db.execute(sql`
     with my_units as (${scopeUnitsSql}),
     all_units as materialized (
@@ -244,13 +283,17 @@ export async function ownerSummary(
       where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
         and q.due_date between ${minFrom} and ${period.to}${andAll(chequeWhere)}
     ),
+    -- Grouped by month start and named after: to_char once per month, not once per row.
     rent as (
-      select ${partCase} as part, to_char(d, 'YYYY-MM') as month,
-             coalesce(sum(fils), 0)::bigint as expected,
-             coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
-             coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
-             count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
-      from rent_src group by 1, 2
+      select part, to_char(mo, 'YYYY-MM') as month, expected, collected, at_risk, n, bounced
+      from (
+        select ${partCase} as part, date_trunc('month', d) as mo,
+               coalesce(sum(fils), 0)::bigint as expected,
+               coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
+               coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
+               count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
+        from rent_src group by 1, 2
+      ) g
     ),
     spent_src as (
       select a.on_date as d, x.kind, a.amount_fils as fils, x.id as xid
@@ -265,10 +308,16 @@ export async function ownerSummary(
       ) x
       where a.owner_id = ${ownerId} and a.on_date between ${minFrom} and ${period.to}${andAll(expenseWhere)}
     ),
+    -- Each expense once per month first, then counted: the same totals and counts as
+    -- count(distinct), without sorting every allocation row (2.7k rows for a large owner).
+    spent_x as (
+      select ${partCase} as part, date_trunc('month', d) as mo, kind, xid, sum(fils) as fils
+      from spent_src group by 1, 2, 3, 4
+    ),
     spent as (
-      select ${partCase} as part, to_char(d, 'YYYY-MM') as month, kind,
-             coalesce(sum(fils), 0)::bigint as total, count(distinct xid)::int as n
-      from spent_src group by 1, 2, 3
+      select part, to_char(mo, 'YYYY-MM') as month, kind,
+             coalesce(sum(fils), 0)::bigint as total, count(*)::int as n
+      from spent_x group by part, mo, kind
     ),
     -- The next cheque and the contracts ending are chosen first and named after (unit, building,
     -- tenant), so the planner solves two small joins instead of one of seven tables: planning is
@@ -305,7 +354,7 @@ export async function ownerSummary(
       join units u on u.id = p.unit_id
       join buildings b on b.id = u.building_id
       join tenants t on t.id = p.tenant_id
-    )
+    )${projectionCtes}
     select json_build_object(
       'rent', coalesce((select json_agg(r) from rent r), '[]'::json),
       'spent', coalesce((select json_agg(e) from spent e), '[]'::json),
@@ -332,52 +381,11 @@ export async function ownerSummary(
         'occupied_units', (select count(*)::int from my_units mu cross join lateral (
           select 1 from contracts c where c.unit_id = mu.unit_id and c.status = 'active'
             and c.start_date <= ${todayDate} and c.end_date >= ${todayDate} limit 1) x)
-      )
+      )${projectionField}
     ) as figures`);
 
-  // Statement 2: the recurring rules that can touch the owner's units and, only when there are
-  // some, every unit of the owner's buildings with its owners (a building rule is split over all
-  // of them). Projections then allocate in memory, with no query per rule. Only due dates after
-  // today are projected, so a period that has ended skips the statement.
-  const projectionQ =
-    period.to <= todayDate
-      ? null
-      : db.execute(sql`
-    with mine as (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null),
-    blds as (select distinct u.building_id from units u where u.id in (select unit_id from mine)),
-    rules as (
-      select r.* from recurring_expense_rules r
-      where r.active and r.visible_to_owner and r.start_date <= ${period.to}
-        and (r.end_date is null or r.end_date >= ${todayDate})
-        and (r.unit_id in (select unit_id from mine)
-             or (r.unit_id is null and r.building_id in (select building_id from blds)))
-        ${q.buildingId ? sql`and r.building_id = ${q.buildingId}` : sql``}
-        ${q.unitId ? sql`and (r.unit_id = ${q.unitId} or r.unit_id is null)` : sql``}
-    ),
-    su as (select id, size_sqft, building_id, active from units
-           where building_id in (select building_id from blds) and exists (select 1 from rules))
-    select json_build_object(
-      'rules', coalesce((select json_agg(json_build_object(
-        'id', id, 'scope', scope, 'buildingId', building_id, 'unitId', unit_id,
-        'frequency', frequency, 'dayOfMonth', day_of_month, 'startDate', start_date,
-        'endDate', end_date, 'amountFils', amount_fils, 'vatFils', vat_fils,
-        'allocationMethod', allocation_method, 'active', active)) from rules), '[]'::json),
-      'units', coalesce((select json_agg(json_build_object(
-        'id', id, 'sizeSqft', size_sqft, 'buildingId', building_id, 'active', active)) from su), '[]'::json),
-      'ownerships', coalesce((select json_agg(json_build_object(
-        'unitId', uo.unit_id, 'ownerId', uo.owner_id, 'shareBp', uo.share_bp,
-        'fromDate', uo.from_date, 'toDate', uo.to_date))
-        -- Unit by unit through the unit index (OFFSET 0 keeps it a per-unit lookup: as a join the
-        -- planner read all 7,800 ownership rows).
-        from su cross join lateral (select * from unit_ownerships o where o.unit_id = su.id offset 0) uo), '[]'::json)
-    ) as projection`);
-
-  const [figuresRaw, projectionRaw] = await Promise.all([figuresQ, projectionQ]);
-  const figures = jsonColumn(figuresRaw, 'figures') as Figures;
-  const projection: Projection =
-    projectionRaw === null
-      ? { rules: [], units: [], ownerships: [] }
-      : (jsonColumn(projectionRaw, 'projection') as Projection);
+  const figures = jsonColumn(await figuresQ, 'figures') as Figures;
+  const projection: Projection = figures.projection ?? { rules: [], units: [], ownerships: [] };
   const rentRaw = figures.rent;
   const expenseRaw = figures.spent;
   const nextRows = figures.next ? [figures.next] : [];
