@@ -88,7 +88,10 @@ async function cleanUp(ownerId: string): Promise<void> {
   await removeOwnerSessions(ownerId);
 }
 
-test.describe.configure({ mode: 'serial' });
+// Each journey signs staff in with TOTP, and a sign-in waits for a code step not used yet (up
+// to 30 s): one or two sign-ins plus the owner's side need more than the default minute. The
+// tests do not depend on each other, so a failure does not skip the rest.
+test.describe.configure({ timeout: 180_000 });
 
 test.beforeAll(async () => {
   const owner = await ownerByPhone(OWNER_PHONE);
@@ -225,9 +228,13 @@ async function auditShows(page: Page, lang: Lang, action: string, entity: string
   await expect(
     page.getByRole('heading', { name: L(lang, 'Audit log', 'سجل التدقيق') }),
   ).toBeVisible();
+  const filtered = page.waitForResponse(
+    (r) => r.url().includes('/api/staff/audit?') && r.url().includes(`entityType=${entity}`),
+  );
   await page.getByLabel(L(lang, 'Entity', 'العنصر')).selectOption(entity);
+  await filtered;
   const row = page.getByRole('row').filter({ hasText: action }).first();
-  await expect(row).toBeVisible();
+  await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
   await expect(page.locator('pre').filter({ hasText: text }).first()).toBeVisible();
 }
