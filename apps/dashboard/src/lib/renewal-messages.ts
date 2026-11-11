@@ -37,11 +37,11 @@ const en = {
 
   renewal_cap_title: 'Dubai rent increase cap',
   renewal_cap_below:
-    'The current rent is {gap} % below the reference, so the allowed increase is {pct} %.',
+    'The current rent is {gap}% below the reference, so the allowed increase is {pct}%.',
   renewal_cap_notBelow: 'The current rent is at or above the reference, so no increase is allowed.',
   renewal_cap_max: 'Maximum new rent',
   renewal_cap_rule:
-    'Decree No. 43 of 2013: up to 10 % below the reference, no increase; 11–20 % below, 5 %; 21–30 %, 10 %; 31–40 %, 15 %; more than 40 %, 20 %.',
+    'Decree No. 43 of 2013, by how far the rent is below the reference: up to 10%, no increase; 11–20%, up to 5%; 21–30%, up to 10%; 31–40%, up to 15%; more than 40%, up to 20%.',
   renewal_cap_noReference:
     'Without a market reference the Dubai cap cannot be worked out here. Check the RERA rental index before agreeing an increase.',
   renewal_checkRules: 'Check the emirate’s rent rules',
@@ -102,11 +102,11 @@ const ar: Record<RenewalMessageKey, string> = {
     'لا توجد مساحة بالقدم المربع لهذه الوحدة، فلا يمكن المقارنة. أضف المساحة من صفحة الوحدة.',
 
   renewal_cap_title: 'سقف زيادة الإيجار في دبي',
-  renewal_cap_below: 'الإيجار الحالي أقل من المرجع بنسبة {gap} %، لذا الزيادة المسموحة {pct} %.',
+  renewal_cap_below: 'الإيجار الحالي أقل من المرجع بنسبة {gap}%، لذا الزيادة المسموحة {pct}%.',
   renewal_cap_notBelow: 'الإيجار الحالي يساوي المرجع أو يزيد عليه، لذا لا تُسمح بأي زيادة.',
   renewal_cap_max: 'الحد الأقصى للإيجار الجديد',
   renewal_cap_rule:
-    'المرسوم رقم 43 لسنة 2013: حتى 10 % أقل من المرجع لا زيادة؛ من 11 إلى 20 % أقل 5 %؛ من 21 إلى 30 % 10 %؛ من 31 إلى 40 % 15 %؛ أكثر من 40 % 20 %.',
+    'المرسوم رقم 43 لسنة 2013، بحسب الفرق بين الإيجار والمرجع: حتى 10% لا زيادة؛ من 11% إلى 20% زيادة حتى 5%؛ من 21% إلى 30% زيادة حتى 10%؛ من 31% إلى 40% زيادة حتى 15%؛ أكثر من 40% زيادة حتى 20%.',
   renewal_cap_noReference:
     'لا يمكن حساب سقف دبي هنا دون مرجع للسوق. راجع مؤشر الإيجارات لدى مؤسسة التنظيم العقاري (ريرا) قبل الاتفاق على أي زيادة.',
   renewal_checkRules: 'راجع قواعد الإيجار في الإمارة',

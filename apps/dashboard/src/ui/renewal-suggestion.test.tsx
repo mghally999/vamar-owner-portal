@@ -121,7 +121,7 @@ describe('renewal suggestion card', () => {
     expect(within(table).getByText('AED 85,000')).toBeTruthy();
     expect(
       within(c).getByText(
-        'The current rent is 25 % below the reference, so the allowed increase is 10 %.',
+        'The current rent is 25% below the reference, so the allowed increase is 10%.',
       ),
     ).toBeTruthy();
     expect(within(c).getAllByText('AED 66,000').length).toBeGreaterThanOrEqual(2);
@@ -195,7 +195,7 @@ describe('renewal suggestion card', () => {
     expect(within(c).getByText('التجديد مستحق خلال 7 أيام')).toBeTruthy();
     expect(within(c).getByText('سقف زيادة الإيجار في دبي')).toBeTruthy();
     expect(
-      within(c).getByText('الإيجار الحالي أقل من المرجع بنسبة 25 %، لذا الزيادة المسموحة 10 %.'),
+      within(c).getByText('الإيجار الحالي أقل من المرجع بنسبة 25%، لذا الزيادة المسموحة 10%.'),
     ).toBeTruthy();
   });
 
