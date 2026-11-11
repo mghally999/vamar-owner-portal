@@ -53,10 +53,10 @@ export function BarChart({
         </span>
       </figcaption>
       <svg
-        viewBox={`0 0 100 ${height / 4 + 8}`}
+        viewBox={`0 0 100 ${height / 4 + 1}`}
         preserveAspectRatio="none"
         className="block h-auto w-full"
-        style={{ height }}
+        style={{ height: height - 24 }}
         role="img"
         aria-label={title}
       >
@@ -80,18 +80,23 @@ export function BarChart({
                 </rect>
               );
             })}
-            <text
-              x={gi * groupW + groupW / 2}
-              y={height / 4 + 6}
-              fontSize={3.2}
-              textAnchor="middle"
-              fill="var(--color-ink-soft)"
-            >
-              {label(m)}
-            </text>
           </g>
         ))}
       </svg>
+      {/* Month names under the bars, outside the stretched SVG so the text keeps its shape; left
+          to right like the bars in both languages. */}
+      <div
+        dir="ltr"
+        aria-hidden
+        className="mt-1 grid h-5 text-center text-[11px] text-ink-soft"
+        style={{ gridTemplateColumns: `repeat(${String(months.length)}, minmax(0, 1fr))` }}
+      >
+        {months.map((m) => (
+          <span key={m} className="truncate">
+            {label(m)}
+          </span>
+        ))}
+      </div>
       <table className="sr-only">
         <caption>{title}</caption>
         <thead>

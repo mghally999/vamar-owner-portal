@@ -91,7 +91,9 @@ export function AppShell() {
               setOpen(false);
             }}
             className={cx(
-              'flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] font-medium',
+              // 36 px rows from lg up so the whole menu and the signed-in user fit a 900 px tall
+              // screen; the phone drawer keeps 44 px touch targets.
+              'flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] font-medium lg:h-9',
               active
                 ? 'bg-on-header text-header'
                 : 'text-on-header-soft hover:bg-hero-tile hover:text-on-header',
@@ -111,7 +113,7 @@ export function AppShell() {
       onClick={() => {
         setSearchOpen(true);
       }}
-      className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+      className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header lg:h-9"
       aria-keyshortcuts="Control+K"
     >
       <Search className="size-5" aria-hidden />
@@ -134,7 +136,7 @@ export function AppShell() {
         onClick={() => {
           setLang(lang === 'ar' ? 'en' : 'ar');
         }}
-        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header lg:h-9"
       >
         <span
           className="inline-flex size-5 items-center justify-center text-[13px] font-semibold"
@@ -150,7 +152,7 @@ export function AppShell() {
         onClick={() => {
           setTheme(theme === 'white' ? 'default' : 'white');
         }}
-        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header lg:h-9"
       >
         <Palette className="size-5" aria-hidden />
         {t('theme')}: {t(theme === 'white' ? 'theme_white' : 'theme_default')}
@@ -158,7 +160,7 @@ export function AppShell() {
       <button
         type="button"
         onClick={() => void auth.logout()}
-        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header"
+        className="flex h-11 items-center gap-3 rounded-sm px-3 text-[15px] text-on-header-soft hover:bg-hero-tile hover:text-on-header lg:h-9"
       >
         <LogOut className="size-5 rtl:-scale-x-100" aria-hidden />
         {t('signOut')}
@@ -170,7 +172,7 @@ export function AppShell() {
     <div className="min-h-dvh lg:grid lg:grid-cols-[248px_1fr]">
       {/* The sidebar scrolls when the entries do not fit the window, so the last ones never spill
           onto the page background (where their light text would fail contrast). */}
-      <aside className="hidden lg:flex lg:flex-col lg:gap-6 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
+      <aside className="hidden lg:flex lg:flex-col lg:gap-4 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
         <Brand />
         {nav}
         {footer}
