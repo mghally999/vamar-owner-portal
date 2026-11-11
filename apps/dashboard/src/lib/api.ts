@@ -116,8 +116,12 @@ const authFetch: typeof fetch = async (input, init) => {
     // Expired or missing access token: one cookie refresh, then replay. Only a refusal ends the
     // session; a server hiccup leaves the 401 to the caller's retry policy.
     const next = await refreshStaffSession();
-    if (next.ok) res = await run(next.token);
-    else if (next.reason === 'unauthenticated') onSessionLost?.();
+    if (next.ok) {
+      // Read the refused response before replacing it: an unread body keeps its request open in
+      // the browser, one per page load that raced the session refresh.
+      await res.arrayBuffer().catch(() => undefined);
+      res = await run(next.token);
+    } else if (next.reason === 'unauthenticated') onSessionLost?.();
   }
   return res;
 };

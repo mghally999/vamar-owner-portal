@@ -98,6 +98,27 @@ describe('request', () => {
     expect(hasSessionFlag()).toBe(true);
   });
 
+  it('reads the refused response before replaying, so no request is left open', async () => {
+    mockApi({
+      'GET /api/staff/overview': (c: ApiCall) =>
+        c.headers.get('authorization') === 'Bearer fresh'
+          ? { month: '2026-10' }
+          : apiError(401, 'unauthenticated'),
+      'POST /api/auth/staff/refresh': { accessToken: 'fresh', user: staffUser('editor') },
+    });
+    const responses: Response[] = [];
+    const inner = globalThis.fetch;
+    vi.stubGlobal('fetch', async (...args: Parameters<typeof fetch>) => {
+      const res = await inner(...args);
+      responses.push(res);
+      return res;
+    });
+    setAccessToken('stale');
+    await expect(request('/api/staff/overview')).resolves.toEqual({ month: '2026-10' });
+    const refused = responses.find((r) => r.status === 401);
+    expect(refused?.bodyUsed).toBe(true);
+  });
+
   it('ends the session only when the refresh is refused', async () => {
     const lost = vi.fn();
     setSessionLostHandler(lost);
