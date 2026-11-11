@@ -285,3 +285,33 @@ numbers in the Load comparison workflow runs 42975758808 and 42976397036.
 ولا رقم ولا عنوان مقطوع، ورابط الإشعار يفتح الفترة الصحيحة، وأسماء الشهور في الرسم البياني واضحة، والقائمة الجانبية
 كاملة على الشاشة. وأصبحت بيانات العرض عربية واقعية بأسباب الارتجاع ومواعيد الجلسات في أيام العمل وأرقام مكاني
 وديوا وسند الملكية. وصار ملخص المالك يفتح في أقل من 300 جزء من الثانية حتى مع 200 ألف مصروف و50 مالكاً في نفس اللحظة.
+
+## v2 phase 6, shipping (11 Nov 2026)
+
+**Built.** Staging first: migrations 0006 to 0008, the new version deployed, the smoke test (4/4), the
+iPhone web app test (2/2) and the staging Playwright run (16/16) passed, and the staging demo data was
+refreshed with the Arabic v2 story. Then production: the same migrations (additive only), the same
+version deployed, smoke test 4/4. The owner app update went out over the air to installed apps of
+version 1.2.0 (update group b5fc0303, preview channel): an installed app downloads it the next time it
+opens and shows v2 the time after. The demo reset and the go-live blank start were fixed on the way:
+they no longer drop the expense categories, holidays and settings, the demo reset runs in one
+transaction, and it keeps every staff login, including accounts the seed does not create.
+
+**Try it.** Staging https://vamar-owner-portal-staging.vamar-api.workers.dev, production
+https://vamar-owner-portal.vamar-api.workers.dev, the app: open it, close it, open it again.
+
+تم نشر النسخة الثانية على بيئة الاختبار ثم على النسخة الحقيقية بعد نجاح كل الفحوصات، وأُرسل تحديث التطبيق إلى
+الهواتف المثبت عليها التطبيق، ويظهر بعد فتح التطبيق وإغلاقه ثم فتحه مرة أخرى.
+
+## v2 phase 7, independent re-check (11 Nov 2026)
+
+**Built.** The verification scripts ran against v2: 85 adversarial checks on the local stack passed
+(owner isolation on every new endpoint, allocations exact to the fils, periods, dispute cheques, roles,
+headers), and all 119 protected routes answer 401 without a valid token on staging and production.
+The re-check is in VERIFY.md ("v2 re-check"). Still open and outside the code: tested backups (no R2
+token yet), a separate Firebase project for staging, Sentry and an uptime monitor, and the trial's
+demo admin without a second step until go-live day.
+
+تم فحص النسخة الثانية فحصاً مستقلاً: كل مالك يرى بياناته فقط في كل الشاشات الجديدة، وتوزيع المصروفات صحيح
+حتى آخر فلس، وكل الروابط المحمية ترفض أي دخول بدون تسجيل صحيح على بيئة الاختبار والنسخة الحقيقية.
+
