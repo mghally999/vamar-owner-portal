@@ -91,7 +91,8 @@ jobs:
   e2e:
     name: Dashboard end-to-end (Playwright) and accessibility (axe)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The owner web app build (expo export) adds a few minutes before the browser tests.
+    timeout-minutes: 40
     env:
       DATABASE_URL: postgres://vamar:vamar@localhost:5432/vamar
     services:
@@ -133,6 +134,16 @@ jobs:
           done
           echo "::warning::Ubuntu mirrors unreachable; installing Chromium without system packages"
           pnpm --filter @vamar/dashboard exec playwright install chromium
+      - name: Build the dashboard and the owner web app (served by the API at /app)
+        # journeys-owner.spec.ts drives the owner web app; the API dev server serves it from
+        # apps/dashboard/dist/app when that exists at start. The emulator's demo Firebase config is
+        # enough: the tests sign owners in through the local database, not by SMS.
+        env:
+          VITE_FIREBASE_PROJECT_ID: demo-vamar
+          VITE_FIREBASE_API_KEY: demo-key
+          VITE_FIREBASE_AUTH_DOMAIN: demo-vamar.firebaseapp.com
+          VITE_FIREBASE_APP_ID: demo-app
+        run: pnpm build:web
       - name: Database roles, migrations, seed
         run: |
           psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f tooling/postgres/init/01-roles.sql
