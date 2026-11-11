@@ -524,6 +524,9 @@ describe('CalendarPage handlers', () => {
     expect(within(container).getByRole('button', { name: '6 عناصر' }).textContent).toBe('6');
     render(<>{dayCell('multiMonthYear', new Date(2026, 9, 5))}</>);
     expect(screen.getByRole('button', { name: 'عنصر واحد' })).toBeTruthy();
+    // The month names over the twelve grids are Arabic too, not FullCalendar's English.
+    const title = fc.props['multiMonthTitleFormat'] as (a: { date: { month: number } }) => string;
+    expect([0, 9].map((month) => title({ date: { month } }))).toEqual(['يناير', 'أكتوبر']);
   });
 
   it('closes the side panel, and opens the editor of a clicked manual event', async () => {

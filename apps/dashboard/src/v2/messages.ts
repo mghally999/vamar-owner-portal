@@ -85,7 +85,6 @@ const en = {
   calendar_empty: 'Nothing in this period.',
   calendar_timed: 'Time',
   calendar_weekend: 'Weekend',
-  calendar_items: '{n} items',
   // Count on one day in the year view, one key per plural category (Arabic uses all five).
   calendar_dayItems_one: '1 item',
   calendar_dayItems_two: '2 items',
@@ -329,7 +328,6 @@ const ar: Record<V2MessageKey, string> = {
   calendar_empty: 'لا شيء في هذه الفترة.',
   calendar_timed: 'الوقت',
   calendar_weekend: 'عطلة نهاية الأسبوع',
-  calendar_items: '{n} عناصر',
   calendar_dayItems_one: 'عنصر واحد',
   calendar_dayItems_two: 'عنصران',
   calendar_dayItems_few: '{n} عناصر',

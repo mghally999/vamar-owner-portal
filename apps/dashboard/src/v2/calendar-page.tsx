@@ -437,6 +437,12 @@ export function CalendarPage() {
     (arg: { date: { marker: Date } }) => formatDate(iso(arg.date.marker), lang),
     [lang],
   );
+  // The year view's month names; FullCalendar's own would stay English on the Arabic page.
+  const multiMonthTitleFormat = useCallback(
+    (arg: { date: { month: number } }) =>
+      (lang === 'ar' ? MONTHS_AR : MONTHS_EN)[arg.date.month] ?? '',
+    [lang],
+  );
   const listDaySideFormat = useCallback(
     (arg: { date: { marker: Date } }) => WEEKDAY_SHORT[lang][arg.date.marker.getDay()] ?? '',
     [lang],
@@ -671,6 +677,10 @@ export function CalendarPage() {
             events={eventSource}
             datesSet={onDatesSet}
             multiMonthMaxColumns={3}
+            // Two months a row beside the side panel on a laptop (FullCalendar's 350 px gives one
+            // long column of twelve); a day cell only holds its number and a count.
+            multiMonthMinWidth={280}
+            multiMonthTitleFormat={multiMonthTitleFormat}
             eventTimeFormat={TIME_FORMAT}
             slotLabelFormat={TIME_FORMAT}
             dayHeaderContent={dayHeaderContent}
@@ -704,7 +714,7 @@ export function CalendarPage() {
               </li>
             </ul>
             <p className="mt-3 text-[13px] text-ink-faint tnum">
-              {t('calendar_items', { n: items.length })}
+              {dayCountLabel(items.length, lang, t)}
             </p>
           </Card>
           {selected ? (
