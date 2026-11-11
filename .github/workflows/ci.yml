@@ -126,9 +126,10 @@ jobs:
         # the runners: retry, then install the browser alone (the runner image already carries
         # Chrome's libraries) rather than failing the job before any test runs.
         run: |
-          for attempt in 1 2 3; do
-            pnpm --filter @vamar/dashboard exec playwright install --with-deps chromium && exit 0
-            echo "browser install with system packages failed (attempt $attempt)"; sleep 20
+          # Each attempt is capped: an unreachable mirror makes apt wait for many minutes.
+          for attempt in 1 2; do
+            timeout 300 pnpm --filter @vamar/dashboard exec playwright install --with-deps chromium && exit 0
+            echo "browser install with system packages failed (attempt $attempt)"; sleep 15
           done
           echo "::warning::Ubuntu mirrors unreachable; installing Chromium without system packages"
           pnpm --filter @vamar/dashboard exec playwright install chromium
