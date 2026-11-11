@@ -8,9 +8,9 @@ import { sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
-  allocateExpense,
   isFuturePeriod,
   monthBuckets,
+  ownerShareOfExpense,
   previousPeriod,
   recurringDueDates,
   resolvePeriodQuery,
@@ -457,9 +457,13 @@ export async function ownerSummary(
     if (allocationUnits === null) continue;
     let mine: number;
     try {
-      mine = allocateExpense(rule.amountFils + rule.vatFils, rule.allocationMethod, allocationUnits)
-        .filter((a) => a.ownerId === ownerId && (!q.unitId || a.unitId === q.unitId))
-        .reduce((acc, a) => acc + a.amountFils, 0);
+      mine = ownerShareOfExpense(
+        rule.amountFils + rule.vatFils,
+        rule.allocationMethod,
+        allocationUnits,
+        ownerId,
+        q.unitId,
+      );
     } catch {
       continue;
     }

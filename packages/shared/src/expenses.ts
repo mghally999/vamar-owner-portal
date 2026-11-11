@@ -171,16 +171,8 @@ export function defaultAllocationMethod(
     : 'equal_units';
 }
 
-/**
- * Split an expense first across units (by the method), then each unit's part across its owners by
- * `shareBp`. `by_ownership` gives every owner of the building an equal part, spread over that
- * owner's units equally. Every unit must have at least one owner on the invoice date.
- */
-export function allocateExpense(
-  totalFils: number,
-  method: AllocationMethod,
-  units: readonly AllocationUnit[],
-): Allocation[] {
+/** The checks every allocation makes before splitting: the same errors for both entry points. */
+function assertAllocationInput(totalFils: number, units: readonly AllocationUnit[]): void {
   assertFils(totalFils, 'total');
   if (totalFils < 0) throw new RangeError('totalFils must not be negative');
   if (units.length === 0) throw new RangeError('An expense needs at least one unit');
@@ -197,6 +189,70 @@ export function allocateExpense(
         throw new RangeError(`shareBp must be a positive integer, got ${String(o.shareBp)}`);
     }
   }
+}
+
+/**
+ * One owner's part of an expense (optionally on one unit only): exactly the sum of that owner's
+ * rows from `allocateExpense`, but only the owner's units are split across their owners, so a
+ * building-wide rule costs one split of the building plus one per unit the owner holds. Used by
+ * projections, which need the owner's figure for many rules on every request.
+ */
+export function ownerShareOfExpense(
+  totalFils: number,
+  method: AllocationMethod,
+  units: readonly AllocationUnit[],
+  ownerId: string,
+  unitId?: string | null,
+): number {
+  if (method === 'by_ownership') {
+    return allocateExpense(totalFils, method, units)
+      .filter((a) => a.ownerId === ownerId && (!unitId || a.unitId === unitId))
+      .reduce((acc, a) => acc + a.amountFils, 0);
+  }
+  assertAllocationInput(totalFils, units);
+  const ownerPart = (unit: AllocationUnit, part: number): number => {
+    if (unitId && unit.unitId !== unitId) return 0;
+    if (!unit.owners.some((o) => o.ownerId === ownerId)) return 0;
+    const split = splitByWeights(
+      part,
+      unit.owners.map((o) => ({ key: o.ownerId, weight: o.shareBp })),
+    );
+    return split.find((p) => p.key === ownerId)?.amountFils ?? 0;
+  };
+  if (method === 'single_unit') {
+    const unit = units[0];
+    if (units.length !== 1 || !unit)
+      throw new RangeError('single_unit allocation needs exactly one unit');
+    return ownerPart(unit, totalFils);
+  }
+  const weights = units.map((u) => {
+    if (method === 'by_area' && !(u.sizeSqft !== null && u.sizeSqft > 0))
+      throw new RangeError(`by_area needs a size on every unit (unit ${u.unitId})`);
+    return {
+      key: u.unitId,
+      weight: method === 'by_area' && u.sizeSqft !== null ? Math.round(u.sizeSqft) : 1,
+    };
+  });
+  const parts = splitByWeights(totalFils, weights);
+  let mine = 0;
+  for (const [i, p] of parts.entries()) {
+    const unit = units[i];
+    if (unit) mine += ownerPart(unit, p.amountFils);
+  }
+  return mine;
+}
+
+/**
+ * Split an expense first across units (by the method), then each unit's part across its owners by
+ * `shareBp`. `by_ownership` gives every owner of the building an equal part, spread over that
+ * owner's units equally. Every unit must have at least one owner on the invoice date.
+ */
+export function allocateExpense(
+  totalFils: number,
+  method: AllocationMethod,
+  units: readonly AllocationUnit[],
+): Allocation[] {
+  assertAllocationInput(totalFils, units);
 
   const out = new Map<string, Allocation>();
   const add = (unitId: string, ownerId: string, amountFils: number) => {
@@ -336,13 +392,15 @@ export function recurringDueDates(rule: RecurringRuleLike, period: Period): Plai
   // Each due date falls in its own month, so the steps whose month is before the period's first
   // month are skipped without being computed: a rule that started years ago costs the months of
   // the period, not every month since its start.
+  // Months are counted as integers (year * 12 + month - 1), so a step costs no date strings.
   const a = toParts(anchor);
   const f = toParts(period.from);
-  const monthsToPeriod = f.year * 12 + f.month - (a.year * 12 + a.month);
+  const anchorIndex = a.year * 12 + a.month - 1;
+  const monthsToPeriod = f.year * 12 + f.month - 1 - anchorIndex;
   const firstStep = monthsToPeriod > 0 ? Math.floor(monthsToPeriod / step) : 0;
   for (let i = firstStep; ; i += 1) {
-    const m = toParts(addMonthsClamped(anchor, i * step));
-    const due = dueOn(m.year, m.month, rule.dayOfMonth);
+    const index = anchorIndex + i * step;
+    const due = dueOn(Math.floor(index / 12), (index % 12) + 1, rule.dayOfMonth);
     if (due > last) break;
     if (due >= period.from) out.push(due);
     if (out.length > 1200) throw new RangeError('recurring range too long');

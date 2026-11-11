@@ -36,8 +36,9 @@ export function toParts(date: PlainDate): DateParts {
   return { year: y, month: m, day: d };
 }
 
+const pad = (n: number, w: number) => String(n).padStart(w, '0');
+
 export function fromParts(parts: DateParts): PlainDate {
-  const pad = (n: number, w: number) => String(n).padStart(w, '0');
   return `${pad(parts.year, 4)}-${pad(parts.month, 2)}-${pad(parts.day, 2)}` as PlainDate;
 }
 

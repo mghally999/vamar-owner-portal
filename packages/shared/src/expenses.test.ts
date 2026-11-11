@@ -10,6 +10,7 @@ import {
   isLargeExpense,
   MANUAL_UNIT_STATUSES,
   nextDueDate,
+  ownerShareOfExpense,
   ownersOnDate,
   projectFixedExpenses,
   recurringDueDates,
@@ -230,6 +231,71 @@ describe('allocateExpense', () => {
       ),
       { numRuns: 300 },
     );
+  });
+});
+
+describe('ownerShareOfExpense', () => {
+  // Owners from a small pool, so one owner holds several units of the building.
+  const pooledUnit = fc.record({
+    unitId: fc.uuid(),
+    sizeSqft: fc.option(fc.integer({ min: 1, max: 20_000 }), { nil: null, freq: 8 }),
+    owners: fc
+      .uniqueArray(fc.constantFrom('o1', 'o2', 'o3', 'o4', 'o5'), { minLength: 1, maxLength: 3 })
+      .chain((ids) =>
+        fc
+          .array(fc.integer({ min: 1, max: 9_999 }), {
+            minLength: ids.length,
+            maxLength: ids.length,
+          })
+          .map((w) => ids.map((ownerId, i) => ({ ownerId, shareBp: w[i] ?? 1 }))),
+      ),
+  });
+  const viaFullAllocation = (
+    total: number,
+    method: Parameters<typeof allocateExpense>[1],
+    units: Parameters<typeof allocateExpense>[2],
+    ownerId: string,
+    unitId: string | null,
+  ): number | 'throws' => {
+    try {
+      return allocateExpense(total, method, units)
+        .filter((a) => a.ownerId === ownerId && (!unitId || a.unitId === unitId))
+        .reduce((acc, a) => acc + a.amountFils, 0);
+    } catch {
+      return 'throws';
+    }
+  };
+
+  it("is the owner's rows of the full allocation, for every method (property)", () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 100_000_000_000 }),
+        fc.uniqueArray(pooledUnit, { minLength: 1, maxLength: 12, selector: (u) => u.unitId }),
+        fc.constantFrom('by_area', 'equal_units', 'by_ownership', 'single_unit' as const),
+        fc.constantFrom('o1', 'o2', 'o3', 'o4', 'o5', 'nobody'),
+        fc.boolean(),
+        (total, units, method, ownerId, oneUnit) => {
+          const unitId = oneUnit ? (units[0]?.unitId ?? null) : null;
+          const expected = viaFullAllocation(total, method, units, ownerId, unitId);
+          if (expected === 'throws') {
+            expect(() => ownerShareOfExpense(total, method, units, ownerId, unitId)).toThrow();
+          } else {
+            expect(ownerShareOfExpense(total, method, units, ownerId, unitId)).toBe(expected);
+          }
+        },
+      ),
+      { numRuns: 2000 },
+    );
+  });
+
+  it('throws on the same bad input as the full allocation', () => {
+    const u = { unitId: 'u1', sizeSqft: null, owners: [{ ownerId: 'o1', shareBp: 10_000 }] };
+    expect(() => ownerShareOfExpense(-1, 'equal_units', [u], 'o1')).toThrow(RangeError);
+    expect(() => ownerShareOfExpense(100, 'by_area', [u], 'o1')).toThrow(/by_area/);
+    expect(() =>
+      ownerShareOfExpense(100, 'single_unit', [u, { ...u, unitId: 'u2' }], 'o1'),
+    ).toThrow(/single_unit/);
+    expect(() => ownerShareOfExpense(100, 'equal_units', [u, u], 'o1')).toThrow(/duplicate unit/);
   });
 });
 
