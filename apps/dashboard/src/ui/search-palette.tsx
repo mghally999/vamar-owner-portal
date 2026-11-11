@@ -5,13 +5,14 @@
 import { useNavigate } from '@tanstack/react-router';
 import { Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { CHEQUE_STATUSES, DISPUTE_STATUSES, EXPENSE_STATUSES } from '@vamar/shared';
 import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useSearch as useGlobalSearch } from '@/lib/queries-v2';
 import type { SearchHit, SearchHitType } from '@/lib/types-v2';
 import { Dialog } from './dialog';
-import { Input, cx } from './primitives';
+import { Input, cx, disputeStatusName } from './primitives';
 
 const ORDER: SearchHitType[] = [
   'owner',
@@ -22,6 +23,39 @@ const ORDER: SearchHitType[] = [
   'expense',
   'tenant',
 ];
+
+const isOneOf = <T extends string>(list: readonly T[], v: string | undefined): v is T =>
+  v !== undefined && (list as readonly string[]).includes(v);
+
+/**
+ * The hit's second line in the page's language. The API sends codes and ISO dates ("in_progress",
+ * "2026-11-11 · deposited", "INV-1 · posted"); anything else is shown as sent (phones, plot no.).
+ */
+export function hitDetail(
+  hit: SearchHit,
+  {
+    t,
+    pick,
+    date,
+  }: {
+    t: (k: MessageKey) => string;
+    pick: (ar: string, en: string) => string;
+    date: (d: string) => string;
+  },
+): string {
+  const [first, status] = hit.detail.split(' · ');
+  if (hit.type === 'dispute' && isOneOf(DISPUTE_STATUSES, hit.detail)) {
+    const name = disputeStatusName(hit.detail);
+    return pick(name.ar, name.en);
+  }
+  if (hit.type === 'cheque' && first && isOneOf(CHEQUE_STATUSES, status))
+    return `${date(first)} · ${t(`cheque_status_${status}` as MessageKey)}`;
+  if (hit.type === 'expense' && first !== undefined && isOneOf(EXPENSE_STATUSES, status)) {
+    const label = t(`expense_status_${status}` as MessageKey);
+    return first ? `${first} · ${label}` : label;
+  }
+  return hit.detail;
+}
 
 /** Where a hit leads. */
 export function hitTarget(hit: SearchHit): { to: string; params?: Record<string, string> } {
@@ -50,7 +84,8 @@ export function SearchPalette({
   open: boolean;
   onOpenChange: (o: boolean) => void;
 }) {
-  const { t, pick } = useI18n();
+  const i18n = useI18n();
+  const { t, pick } = i18n;
   const navigate = useNavigate();
   const [text, setText] = useState('');
   const [active, setActive] = useState(0);
@@ -146,8 +181,8 @@ export function SearchPalette({
                 <span className="font-medium" dir="auto">
                   {pick(h.titleAr, h.titleEn)}
                 </span>
-                <span className="text-[13px] text-ink-soft tnum" dir="ltr">
-                  {h.detail}
+                <span className="text-[13px] text-ink-soft tnum" dir="auto">
+                  {hitDetail(h, i18n)}
                 </span>
               </button>
             </li>

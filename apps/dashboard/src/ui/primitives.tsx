@@ -369,6 +369,11 @@ const disputeLabels: Record<DisputeStatus, { ar: string; en: string; cls: string
   closed: { ar: 'مغلقة', en: 'Closed', cls: 'bg-status-cancelled-bg text-status-cancelled' },
 };
 
+/** A dispute status in both languages, for places that show it as text rather than a chip. */
+export function disputeStatusName(status: DisputeStatus): { ar: string; en: string } {
+  return disputeLabels[status];
+}
+
 export function DisputeStatusChip({ status }: { status: DisputeStatus }) {
   const { pick } = useI18n();
   const d = disputeLabels[status];

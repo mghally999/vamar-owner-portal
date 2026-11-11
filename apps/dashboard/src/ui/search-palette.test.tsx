@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { overview, page } from '@/test/fixtures';
 import { searchHits, v2Routes } from '@/test/fixtures-v2';
 import { renderApp } from '@/test/render';
-import { hitTarget } from './search-palette';
+import { formatDate } from '@vamar/shared';
+import { messages, type MessageKey } from '@/lib/messages';
+import { hitDetail, hitTarget } from './search-palette';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -84,6 +86,29 @@ describe('SearchPalette', () => {
     await vi.waitFor(() => {
       expect(second.router.state.location.pathname).toBe('/owners/own-1');
     });
+  });
+
+  it('shows statuses and dates in the page language, not the codes the API sends', () => {
+    const base = { titleAr: '', titleEn: '', parentId: null, id: 'x' };
+    const i18n = (lang: 'ar' | 'en') => ({
+      t: (k: MessageKey) => messages[lang][k],
+      pick: (ar: string, en: string) => (lang === 'ar' ? ar : en),
+      date: (d: string) => formatDate(d as never, lang),
+    });
+    const dispute = { ...base, type: 'dispute' as const, detail: 'hearing_scheduled' };
+    const cheque = { ...base, type: 'cheque' as const, detail: '2026-11-11 · deposited' };
+    const expense = { ...base, type: 'expense' as const, detail: 'INV-7 · posted' };
+    const owner = { ...base, type: 'owner' as const, detail: '+971500000001' };
+    expect([dispute, cheque, expense, owner].map((h) => hitDetail(h, i18n('ar')))).toEqual([
+      'جلسة محددة',
+      `${formatDate('2026-11-11' as never, 'ar')} · مودَع`,
+      'INV-7 · مرحَّل',
+      '+971500000001',
+    ]);
+    expect(hitDetail(dispute, i18n('en'))).toBe('Hearing scheduled');
+    expect(hitDetail({ ...expense, detail: ' · draft' }, i18n('en'))).toBe('Draft');
+    // A code this build does not know is shown as sent rather than as a missing label.
+    expect(hitDetail({ ...dispute, detail: 'archived' }, i18n('en'))).toBe('archived');
   });
 
   it('maps every hit type to a page', () => {
