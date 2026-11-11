@@ -221,11 +221,16 @@ describe('BankStatementPage', () => {
     const { user } = await renderApp('/cheques/bank-statement', { lang: 'ar', routes: routes() });
     expect(await screen.findByRole('heading', { name: 'كشف الحساب البنكي' })).toBeTruthy();
     expect(document.documentElement.dir).toBe('rtl');
+    // The file button is the page's own, in Arabic, not the browser's "Choose File".
+    expect(screen.getByText('اختيار ملف')).toBeTruthy();
+    expect(screen.getByText('لم يتم اختيار ملف')).toBeTruthy();
     await upload(user, '');
     expect(await screen.findByText('تعذّرت قراءة هذا الملف ككشف حساب CSV.')).toBeTruthy();
 
     await upload(user, CSV);
-    await screen.findByText('تمت قراءة 5 صفاً من enbd-october.csv');
+    await screen.findByText('الصفوف المقروءة من enbd-october.csv: 5');
+    expect(screen.getByText('enbd-october.csv')).toBeTruthy();
+    expect(screen.queryByText('لم يتم اختيار ملف')).toBeNull();
     await user.type(screen.getByLabelText('اسم البنك'), 'ENBD');
     await user.selectOptions(screen.getByLabelText(/^التاريخ/), 'Txn Date');
     await user.selectOptions(screen.getByLabelText(/^المبلغ/), 'Amount');

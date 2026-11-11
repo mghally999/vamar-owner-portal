@@ -244,15 +244,24 @@ export function BankStatementPage() {
 
       <Card className="flex flex-col gap-4 p-4 sm:p-6">
         <Field label={t('bank_file')} required hint={t('bank_file_hint')}>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="block w-full text-[15px] file:me-3 file:h-11 file:rounded-md file:border file:border-line-strong file:bg-elevated file:px-4 file:text-ink"
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void onFile(f);
-            }}
-          />
+          {/* The browser's own file button speaks the browser's language, not the page's. */}
+          <span className="flex min-h-11 min-w-0 items-center gap-3">
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="peer sr-only"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onFile(f);
+              }}
+            />
+            <span className="inline-flex h-11 shrink-0 cursor-pointer items-center rounded-md border border-line-strong bg-elevated px-4 text-[15px] font-medium text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-focus-ring hover:bg-sunken">
+              {t('import_chooseFile')}
+            </span>
+            <span className="min-w-0 truncate text-[15px] text-ink-soft" dir="auto">
+              {file?.name ?? t('import_noFile')}
+            </span>
+          </span>
         </Field>
         {fileError ? (
           <p className="text-[13px] text-danger" role="alert">

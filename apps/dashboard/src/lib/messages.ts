@@ -989,7 +989,7 @@ const ar: Record<MessageKey, string> = {
   bank_file: 'ملف الكشف (CSV)',
   bank_file_hint: 'يُقرأ الملف في متصفحك ولا يُرفع إلى الخادم.',
   bank_file_error: 'تعذّرت قراءة هذا الملف ككشف حساب CSV.',
-  bank_rows: 'تمت قراءة {n} صفاً من {file}',
+  bank_rows: 'الصفوف المقروءة من {file}: {n}',
   bank_mapping: 'الأعمدة',
   bank_mapping_hint: 'اربط الأعمدة مرة واحدة لكل بنك، ويُحفظ الربط للمرة القادمة.',
   bank_saved: 'بنك محفوظ',
