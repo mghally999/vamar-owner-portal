@@ -67,6 +67,17 @@ export interface LargeExpenseParams {
   placeLabel: string;
 }
 
+/** A large repair waits for this owner's yes or no. */
+export interface RepairApprovalNeededParams {
+  type: 'repair_approval_needed';
+  /** The job title, or the expense's reason. */
+  title: string;
+  placeLabel: string;
+  totalFils: number;
+  /** This owner's part of the total. */
+  shareFils: number;
+}
+
 export type NotificationParams =
   | ChequeDueSoonParams
   | ChequeBouncedParams
@@ -75,7 +86,8 @@ export type NotificationParams =
   | MonthlySummaryParams
   | HearingSoonParams
   | WorkOrderDoneParams
-  | LargeExpenseParams;
+  | LargeExpenseParams
+  | RepairApprovalNeededParams;
 
 export function notificationCopy(params: NotificationParams, lang: Lang): NotificationCopy {
   switch (params.type) {
@@ -181,6 +193,19 @@ export function notificationCopy(params: NotificationParams, lang: Lang): Notifi
             body: `An expense of ${total} was recorded for ${params.placeLabel}: ${params.reason}. The invoice is in the app.`,
           };
     }
+    case 'repair_approval_needed': {
+      const total = formatAmount(params.totalFils, lang);
+      const share = formatAmount(params.shareFils, lang);
+      return lang === 'ar'
+        ? {
+            title: 'مطلوب موافقتك',
+            body: `${params.title} في ${params.placeLabel} بتكلفة تقديرية ${total} (حصتك ${share}). افتح التطبيق للموافقة أو الرفض.`,
+          }
+        : {
+            title: 'Approval needed',
+            body: `${params.title} at ${params.placeLabel}, estimated at ${total} (your share ${share}). Open the app to approve or reject.`,
+          };
+    }
   }
 }
 
@@ -194,4 +219,5 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, Record<Lang, stri
   hearing_soon: { ar: 'تذكير بجلسة', en: 'Hearing reminder' },
   work_order_done: { ar: 'صيانة منجزة', en: 'Maintenance done' },
   large_expense: { ar: 'مصروف كبير', en: 'Large expense' },
+  repair_approval_needed: { ar: 'طلب موافقة', en: 'Approval request' },
 };

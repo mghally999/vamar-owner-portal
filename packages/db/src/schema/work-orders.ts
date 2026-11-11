@@ -1,6 +1,6 @@
 import { sql } from 'drizzle-orm';
-import { boolean, index, pgTable, text, uuid } from 'drizzle-orm/pg-core';
-import { createdAt, id, instant, plainDate } from './_common.js';
+import { boolean, check, index, pgTable, text, uuid } from 'drizzle-orm/pg-core';
+import { createdAt, fils, id, instant, plainDate } from './_common.js';
 import { workOrderPriority, workOrderStatus } from './enums.js';
 import { expenses, vendors } from './expenses.js';
 import { buildings, units } from './properties.js';
@@ -27,6 +27,8 @@ export const workOrders = pgTable(
     /** The invoice that paid for the job, once posted. */
     expenseId: uuid().references(() => expenses.id),
     visibleToOwner: boolean().notNull().default(true),
+    /** Expected cost; at or above the approval threshold the owners are asked before work starts. */
+    estimateFils: fils(),
     createdBy: uuid().references(() => staffUsers.id),
     createdAt: createdAt(),
   },
@@ -41,5 +43,6 @@ export const workOrders = pgTable(
       .where(sql`${t.scheduledFor} IS NOT NULL`),
     /** Staff list: newest first. */
     index('work_orders_reported_idx').on(t.reportedOn.desc(), t.id.desc()),
+    check('work_orders_estimate_positive', sql`${t.estimateFils} IS NULL OR ${t.estimateFils} > 0`),
   ],
 );

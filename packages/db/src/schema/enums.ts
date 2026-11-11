@@ -17,6 +17,7 @@ import {
   OWNER_STATUSES,
   PAYMENT_METHODS,
   RECURRING_FREQUENCIES,
+  REPAIR_APPROVAL_STATUSES,
   STAFF_ROLES,
   SUBJECT_TYPES,
   UNIT_STATUSES,
@@ -52,3 +53,6 @@ export const workOrderPriority = pgEnum('work_order_priority', WORK_ORDER_PRIORI
 export const workOrderStatus = pgEnum('work_order_status', WORK_ORDER_STATUSES);
 export const unitStatus = pgEnum('unit_status', UNIT_STATUSES);
 export const calendarEventType = pgEnum('calendar_event_type', CALENDAR_EVENT_TYPES);
+
+// v3
+export const repairApprovalStatus = pgEnum('repair_approval_status', REPAIR_APPROVAL_STATUSES);

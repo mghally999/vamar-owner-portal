@@ -59,6 +59,8 @@ describe('SettingsPage, more', () => {
       showBeforeFeeLabel: false,
       ownersSeeInvoiceFiles: false,
       largeExpenseAlertFils: 500_000,
+      repairApprovalThresholdFils: 500_000,
+      repairApprovalSilenceDays: 3,
     });
   });
 

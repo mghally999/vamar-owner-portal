@@ -12,7 +12,6 @@ import {
   type WorkOrderPriority,
   type WorkOrderStatus,
 } from '@vamar/shared';
-import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
@@ -22,6 +21,7 @@ import {
   useExpenses,
   useHolidaySet,
   useSaveWorkOrder,
+  useSettings,
   useVendors,
   useWorkOrder,
 } from '@/lib/queries-v2';
@@ -45,6 +45,8 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { useApprovalText } from '@/v2/approvals-messages';
+import { ApprovalStateChip, ApprovalsPanel, useApprovalError } from '@/v2/approvals-panel';
 import { PriorityChip, WorkOrderStatusChip } from './work-orders';
 
 export function WorkOrderDetailPage() {
@@ -58,6 +60,9 @@ export function WorkOrderDetailPage() {
   const buildings = useBuildings();
   const vendors = useVendors();
   const holidays = useHolidaySet();
+  const settings = useSettings();
+  const ap = useApprovalText();
+  const showError = useApprovalError();
   const w = q.data;
 
   const [buildingId, setBuildingId] = useState('');
@@ -71,6 +76,8 @@ export function WorkOrderDetailPage() {
   const [scheduledFor, setScheduledFor] = useState<PlainDate | null>(null);
   const [vendorId, setVendorId] = useState('');
   const [visibleToOwner, setVisibleToOwner] = useState(true);
+  /** In AED as typed; sent as integer fils, or null when empty. */
+  const [estimate, setEstimate] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [linking, setLinking] = useState(false);
@@ -93,14 +100,20 @@ export function WorkOrderDetailPage() {
     setScheduledFor((w.scheduledFor as PlainDate | null) ?? null);
     setVendorId(w.vendorId ?? '');
     setVisibleToOwner(w.visibleToOwner);
+    setEstimate(w.estimateFils === null ? '' : String(w.estimateFils / 100));
   }, [w]);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const editor = auth.hasRole('editor');
   const locked = w?.status === 'cancelled';
+  const estimateText = estimate.replace(/[^0-9.]/g, '');
+  const estimateFils = estimateText === '' ? null : Math.round(Number(estimateText) * 100);
+  const estimateValid =
+    estimateFils === null || (Number.isSafeInteger(estimateFils) && estimateFils > 0);
   const canSave =
     editor &&
     !locked &&
+    estimateValid &&
     buildingId !== '' &&
     titleAr.trim() !== '' &&
     titleEn.trim() !== '' &&
@@ -124,14 +137,17 @@ export function WorkOrderDetailPage() {
           scheduledFor,
           vendorId: vendorId || null,
           visibleToOwner,
+          estimateFils,
           ...patch,
         },
       });
       if (isNew) {
         void navigate({ to: '/work-orders/$workOrderId', params: { workOrderId: row.id } });
-      } else setNotice(patch['status'] === 'done' ? t('wo_saved') : t('wo_saved'));
+      } else setNotice(t('wo_saved'));
     } catch (e) {
-      setError(e instanceof ApiRequestError ? e.message : t('error_generic'));
+      // A refused start (owners not yet agreed) leaves the job as it was, so the form shows that.
+      if (w) setStatus(w.status);
+      setError(showError(e));
     }
   }
 
@@ -144,6 +160,7 @@ export function WorkOrderDetailPage() {
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <WorkOrderStatusChip status={w.status} />
               <PriorityChip priority={w.priority} />
+              {w.approvalState !== 'none' ? <ApprovalStateChip state={w.approvalState} /> : null}
               <span>
                 {pick(w.buildingNameAr, w.buildingNameEn)}
                 {w.unitNo ? ` · ${w.unitNo}` : ''}
@@ -285,6 +302,24 @@ export function WorkOrderDetailPage() {
               aria-label={t('wo_scheduledFor')}
             />
           </Field>
+          <Field
+            label={ap.t('approvals_estimate')}
+            hint={ap.t('approvals_estimate_hint', {
+              amount: ap.money(settings.data?.repairApprovalThresholdFils ?? 500_000),
+            })}
+            error={estimateValid ? undefined : t('error_generic')}
+          >
+            <Input
+              value={estimate}
+              onChange={(e) => {
+                setEstimate(e.target.value);
+              }}
+              numeric
+              inputMode="decimal"
+              invalid={!estimateValid}
+              disabled={!editor || locked}
+            />
+          </Field>
           <Field label={t('wo_vendor')}>
             <Select
               value={vendorId}
@@ -338,6 +373,7 @@ export function WorkOrderDetailPage() {
 
       {w ? (
         <>
+          <ApprovalsPanel kind="work_order" id={w.id} approvals={w.approvals} />
           <section>
             <SectionTitle>{t('wo_photos')}</SectionTitle>
             <FileList
@@ -417,7 +453,7 @@ export function WorkOrderDetailPage() {
                     setNotice(t('wo_linked'));
                   })
                   .catch((e: unknown) => {
-                    setError(e instanceof ApiRequestError ? e.message : t('error_generic'));
+                    setError(showError(e));
                   });
               }}
             />

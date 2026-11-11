@@ -10,6 +10,7 @@ import type { AppEnv } from './env.js';
 import { ApiError } from './errors.js';
 import { authOwnerRoutes } from './routes/auth-owner.js';
 import { authStaffRoutes } from './routes/auth-staff.js';
+import { ownerApprovalRoutes } from './routes/owner-approvals.js';
 import { ownerRoutes } from './routes/owner.js';
 import { ownerV2Routes } from './routes/owner-v2.js';
 import { staffRoutes } from './routes/staff.js';
@@ -225,6 +226,7 @@ export const app = new Hono<AppEnv>()
   .route('/api/auth/staff', authStaffRoutes)
   .route('/api/owner', ownerRoutes)
   .route('/api/owner', ownerV2Routes)
+  .route('/api/owner', ownerApprovalRoutes)
   .route('/api/staff', staffRoutes)
   .notFound((c) =>
     c.req.path.startsWith('/api/')

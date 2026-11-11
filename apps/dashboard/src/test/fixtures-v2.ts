@@ -22,6 +22,8 @@ export const settings = (s: Partial<AppSettings> = {}): AppSettings => ({
   showBeforeFeeLabel: true,
   largeExpenseAlertFils: 500_000,
   ownersSeeInvoiceFiles: true,
+  repairApprovalThresholdFils: 500_000,
+  repairApprovalSilenceDays: 3,
   ...s,
 });
 
@@ -124,6 +126,7 @@ export function expenseRow(e: Partial<ExpenseRow> = {}): ExpenseRow {
     correctsExpenseId: null,
     createdAt: '2026-10-12T08:00:00.000Z',
     postedAt: '2026-10-13T08:00:00.000Z',
+    approvalState: 'none',
     hasAttachments: true,
     ...e,
   };
@@ -189,6 +192,7 @@ export function expenseDetail(e: Partial<ExpenseDetail> = {}): ExpenseDetail {
     createdByName: 'Mariam Haddad',
     postedByName: 'Omar Saeed',
     voidedByName: null,
+    approvals: { source: null, state: 'none', items: [] },
     ...e,
   };
 }
@@ -245,6 +249,8 @@ export function workOrderRow(w: Partial<WorkOrderRow> = {}): WorkOrderRow {
     expenseTotalFils: null,
     expenseStatus: null,
     visibleToOwner: true,
+    estimateFils: null,
+    approvalState: 'none',
     createdAt: '2026-10-20T08:00:00.000Z',
     photoCount: 0,
     ...w,
@@ -252,7 +258,12 @@ export function workOrderRow(w: Partial<WorkOrderRow> = {}): WorkOrderRow {
 }
 
 export function workOrderDetail(w: Partial<WorkOrderDetail> = {}): WorkOrderDetail {
-  return { ...workOrderRow(), attachments: [], ...w };
+  return {
+    ...workOrderRow(),
+    attachments: [],
+    approvals: { source: null, state: 'none', items: [] },
+    ...w,
+  };
 }
 
 export function bucket(key: string, b: Partial<ReportBucket> = {}): ReportBucket {

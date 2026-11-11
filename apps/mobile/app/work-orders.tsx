@@ -6,6 +6,7 @@ import { useI18n } from '@/lib/i18n';
 import { useWorkOrders } from '@/lib/queries';
 import type { WorkOrderItem } from '@/lib/types';
 import { Card, Chip, DateText, EmptyState, ErrorState, Row, Skeleton, Text } from '@/ui';
+import { PendingApprovalsBanner } from '@/ui/approval-link';
 
 /** Maintenance jobs on the owner's units, newest first: what is broken, what was done, what it cost. */
 export default function WorkOrdersScreen() {
@@ -31,6 +32,7 @@ export default function WorkOrdersScreen() {
   if (rows.length === 0) {
     return (
       <View style={{ padding: 16 }}>
+        <PendingApprovalsBanner />
         <EmptyState title={tr('workOrders_empty')} />
       </View>
     );
@@ -40,6 +42,8 @@ export default function WorkOrdersScreen() {
       data={rows}
       keyExtractor={(w) => w.id}
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
+      // Large jobs waiting for this owner's answer come first.
+      ListHeaderComponent={<PendingApprovalsBanner />}
       onEndReached={() => {
         if (q.hasNextPage && !q.isFetchingNextPage) void q.fetchNextPage();
       }}

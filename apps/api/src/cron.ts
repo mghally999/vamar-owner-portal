@@ -7,6 +7,8 @@
  * 5. v2: draft expenses from the recurring rules, hearing reminders 3 days before, and a summary
  *    of the month that ended (collected, expenses, net) per owner, sent on the 1st; the 2nd and
  *    3rd retry it, keyed on the 1st, so a failed run is made good and nothing is sent twice
+ * 6. v3: owner approvals of large repairs left unanswered for the admin's number of days count as
+ *    approved ("approved by silence"), each with its audit row; staff see them on the Today panel
  *
  * Each step runs on its own: a failure is recorded in the summary and the next step still runs.
  * Notifications are idempotent through notification_log.dedupe_key and transport failures are
@@ -25,7 +27,9 @@ import {
   ownerShareAmount,
   type PlainDate,
 } from '@vamar/shared';
+import { approveBySilence } from './services/approvals.js';
 import { createRecurringDrafts } from './services/expenses.js';
+import { getSettings } from './services/settings.js';
 import { cronDb, rowsOf, type Db } from './db.js';
 import type { Bindings } from './env.js';
 import {
@@ -68,6 +72,8 @@ export interface DailySummary extends DeliveryReport {
   recurringDrafts: number;
   hearingReminders: number;
   monthlySummaries: number;
+  /** v3: owner answers turned into "approved by silence" today. */
+  silentApprovals: number;
   errors: string[];
 }
 
@@ -86,6 +92,7 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
     recurringDrafts: 0,
     hearingReminders: 0,
     monthlySummaries: 0,
+    silentApprovals: 0,
     errors: [],
   };
   const step = async (name: string, fn: () => Promise<void>) => {
@@ -132,6 +139,14 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
       summary.sent += r.sent;
       summary.skipped += r.skipped;
       summary.failed += r.failed;
+    });
+    await step('approvals', async () => {
+      const settings = await getSettings(db);
+      const silent = await db.transaction((tx) =>
+        approveBySilence(tx, t, settings.repairApprovalSilenceDays),
+      );
+      summary.silentApprovals = silent.length;
+      if (silent.length) log('info', 'cron.approved_by_silence', { count: silent.length });
     });
     log(summary.errors.length ? 'warn' : 'info', 'cron.daily', { ...summary });
     if (summary.errors.length) throw new Error(summary.errors.join(' | '));

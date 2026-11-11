@@ -11,6 +11,7 @@ import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { keys } from '@/lib/queries';
 import { Amount, Button, cx, DateText, SectionTitle, Skeleton } from '@/ui/primitives';
+import { useApprovalText, type ApprovalMessageKey } from '@/v2/approvals-messages';
 
 export interface StaffToday {
   today: string;
@@ -31,6 +32,13 @@ export interface StaffToday {
     newestInvoiceDate: string | null;
   };
   contractsEnding: { count: number; from: string; to: string };
+  /** Jobs and expense drafts held back by an owner's pending or rejected answer. */
+  ownerApprovals: {
+    workOrders: number;
+    expenses: number;
+    rejected: number;
+    silentLast7Days: number;
+  };
 }
 
 /** Under the overview key, so every change that refreshes the overview refreshes this too. */
@@ -44,7 +52,8 @@ export function useStaffToday() {
 
 interface Tile {
   key: string;
-  label: MessageKey;
+  /** The dashboard's own copy, or text already worded (the approval copy lives apart). */
+  label: MessageKey | { text: string };
   count: number;
   /** Red when not zero: money already lost or a date already missed. */
   urgent?: boolean;
@@ -61,7 +70,37 @@ function span(from: string | null, to: string | null): Record<string, string> {
 
 const PENDING = 'upcoming,deposited';
 
-function tiles(d: StaffToday, t: (k: MessageKey, v?: Record<string, string>) => string): Tile[] {
+type ApprovalText = (k: ApprovalMessageKey, v?: Record<string, string | number>) => string;
+
+/**
+ * Owner approvals: jobs and drafts waiting, with how many an owner rejected and how many the
+ * daily job approved by silence this week. Links to the work orders filter, or to the expenses
+ * one when only drafts are waiting.
+ */
+function approvalsTile(d: StaffToday, ta: ApprovalText): Tile {
+  const a = d.ownerApprovals;
+  const parts = [
+    a.expenses > 0 && a.workOrders > 0 ? ta('today_approvals_expenses', { n: a.expenses }) : null,
+    a.rejected > 0 ? ta('today_approvals_rejected', { n: a.rejected }) : null,
+    a.silentLast7Days > 0 ? ta('today_approvals_silent', { n: a.silentLast7Days }) : null,
+  ].filter((p): p is string => p !== null);
+  const onlyExpenses = a.workOrders === 0 && a.expenses > 0;
+  return {
+    key: 'approvals',
+    label: { text: ta('today_approvals') },
+    count: a.workOrders + a.expenses,
+    urgent: a.rejected > 0,
+    detail: parts.length ? <span className="tnum">{parts.join(' · ')}</span> : undefined,
+    to: onlyExpenses ? '/expenses' : '/work-orders',
+    search: { approval: 'awaiting' },
+  };
+}
+
+function tiles(
+  d: StaffToday,
+  t: (k: MessageKey, v?: Record<string, string>) => string,
+  ta: ApprovalText,
+): Tile[] {
   return [
     {
       key: 'dueToday',
@@ -128,6 +167,7 @@ function tiles(d: StaffToday, t: (k: MessageKey, v?: Record<string, string>) => 
       to: '/contracts',
       search: { endingWithinDays: 30, withoutRenewal: 1 },
     },
+    approvalsTile(d, ta),
   ];
 }
 
@@ -146,9 +186,10 @@ function When({
 
 export function TodayPanel() {
   const { t } = useI18n();
+  const { t: ta } = useApprovalText();
   const q = useStaffToday();
   const d = q.data;
-  const list = d ? tiles(d, t) : [];
+  const list = d ? tiles(d, t, ta) : [];
   const clear = d !== undefined && list.every((x) => x.count === 0);
 
   return (
@@ -167,7 +208,7 @@ export function TodayPanel() {
         </div>
       ) : !d ? (
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy>
-          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
             <li key={i} className="card p-4">
               <Skeleton className="h-7 w-10" />
               <Skeleton className="mt-2 h-4 w-full" />
@@ -193,8 +234,10 @@ export function TodayPanel() {
                   >
                     {x.count}
                   </span>
-                  <span className="text-[14px] font-medium break-words">{t(x.label)}</span>
-                  {x.count > 0 && (x.fils !== undefined || x.detail) ? (
+                  <span className="text-[14px] font-medium break-words">
+                    {typeof x.label === 'string' ? t(x.label) : x.label.text}
+                  </span>
+                  {(x.count > 0 || x.key === 'approvals') && (x.fils !== undefined || x.detail) ? (
                     <span className="flex flex-wrap gap-x-2 text-[13px] text-ink-soft">
                       {x.fils !== undefined ? <Amount fils={x.fils} /> : null}
                       {x.detail}

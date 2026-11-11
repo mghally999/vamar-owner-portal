@@ -17,6 +17,7 @@ import {
   vatFor,
   type AllocationMethod,
   type AllocationUnit,
+  type ApprovalState,
   type CreateExpenseCategoryInput,
   type CreateExpenseInput,
   type CreateRecurringRuleInput,
@@ -32,6 +33,7 @@ import { orSql, type Dbx } from '../db.js';
 import { ApiError, conflict, notFound, validation } from '../errors.js';
 import type { Patch } from '../util/types.js';
 import { decodeCursor, page } from '../util/pagination.js';
+import { approvalStateSql, awaitingApprovalSql } from './approvals.js';
 import { listAttachments } from './attachments.js';
 import { audit, type AuditActor } from './audit.js';
 
@@ -369,6 +371,8 @@ export interface ExpenseListQuery {
   search?: string | undefined;
   recurringRuleId?: string | undefined;
   disputeId?: string | undefined;
+  /** `awaiting`: a draft held back by a pending or rejected owner answer. */
+  approval?: 'awaiting' | undefined;
   period?: Period | null | undefined;
   cursor?: string | undefined;
   limit: number;
@@ -407,6 +411,7 @@ const expenseListSelect = {
   correctsExpenseId: expenses.correctsExpenseId,
   createdAt: expenses.createdAt,
   postedAt: expenses.postedAt,
+  approvalState: sql<ApprovalState>`${approvalStateSql('expense', expenses.id)}`,
   hasAttachments: sql<boolean>`exists (select 1 from ${schema.attachments} a where a.entity_type = 'expense' and a.entity_id = ${expenses.id})`,
 };
 
@@ -420,6 +425,10 @@ function listConditions(q: ExpenseListQuery): SQL[] {
   if (q.status) conditions.push(eq(expenses.status, q.status));
   if (q.recurringRuleId) conditions.push(eq(expenses.recurringRuleId, q.recurringRuleId));
   if (q.disputeId) conditions.push(eq(expenses.disputeId, q.disputeId));
+  if (q.approval === 'awaiting') {
+    conditions.push(eq(expenses.status, 'draft'));
+    conditions.push(awaitingApprovalSql('expense', expenses.id));
+  }
   if (q.period) {
     conditions.push(gte(expenses.invoiceDate, q.period.from));
     conditions.push(lte(expenses.invoiceDate, q.period.to));

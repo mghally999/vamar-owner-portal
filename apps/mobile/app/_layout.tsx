@@ -8,6 +8,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { approvalText } from '@/lib/approval-messages';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
 import { PeriodProvider } from '@/lib/period';
@@ -98,7 +99,7 @@ export default function RootLayout() {
 function Root() {
   const t = useTheme();
   const auth = useAuth();
-  const { ready, isRTL, t: tr } = useI18n();
+  const { ready, isRTL, t: tr, lang } = useI18n();
   const themeChoice = useThemeChoice();
   const update = useUpdateState();
   const router = useRouter();
@@ -153,6 +154,14 @@ function Root() {
           <Stack.Screen name="calendar" options={stackHeader(tr('calendar_title'))} />
           <Stack.Screen name="work-orders" options={stackHeader(tr('workOrders_title'))} />
           <Stack.Screen name="work-order/[id]" options={stackHeader(tr('workOrder_detail'))} />
+          <Stack.Screen
+            name="approvals"
+            options={stackHeader(approvalText(lang, 'approvals_title'))}
+          />
+          <Stack.Screen
+            name="approval/[id]"
+            options={stackHeader(approvalText(lang, 'approval_detail'))}
+          />
         </Stack.Protected>
         <Stack.Protected guard={auth.stage !== 'authenticated'}>
           <Stack.Screen name="(auth)" />

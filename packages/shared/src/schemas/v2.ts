@@ -4,6 +4,11 @@
  * the dispute-to-cheque links. Every API body, query and param goes through one of these.
  */
 import { z } from 'zod';
+import {
+  MAX_REPAIR_APPROVAL_SILENCE_DAYS,
+  REPAIR_APPROVAL_DECISIONS,
+  REPAIR_APPROVAL_STATUSES,
+} from '../approvals.js';
 import { CALENDAR_EVENT_TYPES, CALENDAR_ITEM_KINDS } from '../calendar.js';
 import { diffDays } from '../dates.js';
 import {
@@ -47,6 +52,10 @@ export const calendarEventTypeSchema = z.enum(CALENDAR_EVENT_TYPES);
 export const calendarItemKindSchema = z.enum(CALENDAR_ITEM_KINDS);
 export const periodPresetSchema = z.enum(PERIOD_PRESETS);
 export const weekStartSchema = z.enum(WEEK_STARTS);
+export const repairApprovalStatusSchema = z.enum(REPAIR_APPROVAL_STATUSES);
+
+/** List filter: jobs still held back by a pending or rejected owner answer. */
+const approvalFilter = z.literal('awaiting').optional();
 
 // Periods and reports ------------------------------------------------------------------------
 
@@ -215,6 +224,7 @@ export const expenseListQuerySchema = paginationQuerySchema
     search: z.string().trim().max(80).optional(),
     recurringRuleId: uuidSchema.optional(),
     disputeId: uuidSchema.optional(),
+    approval: approvalFilter,
   })
   .and(periodQuerySchema);
 
@@ -290,6 +300,8 @@ const workOrderBase = {
   vendorId: uuidSchema.nullable(),
   expenseId: uuidSchema.nullable(),
   visibleToOwner: z.boolean(),
+  /** What the job is expected to cost; at or above the threshold the owners are asked first. */
+  estimateFils: filsSchema.nullable(),
 };
 
 const workOrderFields = {
@@ -302,6 +314,7 @@ const workOrderFields = {
   vendorId: workOrderBase.vendorId.default(null),
   expenseId: workOrderBase.expenseId.default(null),
   visibleToOwner: workOrderBase.visibleToOwner.default(true),
+  estimateFils: workOrderBase.estimateFils.default(null),
 };
 export const createWorkOrderSchema = z.object(workOrderFields);
 export type CreateWorkOrderInput = z.infer<typeof createWorkOrderSchema>;
@@ -316,6 +329,24 @@ export const workOrderListQuerySchema = paginationQuerySchema.extend({
   search: z.string().trim().max(80).optional(),
   /** `1`: still open and past the scheduled date (the Today panel's link). */
   overdue: z.literal('1').optional(),
+  approval: approvalFilter,
+});
+
+// Owner approval of large repairs ------------------------------------------------------------
+
+/** The owner's answer; the note is optional either way. */
+export const answerApprovalSchema = z.object({
+  decision: z.enum(REPAIR_APPROVAL_DECISIONS),
+  note: z.string().trim().max(500).nullable().default(null),
+});
+export type AnswerApprovalInput = z.infer<typeof answerApprovalSchema>;
+
+/** An admin lets the job go ahead over pending or rejected answers; the reason is audited. */
+export const overrideApprovalsSchema = z.object({ reason: auditReasonSchema });
+
+export const ownerApprovalListQuerySchema = z.object({
+  status: repairApprovalStatusSchema.optional(),
+  workOrderId: uuidSchema.optional(),
 });
 
 // Property records ---------------------------------------------------------------------------
@@ -459,6 +490,13 @@ export const updateSettingsSchema = z.object({
   showBeforeFeeLabel: z.boolean().optional(),
   largeExpenseAlertFils: filsNonNegativeSchema.optional(),
   ownersSeeInvoiceFiles: z.boolean().optional(),
+  repairApprovalThresholdFils: filsNonNegativeSchema.optional(),
+  repairApprovalSilenceDays: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_REPAIR_APPROVAL_SILENCE_DAYS)
+    .optional(),
 });
 export type UpdateSettingsInput = z.infer<typeof updateSettingsSchema>;
 

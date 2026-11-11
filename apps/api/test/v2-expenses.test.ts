@@ -42,6 +42,12 @@ beforeAll(async () => {
     .from(schema.vendors)
     .where(eq(schema.vendors.name, 'Gulf Lifts Technical Services'));
   vendorId = v!.id;
+  // These are life-cycle tests of large repairs; owner approval of them is v3-approvals.test.ts.
+  await w.json('/api/staff/settings', {
+    method: 'PATCH',
+    token: admin,
+    body: JSON.stringify({ repairApprovalThresholdFils: 100_000_000 }),
+  });
 });
 afterAll(() => w.close());
 

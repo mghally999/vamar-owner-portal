@@ -949,7 +949,50 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
       visibleToOwner: false,
     }),
   ];
+  // Large jobs carry an estimate: the refurbishment (already approved, so it is under way) and the
+  // fire system inspection, still waiting for the Al Noor owners.
+  const refurbishment = workOrderRows[2];
+  const fireInspection = workOrderRows[3];
+  if (refurbishment) refurbishment.estimateFils = AED(12_000);
+  if (fireInspection) fireInspection.estimateFils = AED(18_500);
   await db.insert(s.workOrders).values(workOrderRows);
+
+  // Owner approvals: one row per owner with their share of the estimate on the day asked.
+  const approvalRows: (typeof s.repairApprovals.$inferInsert)[] = [];
+  const ask = (
+    job: (typeof workOrderRows)[number] | undefined,
+    askedOn: PlainDate,
+    answer: { status: 'approved'; note: string; answeredOn: PlainDate } | null,
+  ) => {
+    if (!job?.estimateFils) return;
+    const scope = job.unitId ? 'unit' : 'building';
+    const units = allocationUnitsFor(scope, job.buildingId, job.unitId ?? null, askedOn);
+    const method: AllocationMethod =
+      scope === 'unit' ? 'single_unit' : units.every((u) => u.sizeSqft) ? 'by_area' : 'equal_units';
+    const shares = new Map<string, number>();
+    for (const p of allocateExpense(job.estimateFils, method, units))
+      shares.set(p.ownerId, (shares.get(p.ownerId) ?? 0) + p.amountFils);
+    for (const [ownerId, shareFils] of shares)
+      approvalRows.push({
+        id: uuidv7(),
+        workOrderId: job.id,
+        ownerId,
+        amountFils: job.estimateFils,
+        shareFils,
+        status: answer ? answer.status : 'pending',
+        note: answer?.note ?? null,
+        askedOn,
+        answeredAt: answer ? new Date(`${answer.answeredOn}T10:30:00+04:00`) : null,
+        createdAt: new Date(`${askedOn}T09:00:00+04:00`),
+      });
+  };
+  ask(refurbishment, addDays(today, -6), {
+    status: 'approved',
+    note: 'موافق، أرجو إرسال صور الوحدة بعد الانتهاء.',
+    answeredOn: addDays(today, -5),
+  });
+  ask(fireInspection, addDays(today, -1), null);
+  if (approvalRows.length) await db.insert(s.repairApprovals).values(approvalRows);
 
   // Disputes: the cheques behind the bounced-cheque case. The hearing dates are set with the cases
   // (on working days), so the "hearing set" update and the case always agree.

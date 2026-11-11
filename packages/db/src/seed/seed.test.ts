@@ -33,8 +33,20 @@ afterAll(async () => {
 });
 
 describe('reference data', () => {
+  it('takes the settings of 0007 and the approval settings of 0010', () => {
+    // 0007: one INSERT per reference table; 0010: the two approval settings.
+    expect(referenceInserts()).toHaveLength(REFERENCE_TABLES.length + 1);
+    const settings = referenceInserts().filter((s) => s.startsWith('INSERT INTO "app_settings"'));
+    expect(settings).toHaveLength(2);
+    expect(settings[1]).toContain("('repair_approval_threshold_fils', '500000'::jsonb)");
+    expect(settings[1]).toContain("('repair_approval_silence_days', '3'::jsonb)");
+  });
+
   it('comes back from the migration after every table is emptied, as the reset scripts do', async () => {
-    expect(referenceInserts()).toHaveLength(REFERENCE_TABLES.length);
+    const keys = await db.execute<{ key: string }>(sql`select key from app_settings order by key`);
+    expect(keys.rows.map((r) => r.key)).toEqual(
+      expect.arrayContaining(['repair_approval_silence_days', 'repair_approval_threshold_fils']),
+    );
     const count = async (t: string) =>
       (await db.execute<{ n: number }>(sql.raw(`select count(*)::int as n from "${t}"`))).rows[0]
         ?.n;
@@ -267,6 +279,39 @@ describe('seed data', () => {
     await expect(
       db.execute(
         sql`UPDATE contracts SET cheque_count = 13 WHERE id = (SELECT id FROM contracts LIMIT 1)`,
+      ),
+    ).rejects.toThrow();
+  });
+
+  it('demo owner approvals: one job waiting for the owners, one already approved', async () => {
+    const rows = await db.execute<{
+      title: string;
+      status: string;
+      wo_status: string;
+      estimate: string;
+      amount: string;
+      shares: string;
+      owners: number;
+    }>(sql`
+      SELECT w.title_en AS title, a.status, w.status AS wo_status, w.estimate_fils AS estimate,
+             max(a.amount_fils) AS amount, sum(a.share_fils) AS shares, count(*)::int AS owners
+      FROM repair_approvals a JOIN work_orders w ON w.id = a.work_order_id
+      GROUP BY w.title_en, a.status, w.status, w.estimate_fils ORDER BY w.title_en`);
+    expect(rows.rows.map((r) => [r.title, r.status, r.wo_status])).toEqual([
+      ['Annual fire system inspection', 'pending', 'scheduled'],
+      ['Refurbishment before letting', 'approved', 'in_progress'],
+    ]);
+    for (const r of rows.rows) {
+      // Every owner's part adds up to the estimate they were asked about, above AED 5,000.
+      expect(Number(r.shares)).toBe(Number(r.estimate));
+      expect(Number(r.amount)).toBe(Number(r.estimate));
+      expect(Number(r.estimate)).toBeGreaterThanOrEqual(500_000);
+    }
+    expect(rows.rows[0]?.owners).toBeGreaterThanOrEqual(1);
+    // The database refuses a row about both a job and an expense, or about neither.
+    await expect(
+      db.execute(
+        sql`UPDATE repair_approvals SET work_order_id = NULL WHERE id = (SELECT id FROM repair_approvals LIMIT 1)`,
       ),
     ).rejects.toThrow();
   });

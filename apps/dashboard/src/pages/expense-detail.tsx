@@ -5,7 +5,6 @@
  */
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useState } from 'react';
-import { ApiRequestError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -35,6 +34,7 @@ import {
 } from '@/ui/primitives';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
+import { ApprovalStateChip, ApprovalsPanel, useApprovalError } from '@/v2/approvals-panel';
 import { ExpenseStatusChip, KindChip } from './expenses';
 
 export function ExpenseDetailPage() {
@@ -54,12 +54,14 @@ export function ExpenseDetailPage() {
   const [reason, setReason] = useState('');
   const [withCorrection, setWithCorrection] = useState(false);
   const [correction, setCorrection] = useState<ExpenseFormValues | null>(null);
+  const showError = useApprovalError();
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const e = q.data;
   const editor = auth.hasRole('editor');
+  // A post refused while an owner's answer is pending or rejected gets the approval wording.
   const fail = (err: unknown) => {
-    setError(err instanceof ApiRequestError ? err.message : t('error_generic'));
+    setError(showError(err));
   };
 
   const title = e ? pick(e.reasonAr, e.reasonEn) : '';
@@ -73,6 +75,9 @@ export function ExpenseDetailPage() {
             <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
               <ExpenseStatusChip status={e.status} />
               <KindChip kind={e.kind} />
+              {e.approvals.state !== 'none' ? (
+                <ApprovalStateChip state={e.approvals.state} />
+              ) : null}
               <span>{pick(e.categoryNameAr, e.categoryNameEn)}</span>
               <span>
                 {pick(e.buildingNameAr, e.buildingNameEn)}
@@ -127,6 +132,8 @@ export function ExpenseDetailPage() {
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
       {error ? <Toast kind="error">{error}</Toast> : null}
+
+      {e ? <ApprovalsPanel kind="expense" id={e.id} approvals={e.approvals} /> : null}
 
       {!e ? (
         <Skeleton className="h-64 w-full" />

@@ -40,6 +40,17 @@ export interface StaffToday {
     newestInvoiceDate: PlainDate | null;
   };
   contractsEnding: { count: number; from: PlainDate; to: PlainDate };
+  /**
+   * Owner approval of large repairs: jobs and expense drafts not started and held back by a
+   * pending or rejected answer (the lists' `approval=awaiting`), how many of those an owner
+   * rejected, and answers the daily job counted as approved by silence in the last 7 days.
+   */
+  ownerApprovals: {
+    workOrders: number;
+    expenses: number;
+    rejected: number;
+    silentLast7Days: number;
+  };
 }
 
 type Figures = Omit<StaffToday, 'today' | 'dueSoon' | 'hearings' | 'contractsEnding'> & {
@@ -66,6 +77,14 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
       select q.due_date, q.amount_fils from cheques q
       where q.status = 'bounced'
         and not exists (select 1 from dispute_cheques dc where dc.cheque_id = q.id)
+    ),
+    -- Owner answers still holding a job back, on jobs not started and drafts not posted.
+    blocking as (
+      select a.work_order_id, a.expense_id, a.status from repair_approvals a
+      left join work_orders w on w.id = a.work_order_id
+      left join expenses x on x.id = a.expense_id
+      where a.status in ('pending', 'rejected') and a.overridden_at is null
+        and (w.status in ('open', 'scheduled') or x.status = 'draft')
     )
     select json_build_object(
       'dueToday', (select json_build_object('count', count(*)::int,
@@ -94,7 +113,15 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
       'contractsEnding', (select json_build_object('count', count(*)::int)
         from contracts c
         where c.status = 'active' and c.end_date between ${todayDate} and ${endingTo}
-          and not exists (select 1 from contracts r where r.previous_contract_id = c.id))
+          and not exists (select 1 from contracts r where r.previous_contract_id = c.id)),
+      'ownerApprovals', (select json_build_object(
+          'workOrders', count(distinct b.work_order_id)::int,
+          'expenses', count(distinct b.expense_id)::int,
+          'rejected', (select count(distinct coalesce(r.work_order_id, r.expense_id))::int
+            from blocking r where r.status = 'rejected'),
+          'silentLast7Days', (select count(*)::int from repair_approvals s
+            where s.status = 'approved_by_silence' and s.answered_at >= now() - interval '7 days'))
+        from blocking b)
     ) as today`);
 
   const f = jsonColumn(result, 'today') as Figures;
@@ -107,5 +134,6 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
     overdueWorkOrders: f.overdueWorkOrders,
     expenseDrafts: f.expenseDrafts,
     contractsEnding: { ...f.contractsEnding, from: todayDate, to: endingTo },
+    ownerApprovals: f.ownerApprovals,
   };
 }

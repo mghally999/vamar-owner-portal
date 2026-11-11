@@ -1,12 +1,14 @@
 /** Response shapes of the v2 staff API: expenses, work orders, reports, calendar, settings, search. */
 import type {
   AllocationMethod,
+  ApprovalState,
   CalendarItem,
   ExpenseKind,
   ExpenseStatus,
   PaymentMethod,
   PeriodPreset,
   RecurringFrequency,
+  RepairApprovalStatus,
   WorkOrderPriority,
   WorkOrderStatus,
 } from '@vamar/shared';
@@ -65,7 +67,35 @@ export interface ExpenseRow {
   correctsExpenseId: string | null;
   createdAt: string;
   postedAt: string | null;
+  /** One word for the owners' answers (none when nobody was asked). */
+  approvalState: ApprovalState;
   hasAttachments: boolean;
+}
+
+/** One owner's answer to a large repair (GET work order / expense detail). */
+export interface StaffApproval {
+  id: string;
+  ownerId: string;
+  nameAr: string;
+  nameEn: string;
+  amountFils: number;
+  shareFils: number;
+  status: RepairApprovalStatus;
+  note: string | null;
+  askedOn: string;
+  answeredAt: string | null;
+  /** The day silence counts as approval; null once answered or when silent approval is off. */
+  deadline: string | null;
+  overriddenAt: string | null;
+  overriddenByName: string | null;
+  overrideReason: string | null;
+}
+
+export interface Approvals {
+  /** Whose answers these are: an expense paying for an asked job shows the job's. */
+  source: 'work_order' | 'expense' | null;
+  state: ApprovalState;
+  items: StaffApproval[];
 }
 
 export interface ExpenseTotals {
@@ -101,6 +131,7 @@ export interface ExpenseDetail extends ExpenseRow {
   createdByName: string | null;
   postedByName: string | null;
   voidedByName: string | null;
+  approvals: Approvals;
 }
 
 export interface ExpenseWarnings {
@@ -166,12 +197,16 @@ export interface WorkOrderRow {
   expenseTotalFils: number | null;
   expenseStatus: ExpenseStatus | null;
   visibleToOwner: boolean;
+  /** Expected cost in fils; at or above the approval threshold the owners are asked. */
+  estimateFils: number | null;
+  approvalState: ApprovalState;
   createdAt: string;
   photoCount: number;
 }
 
 export interface WorkOrderDetail extends WorkOrderRow {
   attachments: Attachment[];
+  approvals: Approvals;
 }
 
 export interface RentTotals {
@@ -252,6 +287,8 @@ export interface AppSettings {
   showBeforeFeeLabel: boolean;
   largeExpenseAlertFils: number;
   ownersSeeInvoiceFiles: boolean;
+  repairApprovalThresholdFils: number;
+  repairApprovalSilenceDays: number;
 }
 
 export type { CalendarItem };

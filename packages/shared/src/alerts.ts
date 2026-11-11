@@ -24,6 +24,7 @@ export const NOTIFICATION_TYPES = [
   'hearing_soon',
   'work_order_done',
   'large_expense',
+  'repair_approval_needed',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

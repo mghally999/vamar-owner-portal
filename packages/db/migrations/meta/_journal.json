@@ -71,6 +71,13 @@
       "when": 1794393830018,
       "tag": "0009_v3_staff_report_cover_index",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794395595451,
+      "tag": "0010_v3_repair_approvals",
+      "breakpoints": true
     }
   ]
 }

@@ -62,6 +62,12 @@ beforeAll(async () => {
   cats = (await w.json<{ items: typeof cats }>('/api/staff/expense-categories', { token: viewer }))
     .body.items;
   await giveEveryOwnerADevice('rf');
+  // The large-expense alert is tested on its own here; owner approval is v3-approvals.test.ts.
+  await w.json('/api/staff/settings', {
+    method: 'PATCH',
+    token: admin,
+    body: JSON.stringify({ repairApprovalThresholdFils: 100_000_000 }),
+  });
 });
 afterAll(() => w.close());
 

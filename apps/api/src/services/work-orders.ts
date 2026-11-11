@@ -4,16 +4,25 @@
  */
 import { and, desc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
-import type {
-  CreateWorkOrderInput,
-  PlainDate,
-  WorkOrderPriority,
-  WorkOrderStatus,
+import {
+  APPROVAL_GATED_WORK_ORDER_STATUSES,
+  APPROVAL_ASKABLE_WORK_ORDER_STATUSES,
+  type ApprovalState,
+  type CreateWorkOrderInput,
+  type PlainDate,
+  type WorkOrderPriority,
+  type WorkOrderStatus,
 } from '@vamar/shared';
 import { andSql, orSql, type Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import type { Patch } from '../util/types.js';
 import { decodeCursor, page } from '../util/pagination.js';
+import {
+  approvalStateSql,
+  assertApprovalsAllow,
+  awaitingApprovalSql,
+  requestApprovals,
+} from './approvals.js';
 import { listAttachments } from './attachments.js';
 import { audit, type AuditActor } from './audit.js';
 import { ownerUnitsSubquery } from './owner-scope.js';
@@ -35,6 +44,8 @@ export interface WorkOrderListQuery {
   search?: string | undefined;
   /** Open, scheduled or in progress with a scheduled date before this day. */
   overdueBefore?: string | undefined;
+  /** `awaiting`: not started and held back by a pending or rejected owner answer. */
+  approval?: 'awaiting' | undefined;
   cursor?: string | undefined;
   limit: number;
 }
@@ -61,6 +72,8 @@ const workOrderSelect = {
   expenseStatus: expenses.status,
   expenseVisibleToOwner: expenses.visibleToOwner,
   visibleToOwner: workOrders.visibleToOwner,
+  estimateFils: workOrders.estimateFils,
+  approvalState: sql<ApprovalState>`${approvalStateSql('work_order', workOrders.id)}`,
   createdAt: workOrders.createdAt,
   photoCount: sql<number>`(select count(*)::int from ${schema.attachments} a where a.entity_type = 'work_order' and a.entity_id = ${workOrders.id})`,
 };
@@ -88,6 +101,10 @@ export async function listWorkOrders(db: Dbx, q: WorkOrderListQuery) {
     conditions.push(
       sql`${workOrders.status} in ('open', 'scheduled', 'in_progress') and ${workOrders.scheduledFor} < ${q.overdueBefore}`,
     );
+  if (q.approval === 'awaiting') {
+    conditions.push(inArray(workOrders.status, [...APPROVAL_ASKABLE_WORK_ORDER_STATUSES]));
+    conditions.push(awaitingApprovalSql('work_order', workOrders.id));
+  }
   if (q.search) {
     const like = `%${q.search}%`;
     conditions.push(
@@ -151,12 +168,26 @@ async function checkReferences(
   if (input.expenseId && !expense) throw notFound('Expense');
 }
 
+/** What the approval rules need from the caller: the admin's threshold and the business date. */
+export interface ApprovalContext {
+  thresholdFils: number;
+  today: PlainDate;
+}
+
+const isGated = (s: WorkOrderStatus) => APPROVAL_GATED_WORK_ORDER_STATUSES.includes(s);
+
+/**
+ * A new job. When its estimate needs the owners' approval they are asked here (the ids come back
+ * for the pushes); a job created straight as in progress or done is refused while they have not
+ * answered, so the question cannot be skipped.
+ */
 export async function createWorkOrder(
   db: Dbx,
   actor: AuditActor,
   input: CreateWorkOrderInput,
-  today: PlainDate,
-) {
+  ctx: ApprovalContext,
+): Promise<{ row: typeof workOrders.$inferSelect; asked: string[] }> {
+  const today = ctx.today;
   await checkReferences(db, input);
   const { reportedOn, ...fields } = input;
   const [row] = await db
@@ -175,20 +206,35 @@ export async function createWorkOrder(
     entityId: row.id,
     after: row,
   });
-  return row;
+  const asked =
+    row.status === 'cancelled'
+      ? []
+      : await requestApprovals(db, actor, { workOrderId: row.id }, ctx.thresholdFils, today, {
+          evenIfStarted: true,
+        });
+  if (isGated(row.status)) await assertApprovalsAllow(db, { workOrderId: row.id });
+  return { row, asked };
 }
 
 export interface WorkOrderUpdateResult {
   row: typeof workOrders.$inferSelect;
   /** Just marked done: the route notifies the owners. */
   justDone: boolean;
+  /** New approval requests (a first estimate above the threshold, or a higher one). */
+  asked: string[];
 }
 
+/**
+ * Edit a job. A job that has not started asks its owners when the estimate first needs approval
+ * (or goes above what they approved); moving it to in progress or done is refused (409
+ * `approval_required`, nothing saved) while any answer is pending or rejected and not overridden.
+ */
 export async function updateWorkOrder(
   db: Dbx,
   actor: AuditActor,
   id: string,
   patch: Patch<CreateWorkOrderInput>,
+  ctx: ApprovalContext,
 ): Promise<WorkOrderUpdateResult> {
   const before = await db.query.workOrders.findFirst({ where: eq(workOrders.id, id) });
   if (!before) throw notFound('Work order');
@@ -221,7 +267,17 @@ export async function updateWorkOrder(
     before,
     after: row,
   });
-  return { row, justDone };
+  // Asked as the job stood before this change: an estimate saved together with "in progress"
+  // still asks first, and the gate below then refuses the start.
+  const asked =
+    APPROVAL_ASKABLE_WORK_ORDER_STATUSES.includes(before.status) && row.status !== 'cancelled'
+      ? await requestApprovals(db, actor, { workOrderId: id }, ctx.thresholdFils, ctx.today, {
+          evenIfStarted: true,
+        })
+      : [];
+  if (row.status !== before.status && isGated(row.status))
+    await assertApprovalsAllow(db, { workOrderId: id });
+  return { row, justDone, asked };
 }
 
 /** Owners of the unit (or, for a building-wide job, of any unit in the building), for the "done" push. */
@@ -329,7 +385,8 @@ export async function ownerWorkOrderDetail(db: Dbx, ownerId: string, id: string)
     .from(workOrders)
     .where(and(eq(workOrders.id, id), workOrderInOwnerScope(db, ownerId)));
   if (!row) throw notFound('Work order');
-  const detail = await getWorkOrderDetail(db, id);
+  // The estimate and the other owners' answers are for staff; an owner sees their own request.
+  const { estimateFils: _e, approvalState: _s, ...detail } = await getWorkOrderDetail(db, id);
   const cost = ownerVisibleCost({
     status: detail.expenseStatus,
     visibleToOwner: detail.expenseVisibleToOwner,

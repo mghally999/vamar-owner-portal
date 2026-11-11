@@ -14,12 +14,17 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { useApprovalText } from './approvals-messages';
 import { useV2 } from './messages';
 import { useSettings, useUpdateSettings } from './queries';
 
-/** Admin settings: week start, Hijri display, the fee label, the large-expense alert, invoice files. */
+/**
+ * Admin settings: week start, Hijri display, the fee label, the large-expense alert, invoice files,
+ * and owner approval of large repairs (threshold and days before silence counts as approval).
+ */
 export function SettingsPage() {
   const { t, lib } = useV2();
+  const ap = useApprovalText();
   const auth = useAuth();
   const q = useSettings();
   const save = useUpdateSettings();
@@ -29,6 +34,8 @@ export function SettingsPage() {
   const [feeLabel, setFeeLabel] = useState(true);
   const [files, setFiles] = useState(true);
   const [threshold, setThreshold] = useState('5000');
+  const [approvalThreshold, setApprovalThreshold] = useState('5000');
+  const [silenceDays, setSilenceDays] = useState('3');
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,18 +45,29 @@ export function SettingsPage() {
     setFeeLabel(q.data.showBeforeFeeLabel);
     setFiles(q.data.ownersSeeInvoiceFiles);
     setThreshold(String(Math.round(q.data.largeExpenseAlertFils / 100)));
+    setApprovalThreshold(String(Math.round(q.data.repairApprovalThresholdFils / 100)));
+    setSilenceDays(String(q.data.repairApprovalSilenceDays));
   }, [q.data]);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const aed = Number(threshold.replace(/[^0-9.]/g, ''));
   const valid = Number.isFinite(aed) && aed >= 0;
+  const approvalAed = Number(approvalThreshold.replace(/[^0-9.]/g, ''));
+  const approvalValid =
+    approvalThreshold.trim() !== '' && Number.isFinite(approvalAed) && approvalAed >= 0;
+  // Whole days, 0 to 60: the range the API accepts.
+  const days = /^\d{1,2}$/.test(silenceDays.trim()) ? Number(silenceDays.trim()) : NaN;
+  const daysValid = Number.isInteger(days) && days >= 0 && days <= 60;
+  const allValid = valid && approvalValid && daysValid;
   const dirty =
     !!q.data &&
     (weekStart !== q.data.weekStart ||
       hijri !== q.data.hijriDisplay ||
       feeLabel !== q.data.showBeforeFeeLabel ||
       files !== q.data.ownersSeeInvoiceFiles ||
-      Math.round(aed * 100) !== q.data.largeExpenseAlertFils);
+      Math.round(aed * 100) !== q.data.largeExpenseAlertFils ||
+      Math.round(approvalAed * 100) !== q.data.repairApprovalThresholdFils ||
+      days !== q.data.repairApprovalSilenceDays);
 
   async function submit() {
     setNotice(null);
@@ -59,6 +77,8 @@ export function SettingsPage() {
       showBeforeFeeLabel: feeLabel,
       ownersSeeInvoiceFiles: files,
       largeExpenseAlertFils: Math.round(aed * 100),
+      repairApprovalThresholdFils: Math.round(approvalAed * 100),
+      repairApprovalSilenceDays: days,
     });
     setNotice(t('settings_saved'));
   }
@@ -129,13 +149,49 @@ export function SettingsPage() {
               className="w-56"
             />
           </Field>
+          <Field
+            label={ap.t('settings_threshold')}
+            hint={ap.t('settings_threshold_hint')}
+            required
+            error={approvalValid ? undefined : lib('error_generic')}
+          >
+            <Input
+              value={approvalThreshold}
+              onChange={(e) => {
+                setApprovalThreshold(e.target.value);
+              }}
+              numeric
+              inputMode="decimal"
+              disabled={!canEdit}
+              invalid={!approvalValid}
+              className="w-56"
+            />
+          </Field>
+          <Field
+            label={ap.t('settings_silence')}
+            hint={ap.t('settings_silence_hint')}
+            required
+            error={daysValid ? undefined : lib('error_generic')}
+          >
+            <Input
+              value={silenceDays}
+              onChange={(e) => {
+                setSilenceDays(e.target.value);
+              }}
+              numeric
+              inputMode="numeric"
+              disabled={!canEdit}
+              invalid={!daysValid}
+              className="w-56"
+            />
+          </Field>
           {save.isError ? <p className="text-[13px] text-danger">{t('error_generic')}</p> : null}
           {canEdit ? (
             <div>
               <Button
                 // A refused save shows its message from save.isError.
                 onClick={() => void submit().catch(() => undefined)}
-                disabled={!dirty || !valid}
+                disabled={!dirty || !allValid}
                 loading={save.isPending}
               >
                 {t('save')}

@@ -43,6 +43,37 @@ describe('SettingsPage', () => {
       showBeforeFeeLabel: true,
       ownersSeeInvoiceFiles: true,
       largeExpenseAlertFils: 750_000,
+      repairApprovalThresholdFils: 500_000,
+      repairApprovalSilenceDays: 3,
+    });
+  });
+
+  it('sets the owner approval threshold and the silent approval days (0 turns it off)', async () => {
+    const { api, user } = await renderV2('/settings', {
+      routes: {
+        'GET /api/staff/settings': settings(),
+        'PATCH /api/staff/settings': (c: ApiCall) => settings(c.body as object),
+      },
+    });
+    const threshold = await screen.findByRole('textbox', { name: /Owner approval threshold/ });
+    expect(threshold).toHaveProperty('value', '5000');
+    const days = screen.getByRole('textbox', { name: /Silent approval after/ });
+    expect(days).toHaveProperty('value', '3');
+    expect(screen.getByText(/0 turns this off/)).toBeTruthy();
+    const save = screen.getByRole('button', { name: 'Save' });
+    // More than 60 days is refused before it reaches the API.
+    await user.clear(days);
+    await user.type(days, '61');
+    expect(save).toHaveProperty('disabled', true);
+    await user.clear(days);
+    await user.type(days, '0');
+    await user.clear(threshold);
+    await user.type(threshold, '10000');
+    await user.click(save);
+    expect(await screen.findByText('Settings saved.')).toBeTruthy();
+    expect(api.last('PATCH', '/api/staff/settings').body).toMatchObject({
+      repairApprovalThresholdFils: 1_000_000,
+      repairApprovalSilenceDays: 0,
     });
   });
 
@@ -55,6 +86,14 @@ describe('SettingsPage', () => {
     expect(await screen.findByRole('heading', { name: 'الإعدادات' })).toBeTruthy();
     expect(screen.getByText('المدير وحده يستطيع تغيير هذا.')).toBeTruthy();
     expect(screen.getByRole('combobox', { name: /يبدأ الأسبوع/ })).toHaveProperty('disabled', true);
+    expect(screen.getByRole('textbox', { name: /حد موافقة الملاك/ })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    expect(screen.getByRole('textbox', { name: /الموافقة عند عدم الرد/ })).toHaveProperty(
+      'value',
+      '3',
+    );
     expect(screen.queryByRole('button', { name: 'حفظ' })).toBeNull();
   });
 

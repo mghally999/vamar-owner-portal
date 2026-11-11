@@ -69,10 +69,12 @@ describe('Root layout', () => {
       'Calendar',
       'Maintenance',
       'Maintenance job',
+      'Approval requests',
+      'Approval request',
     ])
       expect(screen.getByRole('header', { name: title })).toBeTruthy();
     const backs = screen.getAllByRole('button', { name: 'Back' });
-    expect(backs).toHaveLength(8);
+    expect(backs).toHaveLength(10);
     await fireEvent.press(backs[0]!);
     expect(router.back).toHaveBeenCalledTimes(1);
   });

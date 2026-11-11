@@ -86,6 +86,38 @@ describe('TodayPanel', () => {
     expect(within(panel).queryByText('Nothing needs action today.')).toBeNull();
   });
 
+  it('counts jobs awaiting owner approval, with rejections and silent approvals, linking to the filter', async () => {
+    await renderApp('/', {
+      routes: routes({
+        'GET /api/staff/today': staffToday({
+          ownerApprovals: { workOrders: 2, expenses: 1, rejected: 1, silentLast7Days: 2 },
+        }),
+      }),
+    });
+    const panel = await screen.findByRole('region', { name: 'Today' });
+    const approvals = await within(panel).findByRole('link', { name: /Awaiting owner approval/ });
+    expect(within(approvals).getByText('3')).toBeTruthy();
+    expect(
+      within(approvals).getByText(
+        '1 of them expenses · 1 rejected · 2 approved by silence in 7 days',
+      ),
+    ).toBeTruthy();
+    expect(target(approvals)).toEqual({ path: '/work-orders', search: { approval: 'awaiting' } });
+    cleanup();
+    // Only drafts waiting: the tile opens the expenses list instead.
+    await renderApp('/', {
+      lang: 'ar',
+      routes: routes({
+        'GET /api/staff/today': staffToday({
+          ownerApprovals: { workOrders: 0, expenses: 2, rejected: 0, silentLast7Days: 0 },
+        }),
+      }),
+    });
+    const ar = await screen.findByRole('region', { name: 'اليوم' });
+    const arTile = await within(ar).findByRole('link', { name: /بانتظار موافقة الملاك/ });
+    expect(target(arTile)).toEqual({ path: '/expenses', search: { approval: 'awaiting' } });
+  });
+
   it('says so when nothing needs action, and offers a retry when the request fails', async () => {
     let fail = true;
     const { api, user } = await renderApp('/', {

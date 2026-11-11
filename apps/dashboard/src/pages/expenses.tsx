@@ -33,6 +33,11 @@ import {
 } from '@/ui/primitives';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
+import {
+  ApprovalStateChip,
+  AwaitingApprovalToggle,
+  useAwaitingApprovalFilter,
+} from '@/v2/approvals-panel';
 
 const expenseChip: Record<ExpenseStatus, string> = {
   draft: 'bg-status-upcoming-bg text-status-upcoming',
@@ -92,9 +97,12 @@ export function ExpensesPage() {
   const building = useBuilding(buildingId);
   const categories = useCategories();
   const vendors = useVendors();
+  const [awaiting, toggleAwaiting] = useAwaitingApprovalFilter();
 
   const filters = {
-    ...period.query,
+    // Drafts waiting for the owners are shown whatever their invoice date.
+    ...(awaiting ? {} : period.query),
+    approval: awaiting ? 'awaiting' : undefined,
     buildingId: buildingId || undefined,
     unitId: unitId || undefined,
     categoryId: categoryId || undefined,
@@ -260,6 +268,7 @@ export function ExpensesPage() {
           aria-label={t('search')}
           className="w-64"
         />
+        <AwaitingApprovalToggle on={awaiting} onToggle={toggleAwaiting} />
       </div>
 
       {totals ? (
@@ -333,7 +342,14 @@ export function ExpensesPage() {
                       ) : null}
                     </td>
                     <td className="px-4 py-3">
-                      <ExpenseStatusChip status={e.status} />
+                      <span className="flex flex-wrap gap-1">
+                        <ExpenseStatusChip status={e.status} />
+                        {e.approvalState === 'pending' ||
+                        e.approvalState === 'rejected' ||
+                        e.approvalState === 'overridden' ? (
+                          <ApprovalStateChip state={e.approvalState} />
+                        ) : null}
+                      </span>
                     </td>
                   </tr>
                 ))}

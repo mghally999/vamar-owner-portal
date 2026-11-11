@@ -272,6 +272,36 @@ export function useSaveWorkOrder() {
   });
 }
 
+/**
+ * Admin: let a work order start (or an expense be posted) over pending or rejected owner answers.
+ * The reason is required by the API and kept in the audit log.
+ */
+export function useOverrideApprovals() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      kind,
+      id,
+      reason,
+    }: {
+      kind: 'work_order' | 'expense';
+      id: string;
+      reason: string;
+    }) =>
+      request<{ items: unknown[] }>(
+        `/api/staff/${kind === 'work_order' ? 'work-orders' : 'expenses'}/${id}/approvals/override`,
+        { method: 'POST', body: JSON.stringify({ reason }) },
+      ),
+    onSuccess: () => {
+      // An expense can show its job's answers and the job its expense: refresh both sides.
+      void qc.invalidateQueries({ queryKey: ['work-orders'] });
+      void qc.invalidateQueries({ queryKey: ['work-order'] });
+      void qc.invalidateQueries({ queryKey: ['expenses'] });
+      void qc.invalidateQueries({ queryKey: ['expense'] });
+    },
+  });
+}
+
 export function useReportSummary(filters: QueryParams, enabled = true) {
   return useQuery({
     queryKey: v2keys.report(filters),

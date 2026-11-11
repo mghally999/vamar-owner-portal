@@ -16,6 +16,8 @@ export const settings = (s: Partial<Settings> = {}): Settings => ({
   showBeforeFeeLabel: true,
   largeExpenseAlertFils: 500_000,
   ownersSeeInvoiceFiles: true,
+  repairApprovalThresholdFils: 500_000,
+  repairApprovalSilenceDays: 3,
   ...s,
 });
 

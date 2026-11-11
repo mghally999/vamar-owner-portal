@@ -17,6 +17,7 @@ import type { AppEnv } from '../env.js';
 import { ApiError, notFound } from '../errors.js';
 import { log } from '../util/log.js';
 import { withTimeout } from '../util/outbound.js';
+import { approvalAttachmentInOwnerScope } from './approvals.js';
 import { audit, type AuditActor } from './audit.js';
 import { disputeInOwnerScope } from './owner-scope.js';
 import { expenseAttachmentInOwnerScope } from './expenses.js';
@@ -191,6 +192,10 @@ export async function getAttachmentForOwner(
   } else if (row.entityType === 'work_order') {
     allowed = await workOrderAttachmentInOwnerScope(db, ownerId, row.entityId);
   }
+  // An owner asked to approve a repair may open its photos and quote to decide, even while the
+  // expense is still a draft that owners otherwise never see.
+  if (!allowed && (row.entityType === 'expense' || row.entityType === 'work_order'))
+    allowed = await approvalAttachmentInOwnerScope(db, ownerId, row.entityType, row.entityId);
   if (!allowed) throw notFound('Attachment');
   return row;
 }

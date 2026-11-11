@@ -7,6 +7,7 @@ import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useWorkOrder } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { WorkOrderApprovalCard } from '@/ui/approval-link';
 import {
   Card,
   Chip,
@@ -61,6 +62,8 @@ export default function WorkOrderDetailScreen() {
           </>
         )}
       </View>
+
+      {id ? <WorkOrderApprovalCard workOrderId={id} /> : null}
 
       {!w ? (
         <Skeleton height={160} radius={12} />

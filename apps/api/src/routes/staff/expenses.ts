@@ -11,6 +11,7 @@ import {
   createVendorSchema,
   expenseListQuerySchema,
   filsSchema,
+  overrideApprovalsSchema,
   updateExpenseCategorySchema,
   updateExpenseSchema,
   updateRecurringRuleSchema,
@@ -20,6 +21,13 @@ import {
 import { staffOf } from '../../auth/middleware.js';
 import { readDb, withTx } from '../../db.js';
 import type { AppEnv } from '../../env.js';
+import { queueApprovalRequests } from '../../services/approval-notifications.js';
+import {
+  assertApprovalsAllow,
+  overrideApprovals,
+  requestApprovals,
+  staffApprovals,
+} from '../../services/approvals.js';
 import { actorFromContext } from '../../services/audit.js';
 import {
   createCategory,
@@ -149,7 +157,21 @@ export const expensesRoutes = new Hono<AppEnv>()
   )
   .post('/expenses', editor, zValidator('json', createExpenseSchema), async (c) => {
     const input = c.req.valid('json');
-    const row = await withTx(c, (tx) => createExpense(tx, actorFromContext(c, staffOf(c)), input));
+    const settings = await getSettings(readDb(c));
+    // A variable draft at or above the approval threshold asks its owners in the same transaction.
+    const { row, asked } = await withTx(c, async (tx) => {
+      const actor = actorFromContext(c, staffOf(c));
+      const created = await createExpense(tx, actor, input);
+      const ids = await requestApprovals(
+        tx,
+        actor,
+        { expenseId: created.id },
+        settings.repairApprovalThresholdFils,
+        today(c.env),
+      );
+      return { row: created, asked: ids };
+    });
+    if (asked.length) c.executionCtx.waitUntil(queueApprovalRequests(c.env, asked));
     const warnings = await expenseWarnings(readDb(c), {
       vendorId: row.vendorId,
       invoiceNo: row.invoiceNo,
@@ -160,21 +182,37 @@ export const expensesRoutes = new Hono<AppEnv>()
     });
     return c.json({ ...row, warnings }, 201);
   })
-  .get('/expenses/:id', viewer, idParam, async (c) =>
-    c.json(await getExpenseDetail(readDb(c), c.req.valid('param').id)),
-  )
-  .patch('/expenses/:id', editor, idParam, zValidator('json', updateExpenseSchema), async (c) =>
-    c.json(
-      await withTx(c, (tx) =>
-        updateExpense(
-          tx,
-          actorFromContext(c, staffOf(c)),
-          c.req.valid('param').id,
-          c.req.valid('json'),
-        ),
-      ),
-    ),
-  )
+  /** The expense with each owner's answer when it (or the job it pays for) needed approval. */
+  .get('/expenses/:id', viewer, idParam, async (c) => {
+    const db = readDb(c);
+    const id = c.req.valid('param').id;
+    const [detail, settings] = await Promise.all([getExpenseDetail(db, id), getSettings(db)]);
+    const approvals = await staffApprovals(
+      db,
+      { expenseId: id },
+      settings.repairApprovalSilenceDays,
+    );
+    return c.json({ ...detail, approvals });
+  })
+  .patch('/expenses/:id', editor, idParam, zValidator('json', updateExpenseSchema), async (c) => {
+    const settings = await getSettings(readDb(c));
+    const id = c.req.valid('param').id;
+    // A draft raised to (or above what the owners approved) asks them again.
+    const { after, asked } = await withTx(c, async (tx) => {
+      const actor = actorFromContext(c, staffOf(c));
+      const updated = await updateExpense(tx, actor, id, c.req.valid('json'));
+      const ids = await requestApprovals(
+        tx,
+        actor,
+        { expenseId: id },
+        settings.repairApprovalThresholdFils,
+        today(c.env),
+      );
+      return { after: updated, asked: ids };
+    });
+    if (asked.length) c.executionCtx.waitUntil(queueApprovalRequests(c.env, asked));
+    return c.json(after);
+  })
   .delete('/expenses/:id', editor, idParam, async (c) =>
     c.json(
       await withTx(c, (tx) =>
@@ -184,17 +222,34 @@ export const expensesRoutes = new Hono<AppEnv>()
   )
   .post('/expenses/:id/post', editor, idParam, async (c) => {
     const settings = await getSettings(readDb(c));
-    const result = await withTx(c, (tx) =>
-      postExpense(
-        tx,
-        actorFromContext(c, staffOf(c)),
-        c.req.valid('param').id,
-        settings.largeExpenseAlertFils,
-      ),
-    );
+    const id = c.req.valid('param').id;
+    const result = await withTx(c, async (tx) => {
+      // Not while an owner's answer is pending or rejected (409 approval_required).
+      await assertApprovalsAllow(tx, { expenseId: id });
+      return postExpense(tx, actorFromContext(c, staffOf(c)), id, settings.largeExpenseAlertFils);
+    });
     if (result.large) c.executionCtx.waitUntil(queueLargeExpenseAlert(c.env, result.expense.id));
     return c.json(result);
   })
+  /** Admin: post over pending or rejected owner answers, with a reason for the audit log. */
+  .post(
+    '/expenses/:id/approvals/override',
+    admin,
+    idParam,
+    zValidator('json', overrideApprovalsSchema),
+    async (c) => {
+      const id = c.req.valid('param').id;
+      const items = await withTx(c, (tx) =>
+        overrideApprovals(
+          tx,
+          actorFromContext(c, staffOf(c)),
+          { expenseId: id },
+          c.req.valid('json').reason,
+        ),
+      );
+      return c.json({ items });
+    },
+  )
   .post(
     '/expenses/:id/void',
     admin,

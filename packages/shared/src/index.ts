@@ -14,3 +14,4 @@ export * from './i18n/notifications.js';
 export * from './i18n/labels.js';
 export * from './schemas/index.js';
 export * from './bank-statement.js';
+export * from './approvals.js';

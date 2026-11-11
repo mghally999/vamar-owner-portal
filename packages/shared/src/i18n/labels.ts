@@ -17,6 +17,7 @@ import type {
   WorkOrderStatus,
 } from '../expenses.js';
 import type { CalendarEventType, CalendarItemKind } from '../calendar.js';
+import type { ApprovalState, RepairApprovalStatus } from '../approvals.js';
 
 type Labels<K extends string> = Record<K, Record<Lang, string>>;
 
@@ -142,6 +143,22 @@ export const CALENDAR_ITEM_KIND_LABEL: Labels<CalendarItemKind> = {
   work_order: { ar: 'صيانة', en: 'Maintenance' },
   holiday: { ar: 'عطلة', en: 'Holiday' },
   event: { ar: 'موعد', en: 'Event' },
+};
+
+export const REPAIR_APPROVAL_STATUS_LABEL: Labels<RepairApprovalStatus> = {
+  pending: { ar: 'بانتظار الرد', en: 'Awaiting answer' },
+  approved: { ar: 'موافق', en: 'Approved' },
+  rejected: { ar: 'مرفوض', en: 'Rejected' },
+  approved_by_silence: { ar: 'موافقة بعدم الرد', en: 'Approved by silence' },
+};
+
+/** The one-word state of a job's approvals (see approvalState). */
+export const APPROVAL_STATE_LABEL: Labels<ApprovalState> = {
+  none: { ar: 'لا يحتاج موافقة', en: 'No approval needed' },
+  pending: { ar: 'بانتظار موافقة الملاك', en: 'Awaiting owner approval' },
+  rejected: { ar: 'رفضه مالك', en: 'Rejected by an owner' },
+  approved: { ar: 'وافق الملاك', en: 'Approved by the owners' },
+  overridden: { ar: 'تجاوز المدير الموافقة', en: 'Approval overridden by admin' },
 };
 
 /** Net amounts carry this when the setting is on; Vamar's commission itself is never shown. */

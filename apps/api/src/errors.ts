@@ -17,7 +17,8 @@ export type ErrorCode =
   | 'invalid_transition'
   | 'shares_invalid'
   | 'grid_incomplete'
-  | 'total_mismatch_needs_reason';
+  | 'total_mismatch_needs_reason'
+  | 'approval_required';
 
 export class ApiError extends HTTPException {
   constructor(

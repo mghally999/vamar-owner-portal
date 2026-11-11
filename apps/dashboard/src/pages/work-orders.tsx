@@ -30,6 +30,11 @@ import {
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { Page } from '@/ui/shell';
+import {
+  ApprovalStateChip,
+  AwaitingApprovalToggle,
+  useAwaitingApprovalFilter,
+} from '@/v2/approvals-panel';
 
 const statusChip: Record<WorkOrderStatus, string> = {
   open: 'bg-status-deposited-bg text-status-deposited',
@@ -80,6 +85,7 @@ export function WorkOrdersPage() {
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
   const url = useSearch({ strict: false }) as { overdue?: unknown };
   const overdue = String(url.overdue) === '1';
+  const [awaiting, toggleAwaiting] = useAwaitingApprovalFilter();
   const dropSearch = useDropSearch();
   const buildings = useBuildings();
   const q = useWorkOrders({
@@ -88,6 +94,7 @@ export function WorkOrdersPage() {
     priority: priority || undefined,
     search: search || undefined,
     overdue: overdue ? '1' : undefined,
+    approval: awaiting ? 'awaiting' : undefined,
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
 
@@ -185,6 +192,7 @@ export function WorkOrdersPage() {
           aria-label={t('search')}
           className="w-64"
         />
+        <AwaitingApprovalToggle on={awaiting} onToggle={toggleAwaiting} />
         {overdue ? (
           <FilterChip
             label={t('filter_overdue')}
@@ -246,7 +254,10 @@ export function WorkOrdersPage() {
                     <Money fils={w.expenseStatus === 'posted' ? w.expenseTotalFils : null} />
                   </td>
                   <td className="px-4 py-3">
-                    <WorkOrderStatusChip status={w.status} />
+                    <span className="flex flex-wrap gap-1">
+                      <WorkOrderStatusChip status={w.status} />
+                      {showsApproval(w) ? <ApprovalStateChip state={w.approvalState} /> : null}
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -267,6 +278,15 @@ export function WorkOrdersPage() {
         </Card>
       )}
     </Page>
+  );
+}
+
+/** A chip only where the owners' answers matter to staff; "approved" needs no attention. */
+function showsApproval(w: Pick<WorkOrderRow, 'approvalState'>): boolean {
+  return (
+    w.approvalState === 'pending' ||
+    w.approvalState === 'rejected' ||
+    w.approvalState === 'overridden'
   );
 }
 
@@ -297,6 +317,11 @@ function Board({ rows }: { rows: WorkOrderRow[] }) {
                     {pick(w.buildingNameAr, w.buildingNameEn)}
                     {w.unitNo ? ` · ${w.unitNo}` : ''}
                   </p>
+                  {showsApproval(w) ? (
+                    <div className="mt-2">
+                      <ApprovalStateChip state={w.approvalState} />
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex items-center justify-between gap-2">
                     <PriorityChip priority={w.priority} />
                     <span className="text-[13px] text-ink-soft tnum">

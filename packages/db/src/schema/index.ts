@@ -6,6 +6,7 @@ export * from './contracts.js';
 export * from './disputes.js';
 export * from './expenses.js';
 export * from './work-orders.js';
+export * from './approvals.js';
 export * from './calendar.js';
 export * from './system.js';
 export * from './relations.js';

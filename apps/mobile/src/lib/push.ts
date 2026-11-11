@@ -10,7 +10,8 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { request } from './api';
-import { routeForNotification, type PushHref } from './push-routes';
+import { routeWithApprovals } from './approval-push';
+import type { PushHref } from './push-routes';
 import { deviceId, getItem, setItem } from './storage';
 
 export { routeForNotification } from './push-routes';
@@ -96,9 +97,9 @@ export function usePushNavigation(navigate: (href: PushHref) => void, enabled: b
   useEffect(() => {
     if (!enabled) return;
     const launched = Notifications.getLastNotificationResponse();
-    if (launched) navigate(routeForNotification(launched.notification.request.content.data));
+    if (launched) navigate(routeWithApprovals(launched.notification.request.content.data));
     const sub = Notifications.addNotificationResponseReceivedListener((response) => {
-      navigate(routeForNotification(response.notification.request.content.data));
+      navigate(routeWithApprovals(response.notification.request.content.data));
     });
     return () => {
       sub.remove();

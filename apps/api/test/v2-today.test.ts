@@ -121,6 +121,8 @@ describe('GET /api/staff/today', () => {
       overdueWorkOrders: { count: 1, oldestScheduledFor: '2026-10-02' },
       expenseDrafts: { count: 0, totalFils: 0, oldestInvoiceDate: null, newestInvoiceDate: null },
       contractsEnding: { count: 1, from: '2026-10-07', to: '2026-11-06' },
+      // The seeded fire inspection waits for the Al Noor owner.
+      ownerApprovals: { workOrders: 1, expenses: 0, rejected: 0, silentLast7Days: 0 },
     });
     const e = await expected();
     expect(t).toMatchObject({

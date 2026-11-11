@@ -16,6 +16,8 @@ describe('app settings', () => {
       { key: 'show_before_fee_label', value: false },
       { key: 'large_expense_alert_fils', value: 1_000_000 },
       { key: 'owners_see_invoice_files', value: false },
+      { key: 'repair_approval_threshold_fils', value: 750_000 },
+      { key: 'repair_approval_silence_days', value: 0 },
       { key: 'unknown', value: 1 },
     ]);
     expect(s).toEqual({
@@ -24,6 +26,8 @@ describe('app settings', () => {
       showBeforeFeeLabel: false,
       largeExpenseAlertFils: 1_000_000,
       ownersSeeInvoiceFiles: false,
+      repairApprovalThresholdFils: 750_000,
+      repairApprovalSilenceDays: 0,
     });
     const bad = parseAppSettings([
       { key: 'week_start', value: 'tuesday' },
@@ -32,9 +36,14 @@ describe('app settings', () => {
       { key: 'large_expense_alert_fils', value: -5 },
       { key: 'large_expense_alert_fils', value: 1.5 },
       { key: 'owners_see_invoice_files', value: null },
+      { key: 'repair_approval_threshold_fils', value: -1 },
+      { key: 'repair_approval_silence_days', value: 2.5 },
+      { key: 'repair_approval_silence_days', value: 61 },
     ]);
     expect(bad).toEqual(APP_SETTING_DEFAULTS);
-    expect(Object.values(APP_SETTING_KEYS)).toHaveLength(5);
+    expect(APP_SETTING_DEFAULTS.repairApprovalThresholdFils).toBe(500_000);
+    expect(APP_SETTING_DEFAULTS.repairApprovalSilenceDays).toBe(3);
+    expect(Object.values(APP_SETTING_KEYS)).toHaveLength(7);
   });
   it('owners get the display settings only', () => {
     expect(Object.keys(ownerVisibleSettings(APP_SETTING_DEFAULTS))).toEqual([
