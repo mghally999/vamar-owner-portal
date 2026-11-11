@@ -104,3 +104,18 @@
   border-radius: 999px;
   flex: none;
 }
+
+/*
+ * FullCalendar hides the list view's column headers 10,000 px to the physical left. On the Arabic
+ * (right-to-left) page that side is scrollable, so the list view grew a ~9,600 px sideways
+ * scroll. Hide them by clipping in place instead; screen readers still announce them.
+ */
+.vamar-calendar .fc .fc-list-table thead {
+  position: absolute;
+  left: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
