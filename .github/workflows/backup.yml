@@ -3,7 +3,9 @@ name: Nightly database backup
 # pg_dump of the Neon database, gzipped and encrypted with age (only the offline private key can
 # read it), kept as a private workflow artifact for 35 days. When the R2 keys are set it is also
 # copied to a private R2 bucket, where backups older than 30 days are deleted. Secrets:
-#   BACKUP_DATABASE_URL   Neon connection string (read-only role is enough)
+#   PROD_DATABASE_URL_OWNER  Neon owner connection string: a complete dump needs every schema,
+#                            including the migrations journal the application role cannot read
+#   BACKUP_DATABASE_URL   used only when the owner string is not set
 #   BACKUP_AGE_RECIPIENT  age public key (age1...); the private key stays offline
 #   optional, for the R2 copy:
 #   R2_ACCOUNT_ID         Cloudflare account id (endpoint https://<id>.r2.cloudflarestorage.com)
@@ -42,7 +44,7 @@ jobs:
 
       - name: Dump, compress, encrypt
         env:
-          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL_OWNER || secrets.BACKUP_DATABASE_URL }}
           AGE_RECIPIENT: ${{ secrets.BACKUP_AGE_RECIPIENT }}
         run: |
           set -euo pipefail
