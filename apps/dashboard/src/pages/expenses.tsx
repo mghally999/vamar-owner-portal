@@ -1,16 +1,20 @@
 /**
  * Expenses list: period bar, tabs (all, drafts queue, posted), filters (building, unit, category,
  * kind, status, vendor, search), the totals of the filtered set, and a link to the recurring rules.
+ * Rows staff can act on have a checkbox; the bulk bar posts or deletes drafts and shows or hides
+ * posted expenses from the owners.
  */
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useState } from 'react';
 import {
   EXPENSE_KINDS,
   EXPENSE_STATUSES,
+  type BulkExpenseAction,
   type ExpenseKind,
   type ExpenseStatus,
 } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
+import { useExpenseBulkI18n } from '@/lib/expense-bulk-messages';
 import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -29,8 +33,10 @@ import {
   PageHeader,
   Select,
   SkeletonRows,
+  Toast,
   cx,
 } from '@/ui/primitives';
+import { ExpenseBulkBar, ExpenseBulkDialog, actionsFor } from '@/ui/expense-bulk';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
 import {
@@ -69,7 +75,8 @@ export function KindChip({ kind }: { kind: ExpenseKind }) {
 }
 
 export function ExpensesPage() {
-  const { t, pick, money, num } = useI18n();
+  const { t, pick, money, num, date } = useI18n();
+  const { tb } = useExpenseBulkI18n();
   const auth = useAuth();
   const navigate = useNavigate();
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
@@ -98,6 +105,12 @@ export function ExpensesPage() {
   const categories = useCategories();
   const vendors = useVendors();
   const [awaiting, toggleAwaiting] = useAwaitingApprovalFilter();
+  // Kept with each id so the actions and the refusal names do not depend on the rows in view.
+  const [selected, setSelected] = useState<Map<string, { status: ExpenseStatus; label: string }>>(
+    new Map(),
+  );
+  const [bulkAction, setBulkAction] = useState<BulkExpenseAction | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const filters = {
     // Drafts waiting for the owners are shown whatever their invoice date.
@@ -114,6 +127,44 @@ export function ExpensesPage() {
   const q = useExpenses(filters);
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
   const totals = q.data?.pages[0]?.totals;
+
+  const canEdit = auth.hasRole('editor');
+  const isAdmin = auth.hasRole('admin');
+  // Drafts are posted or deleted by editors; showing or hiding a posted one is for admins.
+  const selectable = (e: { status: ExpenseStatus }) =>
+    (e.status === 'draft' && canEdit) || (e.status === 'posted' && isAdmin);
+  const rowLabel = (e: (typeof rows)[number]) =>
+    `${pick(e.reasonAr, e.reasonEn)} · ${date(e.invoiceDate)}`;
+  const selectableRows = rows.filter(selectable);
+  const allSelected = selectableRows.length > 0 && selectableRows.every((r) => selected.has(r.id));
+  const someSelected = selectableRows.some((r) => selected.has(r.id));
+  const toggle = (e: (typeof rows)[number]) => {
+    setSelected((s) => {
+      const n = new Map(s);
+      if (n.has(e.id)) n.delete(e.id);
+      else n.set(e.id, { status: e.status, label: rowLabel(e) });
+      return n;
+    });
+  };
+  const toggleAll = () => {
+    setSelected((s) => {
+      const n = new Map(s);
+      for (const r of selectableRows) {
+        if (allSelected) n.delete(r.id);
+        else n.set(r.id, { status: r.status, label: rowLabel(r) });
+      }
+      return n;
+    });
+  };
+  const mixed = (el: HTMLInputElement | null) => {
+    // Some but not all rows ticked shows the mixed state.
+    if (el) el.indeterminate = someSelected && !allSelected;
+  };
+  const actions = actionsFor(
+    [...selected.values()].map((v) => v.status),
+    canEdit,
+    isAdmin,
+  );
 
   return (
     <Page>
@@ -132,6 +183,17 @@ export function ExpensesPage() {
           </>
         }
       />
+      {notice ? <Toast kind="success">{notice}</Toast> : null}
+      {selected.size > 0 ? (
+        <ExpenseBulkBar
+          count={selected.size}
+          actions={actions}
+          onAction={setBulkAction}
+          onClear={() => {
+            setSelected(new Map());
+          }}
+        />
+      ) : null}
       <PeriodBar state={period} compare={false} holidays={holidays} />
       <div className="flex flex-wrap gap-1" role="tablist" aria-label={t('status')}>
         {(['all', 'draft', 'posted'] as const).map((k) => (
@@ -142,6 +204,8 @@ export function ExpensesPage() {
             aria-selected={tab === k}
             onClick={() => {
               setTab(k);
+              // A selection from another tab would act on rows no longer in view.
+              setSelected(new Map());
             }}
             className={cx(
               'h-9 rounded-md px-3 text-[14px] font-medium',
@@ -294,10 +358,37 @@ export function ExpensesPage() {
         <EmptyState title={t('expenses_empty')} />
       ) : (
         <Card className="overflow-hidden">
+          {canEdit && selectableRows.length > 0 ? (
+            // Below 768 px the table header is hidden (rows become cards), so its checkbox is too.
+            <label className="flex min-h-11 items-center gap-3 border-b border-line px-4 text-[15px] md:hidden">
+              <input
+                type="checkbox"
+                className="size-5 accent-primary"
+                checked={allSelected}
+                ref={mixed}
+                onChange={toggleAll}
+              />
+              {tb('expbulk_selectAll')}
+            </label>
+          ) : null}
           <div className="max-h-[70vh] overflow-auto">
             <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
+                  {canEdit ? (
+                    <th className="w-12 px-3 py-2">
+                      {selectableRows.length > 0 ? (
+                        <input
+                          type="checkbox"
+                          className="size-5 accent-primary"
+                          checked={allSelected}
+                          ref={mixed}
+                          onChange={toggleAll}
+                          aria-label={tb('expbulk_selectAll')}
+                        />
+                      ) : null}
+                    </th>
+                  ) : null}
                   <th className="px-4 py-2 text-start font-medium">{t('expense_invoiceDate')}</th>
                   <th className="px-4 py-2 text-start font-medium">{t('expense_category')}</th>
                   <th className="px-4 py-2 text-start font-medium">{t('expense_reason')}</th>
@@ -311,6 +402,21 @@ export function ExpensesPage() {
               <tbody>
                 {rows.map((e) => (
                   <tr key={e.id} className="row-line hover:bg-sunken last:border-b-0">
+                    {canEdit ? (
+                      <td className="px-3 py-3">
+                        {selectable(e) ? (
+                          <input
+                            type="checkbox"
+                            className="size-5 accent-primary"
+                            checked={selected.has(e.id)}
+                            onChange={() => {
+                              toggle(e);
+                            }}
+                            aria-label={tb('expbulk_selectRow', { label: rowLabel(e) })}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
                     <td className="px-4 py-3">
                       <Link
                         to="/expenses/$expenseId"
@@ -370,6 +476,30 @@ export function ExpensesPage() {
           ) : null}
         </Card>
       )}
+
+      {bulkAction ? (
+        <ExpenseBulkDialog
+          action={bulkAction}
+          ids={[...selected.keys()]}
+          labelOf={(id) => selected.get(id)?.label ?? id}
+          onClose={() => {
+            setBulkAction(null);
+          }}
+          onDone={(n) => {
+            setNotice(tb(`expbulk_done_${bulkAction}`, { n }));
+            setBulkAction(null);
+            setSelected(new Map());
+          }}
+          onDeselect={(ids) => {
+            setBulkAction(null);
+            setSelected((s) => {
+              const next = new Map(s);
+              for (const id of ids) next.delete(id);
+              return next;
+            });
+          }}
+        />
+      ) : null}
     </Page>
   );
 }

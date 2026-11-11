@@ -1428,3 +1428,39 @@ export async function expenseAttachmentInOwnerScope(
     .limit(1);
   return row !== undefined;
 }
+
+// Visibility of a posted expense --------------------------------------------------------------------
+
+/**
+ * Show or hide a posted expense from its owners. Amounts and allocations stay as posted; only
+ * what the owners see (and their totals) changes. A draft's switch is edited on the draft, and a
+ * void expense counts for no one, so both are refused. Setting the value it already has writes
+ * nothing.
+ */
+export async function setExpenseVisibility(
+  db: Dbx,
+  actor: AuditActor,
+  id: string,
+  visibleToOwner: boolean,
+  note?: string,
+): Promise<{ expense: typeof expenses.$inferSelect; changed: boolean }> {
+  const before = await db.query.expenses.findFirst({ where: eq(expenses.id, id) });
+  if (!before) throw notFound('Expense');
+  if (before.status !== 'posted')
+    throw conflict(`Expense is ${before.status}; only a posted expense is shown or hidden`);
+  if (before.visibleToOwner === visibleToOwner) return { expense: before, changed: false };
+  const [after] = await db
+    .update(expenses)
+    .set({ visibleToOwner })
+    .where(eq(expenses.id, id))
+    .returning();
+  if (!after) throw new Error('update failed');
+  await audit(db, actor, {
+    action: 'expense.visibility',
+    entityType: 'expense',
+    entityId: id,
+    before: { visibleToOwner: before.visibleToOwner },
+    after: { visibleToOwner, ...(note ? { note } : {}) },
+  });
+  return { expense: after, changed: true };
+}

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   bulkChequeStatusChangeSchema,
+  bulkExpenseActionSchema,
+  expenseVisibilitySchema,
+  MAX_BULK_EXPENSES,
   chequeStatusChangeSchema,
   createContractSchema,
   createOwnerSchema,
@@ -136,5 +139,32 @@ describe('cheque status changes', () => {
       replacement: { dueDate: '2026-11-01', amountFils: 100, chequeNo: '12', bankName: 'ENBD' },
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe('expense bulk actions', () => {
+  it('takes 1 to 200 ids and one of post, discard, show or hide, with an optional note', () => {
+    const ok = { ids: [UUID], action: 'post' };
+    expect(bulkExpenseActionSchema.safeParse(ok).success).toBe(true);
+    for (const action of ['discard', 'show', 'hide'])
+      expect(bulkExpenseActionSchema.safeParse({ ...ok, action }).success).toBe(true);
+    expect(bulkExpenseActionSchema.safeParse({ ...ok, action: 'void' }).success).toBe(false);
+    expect(bulkExpenseActionSchema.safeParse({ ...ok, ids: [] }).success).toBe(false);
+    expect(bulkExpenseActionSchema.safeParse({ ...ok, ids: ['not-a-uuid'] }).success).toBe(false);
+    expect(
+      bulkExpenseActionSchema.safeParse({ ...ok, ids: Array(MAX_BULK_EXPENSES).fill(UUID) })
+        .success,
+    ).toBe(true);
+    expect(
+      bulkExpenseActionSchema.safeParse({ ...ok, ids: Array(MAX_BULK_EXPENSES + 1).fill(UUID) })
+        .success,
+    ).toBe(false);
+    expect(bulkExpenseActionSchema.parse({ ...ok, note: '  checked  ' }).note).toBe('checked');
+    expect(bulkExpenseActionSchema.safeParse({ ...ok, note: 'x'.repeat(501) }).success).toBe(false);
+  });
+
+  it('a single visibility change needs the switch', () => {
+    expect(expenseVisibilitySchema.safeParse({ visibleToOwner: false }).success).toBe(true);
+    expect(expenseVisibilitySchema.safeParse({}).success).toBe(false);
   });
 });

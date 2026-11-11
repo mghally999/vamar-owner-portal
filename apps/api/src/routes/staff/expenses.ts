@@ -5,11 +5,13 @@ import { z } from 'zod';
 import {
   allocationPreviewSchema,
   auditReasonSchema,
+  bulkExpenseActionSchema,
   createExpenseCategorySchema,
   createExpenseSchema,
   createRecurringRuleSchema,
   createVendorSchema,
   expenseListQuerySchema,
+  expenseVisibilitySchema,
   filsSchema,
   overrideApprovalsSchema,
   updateExpenseCategorySchema,
@@ -29,6 +31,7 @@ import {
   staffApprovals,
 } from '../../services/approvals.js';
 import { actorFromContext } from '../../services/audit.js';
+import { bulkExpenseAction } from '../../services/expense-bulk.js';
 import {
   createCategory,
   createExpense,
@@ -44,6 +47,7 @@ import {
   optionalPeriod,
   postExpense,
   previewAllocation,
+  setExpenseVisibility,
   updateCategory,
   updateExpense,
   updateRule,
@@ -52,6 +56,7 @@ import {
 } from '../../services/expenses.js';
 import { queueLargeExpenseAlert } from '../../services/notifications.js';
 import { getSettings } from '../../services/settings.js';
+import { forbidden } from '../../errors.js';
 import { today } from '../../util/today.js';
 import { admin, editor, idParam, viewer } from './common.js';
 
@@ -182,6 +187,29 @@ export const expensesRoutes = new Hono<AppEnv>()
     });
     return c.json({ ...row, warnings }, 201);
   })
+  /**
+   * Post or discard many drafts, or show / hide many posted expenses, all or nothing. Each goes
+   * through the single action's function; a 422 lists every refused expense. Showing and hiding
+   * a posted expense changes the owners' totals, so it is for admins, as voiding is.
+   */
+  .post('/expenses/bulk', editor, zValidator('json', bulkExpenseActionSchema), async (c) => {
+    const p = staffOf(c);
+    const body = c.req.valid('json');
+    if ((body.action === 'show' || body.action === 'hide') && p.role !== 'admin')
+      throw forbidden('Requires admin role');
+    const settings = await getSettings(readDb(c));
+    const result = await withTx(c, (tx) =>
+      bulkExpenseAction(tx, actorFromContext(c, p), body, settings.largeExpenseAlertFils),
+    );
+    // The same push a single post sends, only after the transaction has committed.
+    for (const id of result.largeExpenseIds)
+      c.executionCtx.waitUntil(queueLargeExpenseAlert(c.env, id));
+    return c.json({
+      updated: result.updated,
+      unchanged: result.unchanged,
+      notified: result.largeExpenseIds.length,
+    });
+  })
   /** The expense with each owner's answer when it (or the job it pays for) needed approval. */
   .get('/expenses/:id', viewer, idParam, async (c) => {
     const db = readDb(c);
@@ -231,6 +259,26 @@ export const expensesRoutes = new Hono<AppEnv>()
     if (result.large) c.executionCtx.waitUntil(queueLargeExpenseAlert(c.env, result.expense.id));
     return c.json(result);
   })
+  /** Admin: show or hide one posted expense from its owners (the same function as the bulk). */
+  .post(
+    '/expenses/:id/visibility',
+    admin,
+    idParam,
+    zValidator('json', expenseVisibilitySchema),
+    async (c) => {
+      const body = c.req.valid('json');
+      const result = await withTx(c, (tx) =>
+        setExpenseVisibility(
+          tx,
+          actorFromContext(c, staffOf(c)),
+          c.req.valid('param').id,
+          body.visibleToOwner,
+          body.note,
+        ),
+      );
+      return c.json(result);
+    },
+  )
   /** Admin: post over pending or rejected owner answers, with a reason for the audit log. */
   .post(
     '/expenses/:id/approvals/override',

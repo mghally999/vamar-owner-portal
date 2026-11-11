@@ -213,6 +213,28 @@ export type UpdateExpenseInput = z.infer<typeof updateExpenseSchema>;
 
 export const voidExpenseSchema = z.object({ reason: auditReasonSchema });
 
+/**
+ * One action on many expenses at once (the expense list's bulk bar and the drafts queue). All or
+ * nothing: if any expense cannot take the action, none is changed. post and discard are for
+ * drafts; show and hide set "visible to owners" on posted expenses.
+ */
+export const MAX_BULK_EXPENSES = 200;
+export const BULK_EXPENSE_ACTIONS = ['post', 'discard', 'show', 'hide'] as const;
+export type BulkExpenseAction = (typeof BULK_EXPENSE_ACTIONS)[number];
+export const bulkExpenseActionSchema = z.object({
+  ids: z.array(uuidSchema).min(1).max(MAX_BULK_EXPENSES),
+  action: z.enum(BULK_EXPENSE_ACTIONS),
+  note: z.string().trim().max(500).optional(),
+});
+export type BulkExpenseActionInput = z.infer<typeof bulkExpenseActionSchema>;
+
+/** Show or hide one posted expense from its owners. */
+export const expenseVisibilitySchema = z.object({
+  visibleToOwner: z.boolean(),
+  note: z.string().trim().max(500).optional(),
+});
+export type ExpenseVisibilityInput = z.infer<typeof expenseVisibilitySchema>;
+
 export const expenseListQuerySchema = paginationQuerySchema
   .extend({
     buildingId: uuidSchema.optional(),
