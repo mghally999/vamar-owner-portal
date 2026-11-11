@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, View } from 'react-native';
+import { Modal, Pressable, View } from 'react-native';
 import {
   PERIOD_PRESET_LABEL,
   isPlainDate,
+  type Lang,
+  type ResolvablePreset,
   todayInDubai,
   type PlainDate,
   type WeekStart,
@@ -13,10 +15,20 @@ import { useTheme } from '@/lib/theme';
 import { Button, Row, Text } from '.';
 import { DatePickerField, YearMonthPicker } from './date-picker';
 
+/** Chip text for a quick preset: the shared label, shortened where a chip needs it. */
+export function chipLabel(
+  p: ResolvablePreset,
+  lang: Lang,
+  tr: (key: 'period_chip_next_6_months') => string,
+): string {
+  return p === 'next_6_months' ? tr('period_chip_next_6_months') : PERIOD_PRESET_LABEL[p][lang];
+}
+
 /**
  * The period switcher at the top of Home and Expenses: four quick chips and a "More" sheet with
- * last month, last year, a year, a month, or a custom range. The sheet is a bottom modal so it
- * works the same on the phone and in the web app.
+ * last month, last year, a year, a month, or a custom range. The chips wrap onto a second row
+ * instead of scrolling sideways, so This year and More are always in view on a 360 px phone. The
+ * sheet is a bottom modal so it works the same on the phone and in the web app.
  */
 export function PeriodSwitcher({
   value,
@@ -47,8 +59,10 @@ export function PeriodSwitcher({
       accessibilityState={{ selected: active }}
       onPress={onPress}
       style={{
-        height: 36,
+        minHeight: 36,
+        maxWidth: '100%',
         paddingHorizontal: 14,
+        paddingVertical: 6,
         borderRadius: 18,
         justifyContent: 'center',
         backgroundColor: active ? t.colors.primary : t.colors.bgElevated,
@@ -59,7 +73,6 @@ export function PeriodSwitcher({
       <Text
         variant="caption"
         weight="medium"
-        numberOfLines={1}
         style={{ color: active ? t.colors.onPrimary : t.colors.ink }}
       >
         {label}
@@ -87,14 +100,13 @@ export function PeriodSwitcher({
 
   return (
     <View style={{ gap: 6 }}>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
+      <View
+        testID="period-chips"
+        style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingVertical: 4 }}
       >
         {quick.map((p) =>
           chip(
-            PERIOD_PRESET_LABEL[p][lang],
+            chipLabel(p, lang, tr),
             value.kind === 'preset' && value.preset === p,
             () => {
               onChange({ kind: 'preset', preset: p });
@@ -110,7 +122,7 @@ export function PeriodSwitcher({
           },
           'more',
         )}
-      </ScrollView>
+      </View>
 
       <Modal
         visible={sheet !== null}

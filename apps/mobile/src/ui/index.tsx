@@ -133,8 +133,9 @@ export function Amount({
       </Text>
     );
   }
+  // Wraps the currency under the number when a narrow tile cannot fit both, instead of cutting.
   return (
-    <Row style={{ gap: 4, alignItems: 'baseline' }}>
+    <Row style={{ gap: 4, alignItems: 'baseline', flexWrap: 'wrap' }}>
       <Text
         variant={size}
         weight={weight}

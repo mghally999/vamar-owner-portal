@@ -14,6 +14,8 @@ export const router = {
 
 export const routeState = {
   params: {} as Record<string, string | undefined>,
+  /** The address's query when it is not the screen's own params (`useGlobalSearchParams`). */
+  globalParams: {} as Record<string, string | undefined>,
   canGoBack: true,
   tabIndex: 0,
   /** Content a test puts inside each stack screen (the screens themselves are not rendered). */
@@ -32,6 +34,7 @@ export function resetRouter(): void {
   tabNavigation.emit.mockClear();
   tabNavigation.navigate.mockReset();
   routeState.params = {};
+  routeState.globalParams = {};
   routeState.canGoBack = true;
   routeState.tabIndex = 0;
   routeState.content = null;
@@ -137,4 +140,5 @@ export const expoRouterMock = {
   Tabs,
   useRouter: () => router,
   useLocalSearchParams: () => routeState.params,
+  useGlobalSearchParams: () => ({ ...routeState.globalParams, ...routeState.params }),
 };

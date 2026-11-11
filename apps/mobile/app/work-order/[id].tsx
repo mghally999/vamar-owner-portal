@@ -35,7 +35,7 @@ export default function WorkOrderDetailScreen() {
         [tr('workOrder_scheduled'), w.scheduledFor ? date(w.scheduledFor) : '—'],
         [tr('workOrder_completed'), w.completedAt ? date(w.completedAt.slice(0, 10)) : '—'],
         [tr('workOrder_vendor'), w.vendorName ?? '—'],
-        [tr(`workOrder_priority_${w.priority}` as MessageKey), ''],
+        [tr('workOrder_priority'), tr(`workOrder_priorityValue_${w.priority}` as MessageKey)],
       ]
     : [];
 
@@ -66,21 +66,19 @@ export default function WorkOrderDetailScreen() {
         <Skeleton height={160} radius={12} />
       ) : (
         <Card style={{ paddingHorizontal: 16 }}>
-          {rows
-            .filter(([, v]) => v !== '' || true)
-            .map(([label, value], i) => (
-              <View key={label}>
-                {i > 0 ? <Separator /> : null}
-                <Row style={{ justifyContent: 'space-between', minHeight: 48, gap: 12 }}>
-                  <Text variant="secondary" color="soft">
-                    {label}
-                  </Text>
-                  <Text variant="secondary" weight="medium" tnum>
-                    {value}
-                  </Text>
-                </Row>
-              </View>
-            ))}
+          {rows.map(([label, value], i) => (
+            <View key={label}>
+              {i > 0 ? <Separator /> : null}
+              <Row style={{ justifyContent: 'space-between', minHeight: 48, gap: 12 }}>
+                <Text variant="secondary" color="soft">
+                  {label}
+                </Text>
+                <Text variant="secondary" weight="medium" tnum style={{ flexShrink: 1 }}>
+                  {value}
+                </Text>
+              </Row>
+            </View>
+          ))}
           {w.expenseId ? (
             <>
               <Separator />

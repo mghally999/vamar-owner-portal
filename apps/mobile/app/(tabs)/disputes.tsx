@@ -60,20 +60,19 @@ export default function DisputesScreen() {
                 {pick(d.buildingNameAr, d.buildingNameEn)} {d.unitNo}
                 {d.tenantName ? ` · ${d.tenantName}` : ''}
               </Text>
-              <Row style={{ justifyContent: 'space-between' }}>
+              {/* One line each: side by side, both halves wrapped mid-number on a phone. */}
+              <Text variant="caption" color="faint" tnum>
+                {tr('dispute_case')} {d.caseNo}
+                {d.chequeNos.length
+                  ? ` · ${tr('dispute_chequeNos', { nos: d.chequeNos.join(lang === 'ar' ? '، ' : ', ') })}`
+                  : ''}
+              </Text>
+              {d.nextHearingDate ? (
                 <Text variant="caption" color="faint" tnum>
-                  {tr('dispute_case')} {d.caseNo}
-                  {d.chequeNos.length
-                    ? ` · ${tr('dispute_chequeNos', { nos: d.chequeNos.join(lang === 'ar' ? '، ' : ', ') })}`
-                    : ''}
+                  {tr('dispute_hearing')}{' '}
+                  <DateText date={d.nextHearingDate} variant="caption" color="faint" />
                 </Text>
-                {d.nextHearingDate ? (
-                  <Text variant="caption" color="faint" tnum>
-                    {tr('dispute_hearing')}{' '}
-                    <DateText date={d.nextHearingDate} variant="caption" color="faint" />
-                  </Text>
-                ) : null}
-              </Row>
+              ) : null}
               {d.amountClaimedFils ? (
                 <Money fils={d.amountClaimedFils} variant="secondary" />
               ) : null}

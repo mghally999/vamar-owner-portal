@@ -1,4 +1,5 @@
 import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { useState } from 'react';
 import { Linking, Text } from 'react-native';
 import { formatPeriod, resolvePreset, todayInDubai } from '@vamar/shared';
 import HomeScreen from '../../../app/(tabs)/index';
@@ -15,6 +16,23 @@ let auth: AuthState | undefined;
 function AuthHandle() {
   auth = useAuth();
   return <Text>{auth.stage}</Text>;
+}
+
+/** Home under a parent that can re-render it, as the router does when the link's params change. */
+let rerenderHome: () => void = () => undefined;
+function HomeHost() {
+  const [, setN] = useState(0);
+  rerenderHome = () => {
+    setN((n) => n + 1);
+  };
+  return <HomeScreen />;
+}
+async function followLink(params: Record<string, string>) {
+  await act(async () => {
+    routeState.params = params;
+    rerenderHome();
+    await Promise.resolve();
+  });
 }
 
 function lastQuery() {
@@ -229,6 +247,36 @@ describe('Home', () => {
     await waitFor(() => {
       expect(lastQuery()).toEqual({ preset: 'last_month' });
     });
+  });
+
+  it('opens on the period of a link when the router keeps it on the address', async () => {
+    routeState.globalParams = { preset: 'this_year' };
+    await renderApp(<HomeScreen />);
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'this_year' });
+    });
+  });
+
+  it('follows a new period link while Home is open and ignores unknown presets', async () => {
+    await renderApp(<HomeHost />);
+    await screen.findByText('75,000');
+    await followLink({ preset: 'next_month' });
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'next_month' });
+    });
+    await followLink({ preset: 'custom' });
+    await followLink({ preset: 'next_decade' });
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'next_month' });
+    });
+  });
+
+  it('shows the four quick chips and More together, wrapping instead of scrolling', async () => {
+    await renderApp(<HomeScreen />);
+    const chips = screen.getByTestId('period-chips');
+    expect(chips.props.style).toMatchObject({ flexWrap: 'wrap' });
+    for (const name of ['This month', 'Next month', 'Next 6 months', 'This year', 'More'])
+      expect(screen.getByRole('button', { name })).toBeTruthy();
   });
 
   it('counts one open dispute and one job in the singular', async () => {

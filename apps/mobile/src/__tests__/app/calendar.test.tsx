@@ -236,6 +236,8 @@ describe('Maintenance', () => {
     expect(screen.getByText('2 Oct 2026')).toBeTruthy();
     expect(screen.getByText('3 Oct 2026')).toBeTruthy();
     expect(screen.getByText('Cool Breeze AC Services')).toBeTruthy();
+    // Priority is a label and value row like the others.
+    expect(screen.getByText('Priority')).toBeTruthy();
     expect(screen.getByText('Urgent')).toBeTruthy();
     expect(screen.getByText('AED 3,307.50')).toBeTruthy();
     expect(screen.getByLabelText('ac-before.jpg')).toBeTruthy();
@@ -252,5 +254,16 @@ describe('Maintenance', () => {
     });
     await renderApp(<WorkOrderDetailScreen />);
     expect(await screen.findByText('No photos yet.')).toBeTruthy();
+  });
+
+  it('shows the priority in Arabic as a label and a value', async () => {
+    routeState.params = { id: 'wo-1' };
+    mockApi({
+      'GET /api/owner/work-orders/wo-1': { body: workOrderDetail({ priority: 'low' }) },
+    });
+    await renderApp(<WorkOrderDetailScreen />, { lang: 'ar' });
+    expect(await screen.findByText('الأولوية')).toBeTruthy();
+    expect(screen.getByText('منخفضة')).toBeTruthy();
+    expect(screen.queryByText('أولوية منخفضة')).toBeNull();
   });
 });

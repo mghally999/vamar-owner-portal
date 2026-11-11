@@ -6,6 +6,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import {
   formatPeriod,
+  isPeriodPreset,
   monthPeriod,
   PERIOD_PRESET_LABEL,
   resolvePreset,
@@ -35,6 +36,34 @@ export const QUICK_PRESETS: ResolvablePreset[] = [
   'next_6_months',
   'this_year',
 ];
+
+/** The preset a link asks for (`?preset=this_year`), or null when it names none or an unknown one. */
+export function presetFromParam(value: unknown): ResolvablePreset | null {
+  const v = Array.isArray(value) ? (value as unknown[])[0] : value;
+  return isPeriodPreset(v) && v !== 'custom' ? v : null;
+}
+
+/** The preset in a URL query string (`?preset=next_month&x=1`). */
+export function presetFromSearch(search: string): ResolvablePreset | null {
+  return presetFromParam(new URLSearchParams(search).get('preset'));
+}
+
+/**
+ * The web app opened on a link with a period (a notification or a shared `/app/?preset=this_year`).
+ * The router drops the query of its index route while it starts, so the address is read here,
+ * once, when the bundle loads. Native apps have no `window.location`; their links arrive as route
+ * params instead (see Home).
+ */
+// React Native defines `window` without `location`, which the DOM types do not allow for.
+const launchLocation = (globalThis as { location?: { search?: unknown } }).location;
+const launchSearch = typeof launchLocation?.search === 'string' ? launchLocation.search : '';
+const launchPreset = presetFromSearch(launchSearch);
+
+/** The period the app starts on: the launch link's preset, else this month. */
+export function initialSelection(search = launchSearch): PeriodSelection {
+  const preset = search === launchSearch ? launchPreset : presetFromSearch(search);
+  return preset ? { kind: 'preset', preset } : DEFAULT_SELECTION;
+}
 
 export function resolveSelection(sel: PeriodSelection, today: PlainDate = todayInDubai()): Period {
   switch (sel.kind) {
@@ -78,7 +107,7 @@ interface PeriodState {
 const Ctx = createContext<PeriodState | null>(null);
 
 export function PeriodProvider({ children }: { children: ReactNode }) {
-  const [selection, setSelection] = useState<PeriodSelection>(DEFAULT_SELECTION);
+  const [selection, setSelection] = useState<PeriodSelection>(() => initialSelection());
   const value = useMemo<PeriodState>(
     () => ({
       selection,

@@ -1,11 +1,10 @@
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
-import { isPeriodPreset } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { usePeriod } from '@/lib/period';
+import { presetFromParam, usePeriod } from '@/lib/period';
 import { useMe, useSummary } from '@/lib/queries';
 import { shareStatementForPeriod } from '@/lib/statement-period';
 import { useTheme } from '@/lib/theme';
@@ -46,12 +45,15 @@ export default function HomeScreen() {
   const { t: tr, pick, isRTL, lang, num } = useI18n();
   const auth = useAuth();
   const { selection, setSelection, query, period } = usePeriod();
-  // A push notification (the monthly summary) can open Home on a period.
-  const params = useLocalSearchParams<{ preset?: string }>();
+  // A push notification (the monthly summary) or a link can open Home on a period: the route's
+  // own param, or the address's when the router keeps it at the top level. The web app's launch
+  // link is applied before the first render by the period provider.
+  const local = useLocalSearchParams<{ preset?: string }>();
+  const global = useGlobalSearchParams<{ preset?: string }>();
+  const linkPreset = presetFromParam(local.preset) ?? presetFromParam(global.preset);
   useEffect(() => {
-    if (isPeriodPreset(params.preset) && params.preset !== 'custom')
-      setSelection({ kind: 'preset', preset: params.preset });
-  }, [params.preset, setSelection]);
+    if (linkPreset) setSelection({ kind: 'preset', preset: linkPreset });
+  }, [linkPreset, setSelection]);
   const me = useMe();
   const settings = me.data?.settings;
   const q = useSummary(query);
@@ -84,11 +86,17 @@ export default function HomeScreen() {
           gap: 4,
         }}
       >
-        <Text variant="caption" color="onHeroSoft" numberOfLines={1}>
+        {/* Labels wrap rather than cut; a long amount steps down a size so it stays whole. */}
+        <Text variant="caption" color="onHeroSoft">
           {label}
         </Text>
         {d ? (
-          <Amount fils={fils ?? 0} size="body" weight="medium" color="onHero" />
+          <Amount
+            fils={fils ?? 0}
+            size={num(fils ?? 0).length > 7 ? 'secondary' : 'body'}
+            weight="medium"
+            color="onHero"
+          />
         ) : (
           <Skeleton width={60} height={20} />
         )}
@@ -160,13 +168,17 @@ export default function HomeScreen() {
                 { pathname: '/(tabs)/expenses', params: {} },
                 true,
                 d ? (
-                  <Text variant="caption" color="onHeroSoft" tnum numberOfLines={2}>
-                    {tr('home_fixed')} {num(d.expenses.fixedFils)} · {tr('home_variable')}{' '}
-                    {num(d.expenses.variableFils)}
-                    {d.expenses.projectedFixedFils > 0
-                      ? `\n${tr('home_projected')}: ${num(d.expenses.projectedFixedFils)}`
-                      : ''}
-                  </Text>
+                  <>
+                    <Text variant="caption" color="onHeroSoft" tnum>
+                      {tr('home_fixed')} {num(d.expenses.fixedFils)} · {tr('home_variable')}{' '}
+                      {num(d.expenses.variableFils)}
+                    </Text>
+                    {d.expenses.projectedFixedFils > 0 ? (
+                      <Text variant="caption" color="onHeroSoft" tnum>
+                        {tr('home_projected')}: {num(d.expenses.projectedFixedFils)}
+                      </Text>
+                    ) : null}
+                  </>
                 ) : null,
               )}
               {tile(netLabel, d ? (projected ? d.projectedNetFils : d.netFils) : undefined, {

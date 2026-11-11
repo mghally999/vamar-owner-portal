@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest';
 import type { PlainDate } from '@vamar/shared';
 import {
   DEFAULT_SELECTION,
+  initialSelection,
+  presetFromParam,
+  presetFromSearch,
   QUICK_PRESETS,
   resolveSelection,
   sameSelection,
@@ -61,5 +64,26 @@ describe('period selection', () => {
     ).toBe('5 Jan 2026 – 9 Jan 2026');
     expect(sameSelection({ kind: 'year', year: 2025 }, { kind: 'year', year: 2025 })).toBe(true);
     expect(sameSelection({ kind: 'year', year: 2025 }, { kind: 'year', year: 2024 })).toBe(false);
+  });
+});
+
+describe('period links', () => {
+  it('reads a known preset from a link and ignores the rest', () => {
+    expect(presetFromSearch('?preset=this_year')).toBe('this_year');
+    expect(presetFromSearch('?x=1&preset=next_month')).toBe('next_month');
+    expect(presetFromSearch('?preset=custom')).toBeNull();
+    expect(presetFromSearch('?preset=next_decade')).toBeNull();
+    expect(presetFromSearch('')).toBeNull();
+    expect(presetFromParam(['last_year', 'this_month'])).toBe('last_year');
+    expect(presetFromParam(undefined)).toBeNull();
+  });
+
+  it('starts on the launch link period, else this month', () => {
+    expect(initialSelection('?preset=next_6_months')).toEqual({
+      kind: 'preset',
+      preset: 'next_6_months',
+    });
+    expect(initialSelection('?preset=bogus')).toEqual(DEFAULT_SELECTION);
+    expect(initialSelection()).toEqual(DEFAULT_SELECTION);
   });
 });
