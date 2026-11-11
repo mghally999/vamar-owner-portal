@@ -57,3 +57,9 @@
   background: var(--color-bg-sunken);
   color: var(--color-ink);
 }
+
+/* The "+N more" entry of a busy day in the month and year grids: opens the day in the list. */
+.vamar-calendar .vc-more {
+  cursor: pointer;
+  font-weight: 500;
+}

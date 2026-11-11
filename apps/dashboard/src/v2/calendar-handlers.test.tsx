@@ -12,6 +12,7 @@ import { apiError } from '@/test/api';
 import { building } from '@/test/fixtures';
 import { pickOption } from '@/test/render';
 import { calendarEvent, calendarItems, holidays, settings } from './test-fixtures';
+import { capPerDay, DAY_LIMIT } from './calendar-page';
 import { renderV2 } from './test-render';
 import type { CalendarItem } from './types';
 
@@ -341,6 +342,49 @@ describe('CalendarPage handlers', () => {
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/calendar').query['ownerId']).toBe('own-1');
     });
+  });
+
+  it('keeps three items a busy day in the grids and opens the rest in the day list', async () => {
+    const day = (d: string, n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        id: `${d}-${String(i)}`,
+        title: `Item ${String(i)}`,
+        start: `${d}T${String(8 + i).padStart(2, '0')}:00:00`,
+        allDay: false,
+      }));
+    const spanning = {
+      id: 'span',
+      title: 'Contract',
+      start: '2026-10-05',
+      end: '2026-10-09',
+      allDay: true,
+    };
+    const capped = capPerDay(
+      [...day('2026-10-05', 7), ...day('2026-10-06', 2), spanning],
+      (n) => `+${String(n)} more`,
+    );
+    const on5 = capped.filter((e) => String(e.start).startsWith('2026-10-05') && e.id !== 'span');
+    expect(on5.map((e) => e.title)).toEqual([
+      'Item 0',
+      'Item 1',
+      'Item 2',
+      `+${String(7 - DAY_LIMIT)} more`,
+    ]);
+    expect(on5.at(-1)?.extendedProps).toEqual({ moreDate: '2026-10-05' });
+    expect(capped.filter((e) => String(e.start).startsWith('2026-10-06'))).toHaveLength(2);
+    expect(capped.some((e) => e.id === 'span')).toBe(true);
+    expect(capPerDay(day('2026-10-07', DAY_LIMIT), () => 'x')).toHaveLength(DAY_LIMIT);
+
+    await renderV2('/calendar', { routes: routes() });
+    await screen.findByRole('heading', { name: 'October 2026' });
+    act(() => {
+      (fc.props['eventClick'] as (a: unknown) => void)({
+        jsEvent: { preventDefault: vi.fn() },
+        event: { extendedProps: { moreDate: '2026-10-05' } },
+      });
+    });
+    expect(fc.api.changeView).toHaveBeenLastCalledWith('listDay', '2026-10-05');
+    expect(screen.queryByRole('region')).toBeNull();
   });
 
   it('closes the side panel, and opens the editor of a clicked manual event', async () => {

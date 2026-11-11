@@ -58,7 +58,7 @@ import {
 import { DateWarning, RouteLink } from './shared';
 import { DatePicker } from '@/ui/date-picker';
 
-type View = 'multiMonthYear' | 'dayGridMonth' | 'timeGridWeek' | 'listMonth';
+type View = 'multiMonthYear' | 'dayGridMonth' | 'timeGridWeek' | 'listMonth' | 'listDay';
 
 const VIEWS: {
   id: View;
@@ -120,6 +120,58 @@ function addDaysIso(date: PlainDate, days: number): PlainDate {
   return iso(next);
 }
 
+/** Items drawn per day in the month and year grids. */
+export const DAY_LIMIT = 3;
+
+/**
+ * In the month and year grids a busy day keeps its first `DAY_LIMIT` items and gets one "+N more"
+ * entry that opens the day in the list. Given every item, FullCalendar builds and measures each
+ * hidden one to count them (2,000 items in a month froze the page for 1.5 s). Items spanning
+ * several days are always kept; the week and list views get every item.
+ */
+export function capPerDay(events: EventInput[], moreTitle: (n: number) => string): EventInput[] {
+  const out: EventInput[] = [];
+  const byDay = new Map<PlainDate, EventInput[]>();
+  for (const e of events) {
+    const day = String(e.start).slice(0, 10) as PlainDate;
+    const spans = e.end !== undefined && String(e.end).slice(0, 10) > addDaysIso(day, 1);
+    if (spans) {
+      out.push(e);
+      continue;
+    }
+    const list = byDay.get(day);
+    if (list) list.push(e);
+    else byDay.set(day, [e]);
+  }
+  for (const [day, list] of byDay) {
+    if (list.length <= DAY_LIMIT) {
+      out.push(...list);
+      continue;
+    }
+    list.sort((a, b) =>
+      String(a.start) === String(b.start)
+        ? String(a.title).localeCompare(String(b.title))
+        : String(a.start) < String(b.start)
+          ? -1
+          : 1,
+    );
+    out.push(...list.slice(0, DAY_LIMIT), {
+      id: `more-${day}`,
+      title: moreTitle(list.length - DAY_LIMIT),
+      start: day,
+      end: addDaysIso(day, 1),
+      allDay: true,
+      editable: false,
+      classNames: ['vc-more'],
+      backgroundColor: 'transparent',
+      borderColor: 'transparent',
+      textColor: 'var(--color-ink-soft)',
+      extendedProps: { moreDate: day },
+    });
+  }
+  return out;
+}
+
 /** FullCalendar event records built from the API items; memoised per fetch. */
 function toEvents(items: CalendarItem[], lang: 'ar' | 'en'): EventInput[] {
   return items.map((i) => {
@@ -179,7 +231,12 @@ export function CalendarPage() {
   const firstDay = weekStart === 'sunday' ? 0 : weekStart === 'saturday' ? 6 : 1;
 
   const items = q.data ?? [];
-  const events = useMemo(() => toEvents(items, lang), [items, lang]);
+  const events = useMemo(() => {
+    const all = toEvents(items, lang);
+    return view === 'dayGridMonth' || view === 'multiMonthYear'
+      ? capPerDay(all, (n) => t('calendar_more', { n }))
+      : all;
+  }, [items, lang, view, t]);
   const eventSource = useCallback(
     (_arg: EventSourceFuncArg, ok: (events: EventInput[]) => void) => {
       ok(events);
@@ -283,13 +340,15 @@ export function CalendarPage() {
                   key={v.id}
                   type="button"
                   role="tab"
-                  aria-selected={view === v.id}
+                  aria-selected={view === v.id || (v.id === 'listMonth' && view === 'listDay')}
                   onClick={() => {
                     api()?.changeView(v.id);
                   }}
                   className={cx(
                     'h-9 rounded-sm px-3 text-[13px] font-medium',
-                    view === v.id ? 'bg-primary text-on-primary' : 'text-ink hover:bg-sunken',
+                    view === v.id || (v.id === 'listMonth' && view === 'listDay')
+                      ? 'bg-primary text-on-primary'
+                      : 'text-ink hover:bg-sunken',
                   )}
                 >
                   {t(v.key)}
@@ -372,7 +431,7 @@ export function CalendarPage() {
             direction={isRtl ? 'rtl' : 'ltr'}
             firstDay={firstDay}
             height="auto"
-            dayMaxEvents={3}
+            dayMaxEvents={DAY_LIMIT + 1}
             moreLinkContent={(arg) => t('calendar_more', { n: arg.num })}
             editable={canEdit}
             eventStartEditable={canEdit}
@@ -397,8 +456,12 @@ export function CalendarPage() {
             }}
             eventClick={(arg: EventClickArg) => {
               arg.jsEvent.preventDefault();
-              const item = (arg.event.extendedProps as { item: CalendarItem }).item;
-              setSelected(item);
+              const props = arg.event.extendedProps as { item?: CalendarItem; moreDate?: string };
+              if (props.moreDate) {
+                api()?.changeView('listDay', props.moreDate);
+                return;
+              }
+              if (props.item) setSelected(props.item);
             }}
             eventDrop={(arg: EventDropArg) => {
               const item = (arg.event.extendedProps as { item: CalendarItem }).item;
@@ -500,6 +563,7 @@ function viewTitle(arg: DatesSetArg, lang: 'ar' | 'en'): string {
   const months = lang === 'ar' ? MONTHS_AR : MONTHS_EN;
   const current = arg.view.currentStart;
   if (arg.view.type === 'multiMonthYear') return String(current.getFullYear());
+  if (arg.view.type === 'listDay') return formatDate(iso(arg.start), lang);
   if (arg.view.type === 'timeGridWeek') {
     const end = new Date(arg.end.getTime() - 86_400_000);
     return `${formatDate(iso(arg.start), lang)} – ${formatDate(iso(end), lang)}`;
