@@ -428,6 +428,21 @@ describe('reports, settings, search', () => {
       { token: viewer },
     );
     expect(week.body.period.from).toBe('2026-10-04'); // TODAY is Wednesday 7 Oct 2026
+    // So do the owner's summary and expense list, which read settings only for week presets.
+    const ownerToken = await w.ownerToken(await ownerPhoneOfUnit(unit2002.id));
+    for (const path of ['/api/owner/summary', '/api/owner/expenses']) {
+      const ownerWeek = await w.json<{ period: { from: string } | null }>(
+        `${path}?preset=this_week`,
+        { token: ownerToken },
+      );
+      expect(ownerWeek.status).toBe(200);
+      if (path === '/api/owner/summary') expect(ownerWeek.body.period?.from).toBe('2026-10-04');
+    }
+    const ownerMonth = await w.json<{ period: { from: string } }>(
+      '/api/owner/summary?preset=this_month',
+      { token: ownerToken },
+    );
+    expect(ownerMonth.body.period.from).toBe('2026-10-01');
     await w.json('/api/staff/settings', {
       method: 'PATCH',
       token: admin,

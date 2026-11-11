@@ -8,7 +8,7 @@
 // (no SMS): refuses any database that is not on this machine. Every capture is checked to be the
 // signed-in screen (never the sign-in page), and the run fails when two files are identical.
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { chromium, devices } from '@playwright/test';
 import pg from 'pg';
@@ -102,9 +102,13 @@ const browser = await chromium.launch(
 );
 const SIGN_IN = /^(Sign in|تسجيل الدخول)$/;
 const written = [];
+// SCREENSHOT_COMBOS=default-ar,white-en takes only those combinations (one browser context at a
+// time keeps memory low on small machines); the duplicate check below still covers every file.
+const combos = process.env.SCREENSHOT_COMBOS?.split(',').map((c) => c.trim());
 try {
   for (const theme of ['default', 'white']) {
     for (const lang of ['ar', 'en']) {
+      if (combos && !combos.includes(`${theme}-${lang}`)) continue;
       let session = await signIn();
       const context = await browser.newContext({
         ...devices['iPhone 13'],
@@ -166,7 +170,10 @@ try {
 // Two identical files mean a screen did not render what its name says (or did not change theme).
 const seen = new Map();
 let duplicates = 0;
-for (const file of written) {
+const all = readdirSync(out)
+  .filter((f) => f.endsWith('.png'))
+  .map((f) => resolve(out, f));
+for (const file of all) {
   const hash = createHash('sha256').update(readFileSync(file)).digest('hex');
   const other = seen.get(hash);
   if (other) {
@@ -175,4 +182,6 @@ for (const file of written) {
   } else seen.set(hash, file);
 }
 if (duplicates > 0) process.exit(1);
-console.info(`${String(written.length)} screenshots, all different`);
+console.info(
+  `${String(written.length)} screenshots taken, ${String(all.length)} in the folder, all different`,
+);

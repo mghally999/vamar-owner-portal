@@ -11,12 +11,15 @@ import {
   ownerExpenseListQuerySchema,
   ownerSummaryQuerySchema,
   paginationQuerySchema,
+  presetNeedsWeekStart,
+  DEFAULT_WEEK_START,
+  type WeekStart,
   timelineQuerySchema,
   uuidSchema,
   workOrderStatusSchema,
 } from '@vamar/shared';
 import { ownerOf, requireOwner } from '../auth/middleware.js';
-import { readDb } from '../db.js';
+import { readDb, type Dbx } from '../db.js';
 import type { AppEnv } from '../env.js';
 import { calendarItems, holidayDates } from '../services/calendar.js';
 import { optionalPeriod, ownerExpenseDetail, ownerExpenses } from '../services/expenses.js';
@@ -28,26 +31,31 @@ import { today } from '../util/today.js';
 
 const idParam = zValidator('param', z.object({ id: uuidSchema }));
 
+/** The week start from settings, read only for the week presets: one query fewer for the rest. */
+async function weekStartFor(db: Dbx, preset: string | undefined): Promise<WeekStart> {
+  return presetNeedsWeekStart(preset) ? (await getSettings(db)).weekStart : DEFAULT_WEEK_START;
+}
+
 export const ownerV2Routes = new Hono<AppEnv>()
   .use(requireOwner)
 
   /** Everything Home shows for a period, in one request. */
   .get('/summary', zValidator('query', ownerSummaryQuerySchema), async (c) => {
     const db = readDb(c);
-    const settings = await getSettings(db);
+    const q = c.req.valid('query');
     return c.json(
-      await ownerSummary(db, ownerOf(c).id, c.req.valid('query'), today(c.env), settings.weekStart),
+      await ownerSummary(db, ownerOf(c).id, q, today(c.env), await weekStartFor(db, q.preset)),
     );
   })
 
   .get('/expenses', zValidator('query', ownerExpenseListQuerySchema), async (c) => {
     const db = readDb(c);
     const q = c.req.valid('query');
-    const settings = await getSettings(db);
+    const weekStart = await weekStartFor(db, q.preset);
     return c.json(
       await ownerExpenses(db, ownerOf(c).id, {
         ...q,
-        period: optionalPeriod(q, today(c.env), settings.weekStart),
+        period: optionalPeriod(q, today(c.env), weekStart),
       }),
     );
   })

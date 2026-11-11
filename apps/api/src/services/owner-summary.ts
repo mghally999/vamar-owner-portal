@@ -228,6 +228,10 @@ export async function ownerSummary(
   // round trip (one pooled connection locally, one HTTPS request on Neon) instead of six.
   const figuresQ = db.execute(sql`
     with my_units as (${scopeUnitsSql}),
+    all_units as materialized (
+      select uo.unit_id, u.building_id from unit_ownerships uo join units u on u.id = uo.unit_id
+      where uo.owner_id = ${ownerId} and uo.to_date is null
+    ),
     rent_src as (
       select q.due_date as d, q.status, (q.amount_fils * uo.share_bp / 10000)::bigint as fils
       from cheques q
@@ -306,21 +310,26 @@ export async function ownerSummary(
       'next', (select row_to_json(n) from next_cheque n),
       'ending', coalesce((select json_agg(g order by g."endDate") from ending g), '[]'::json),
       'counts', json_build_object(
+        -- Counted unit by unit and building by building through their indexes: as plain semi-joins
+        -- the planner read every open job (12k rows, 47 ms) for an owner of 100+ units.
         -- The owner's scope for jobs (as workOrderInOwnerScope): on their units, or building-wide in
-        -- a building they own in. Counted as two disjoint parts so each uses its own index.
+        -- a building they own in; two disjoint parts.
         'open_work_orders', (
-          (select count(*)::int from work_orders w where w.visible_to_owner
-             and w.status in ('open', 'scheduled', 'in_progress')
-             and w.unit_id in (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null))
-          + (select count(*)::int from work_orders w where w.visible_to_owner
-             and w.status in ('open', 'scheduled', 'in_progress') and w.unit_id is null
-             and w.building_id in (select u.building_id from units u where u.id in
-               (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null)))),
-        'open_disputes', (select count(*)::int from ${disputes} d where d.unit_id in (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null) and d.status <> 'closed'),
+          (select coalesce(sum(x.n), 0)::int from (select distinct unit_id from all_units) o
+             cross join lateral (select count(*) as n from work_orders w
+               where w.unit_id = o.unit_id and w.status in ('open', 'scheduled', 'in_progress')
+                 and w.visible_to_owner) x)
+          + (select coalesce(sum(x.n), 0)::int from (select distinct building_id from all_units) o
+             cross join lateral (select count(*) as n from work_orders w
+               where w.building_id = o.building_id and w.unit_id is null
+                 and w.status in ('open', 'scheduled', 'in_progress') and w.visible_to_owner) x)),
+        'open_disputes', (select coalesce(sum(x.n), 0)::int from (select distinct unit_id from all_units) o
+           cross join lateral (select count(*) as n from ${disputes} d
+             where d.unit_id = o.unit_id and d.status <> 'closed') x),
         'total_units', (select count(*)::int from my_units),
-        'occupied_units', (select count(*)::int from my_units mu where exists (
+        'occupied_units', (select count(*)::int from my_units mu cross join lateral (
           select 1 from contracts c where c.unit_id = mu.unit_id and c.status = 'active'
-            and c.start_date <= ${todayDate} and c.end_date >= ${todayDate}))
+            and c.start_date <= ${todayDate} and c.end_date >= ${todayDate} limit 1) x)
       )
     ) as figures`);
 
@@ -352,7 +361,9 @@ export async function ownerSummary(
       'ownerships', coalesce((select json_agg(json_build_object(
         'unitId', uo.unit_id, 'ownerId', uo.owner_id, 'shareBp', uo.share_bp,
         'fromDate', uo.from_date, 'toDate', uo.to_date))
-        from unit_ownerships uo where uo.unit_id in (select id from su)), '[]'::json)
+        -- Unit by unit through the unit index (OFFSET 0 keeps it a per-unit lookup: as a join the
+        -- planner read all 7,800 ownership rows).
+        from su cross join lateral (select * from unit_ownerships o where o.unit_id = su.id offset 0) uo), '[]'::json)
     ) as projection`);
 
   const [figuresRaw, projectionRaw] = await Promise.all([figuresQ, projectionQ]);

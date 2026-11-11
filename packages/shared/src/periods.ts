@@ -64,6 +64,14 @@ export function weekdayOf(date: PlainDate): number {
 
 const WEEK_START_INDEX: Record<WeekStart, number> = { sunday: 0, monday: 1, saturday: 6 };
 
+/**
+ * Whether resolving this preset reads the week start: only the week presets do (a missing or
+ * unknown preset falls back to a month). Lets a request skip loading settings it would not use.
+ */
+export function presetNeedsWeekStart(preset: string | undefined): boolean {
+  return preset === 'this_week' || preset === 'last_week';
+}
+
 /** The first day of the week that contains `date`. */
 export function startOfWeek(date: PlainDate, weekStart: WeekStart = DEFAULT_WEEK_START): PlainDate {
   const offset = (weekdayOf(date) - WEEK_START_INDEX[weekStart] + 7) % 7;

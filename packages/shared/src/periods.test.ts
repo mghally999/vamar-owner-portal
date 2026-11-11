@@ -19,9 +19,27 @@ import {
   weekdayOf,
   wholeMonths,
   yearPeriod,
+  presetNeedsWeekStart,
 } from './periods.js';
 
 const D = (s: string) => s as PlainDate;
+
+describe('presetNeedsWeekStart', () => {
+  it('is true for the week presets only', () => {
+    expect(presetNeedsWeekStart('this_week')).toBe(true);
+    expect(presetNeedsWeekStart('last_week')).toBe(true);
+    for (const p of [
+      'today',
+      'this_month',
+      'this_year',
+      'next_6_months',
+      'custom',
+      'nope',
+      undefined,
+    ])
+      expect(presetNeedsWeekStart(p)).toBe(false);
+  });
+});
 
 describe('presets on an ordinary day (Monday 2 Nov 2026)', () => {
   const today = D('2026-11-02');
