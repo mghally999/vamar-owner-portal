@@ -96,6 +96,15 @@ const launchLocation = (globalThis as { location?: { search?: unknown } }).locat
 const launchSearch = typeof launchLocation?.search === 'string' ? launchLocation.search : '';
 const launchSelection = selectionFromSearch(launchSearch);
 
+/**
+ * The launch link's period when the link also asks for its statement (`statement=1`, as the
+ * monthly summary notification does), else null. Native apps get the flag as a route param.
+ */
+export function launchStatementSelection(search = launchSearch): PeriodSelection | null {
+  if (new URLSearchParams(search).get('statement') !== '1') return null;
+  return search === launchSearch ? launchSelection : selectionFromSearch(search);
+}
+
 /** The period the app starts on: the launch link's period, else this month. */
 export function initialSelection(search = launchSearch): PeriodSelection {
   const linked = search === launchSearch ? launchSelection : selectionFromSearch(search);

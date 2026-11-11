@@ -3,6 +3,7 @@ import type { PlainDate } from '@vamar/shared';
 import {
   DEFAULT_SELECTION,
   initialSelection,
+  launchStatementSelection,
   presetFromParam,
   presetFromSearch,
   QUICK_PRESETS,
@@ -91,6 +92,21 @@ describe('period links', () => {
       month: 10,
     });
     expect(initialSelection()).toEqual(DEFAULT_SELECTION);
+  });
+
+  it("offers the statement of a launch link's period only when the link asks for it", () => {
+    expect(launchStatementSelection('?from=2026-10-01&to=2026-10-31&statement=1')).toEqual({
+      kind: 'month',
+      year: 2026,
+      month: 10,
+    });
+    expect(launchStatementSelection('?preset=last_month&statement=1')).toEqual({
+      kind: 'preset',
+      preset: 'last_month',
+    });
+    expect(launchStatementSelection('?from=2026-10-01&to=2026-10-31')).toBeNull();
+    expect(launchStatementSelection('?statement=1')).toBeNull();
+    expect(launchStatementSelection()).toBeNull();
   });
 
   it('reads the period of a link: dates first, a whole month or year by name', () => {

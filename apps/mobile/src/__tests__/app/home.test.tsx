@@ -4,6 +4,7 @@ import { Linking, Text } from 'react-native';
 import { formatPeriod, resolvePreset, todayInDubai } from '@vamar/shared';
 import HomeScreen from '../../../app/(tabs)/index';
 import { useAuth, type AuthState } from '@/lib/auth';
+import * as periodLinks from '@/lib/period';
 import { mockApi, sent } from '@/test/api';
 import { cheque, expense, summary } from '@/test/fixtures';
 import { localAuth, print, sharing } from '@/test/native';
@@ -326,6 +327,21 @@ describe('Home', () => {
     await renderApp(<HomeScreen />);
     await screen.findByText('75,000');
     expect(screen.queryByTestId('statement-link')).toBeNull();
+  });
+
+  it('offers the statement when the web app opens on a link asking for it', async () => {
+    // The web router drops the flag from its params; the launch address still has it.
+    const launch = jest
+      .spyOn(periodLinks, 'launchStatementSelection')
+      .mockReturnValue({ kind: 'month', year: 2026, month: 10 });
+    try {
+      routeState.params = { from: '2026-10-01', to: '2026-10-31' };
+      await renderApp(<HomeScreen />);
+      const card = await screen.findByTestId('statement-link');
+      expect(within(card).getByRole('button', { name: 'Statement for October 2026' })).toBeTruthy();
+    } finally {
+      launch.mockRestore();
+    }
   });
 
   it('offers the statement in Arabic', async () => {

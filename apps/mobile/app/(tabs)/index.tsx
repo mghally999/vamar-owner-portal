@@ -5,7 +5,12 @@ import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { formatPeriod } from '@vamar/shared';
-import { sameSelection, selectionFromLink, usePeriod } from '@/lib/period';
+import {
+  launchStatementSelection,
+  sameSelection,
+  selectionFromLink,
+  usePeriod,
+} from '@/lib/period';
 import { useMe, useSummary } from '@/lib/queries';
 import { shareStatementForPeriod } from '@/lib/statement-period';
 import { useTheme } from '@/lib/theme';
@@ -73,10 +78,11 @@ export default function HomeScreen() {
   }, [linked, setSelection]);
   // The monthly summary push asks for its statement: offered at the top while Home still shows
   // that period, so the owner does not have to look for it at the bottom.
-  const statementLink =
-    linked !== null &&
-    (local.statement ?? global.statement) === '1' &&
-    sameSelection(selection, linked);
+  // On the web the router drops the index route's query while it starts, so the flag is read
+  // from the launch address there.
+  const statementFor =
+    (local.statement ?? global.statement) === '1' ? linked : launchStatementSelection();
+  const statementLink = statementFor !== null && sameSelection(selection, statementFor);
   const me = useMe();
   const settings = me.data?.settings;
   const q = useSummary(query);
