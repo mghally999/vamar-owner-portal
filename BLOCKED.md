@@ -3,19 +3,19 @@
 Each item says exactly what to do. Everything else keeps moving without them. The v2 features
 (expenses, calendar, records, dispute cheques) need no new account or credential.
 
-## 1. Nightly database backups never ran (AUDIT V-050)
+## 1. Nightly database backups (resolved 11 Nov 2026; R2 copy optional)
 
-The GitHub Actions workflow `.github/workflows/backup.yml` encrypts a `pg_dump` with `age` and
-uploads it to the private R2 bucket `vamar-backups`. It needs an R2 API token.
+The nightly workflow `.github/workflows/backup.yml` now works without any new account: it dumps
+production with the `postgres:17` image, compresses and encrypts it with `age`, and keeps it as a
+private workflow artifact for 35 days. First run 43005702744 (26 KB). Restore drill done the same
+day: the artifact was downloaded, decrypted with the offline key, restored into a scratch database,
+and all 31 tables matched production row for row.
 
-1. Cloudflare dashboard > R2 > **Manage R2 API Tokens** > **Create API token**.
-2. Name `vamar-backups-ci`, permission **Object Read & Write**, scope **Apply to specific buckets
-   only** > `vamar-backups`, TTL **Forever**. Create.
-3. Copy the **Access Key ID** and **Secret Access Key** (shown once).
-4. GitHub > repository `mghally999/vamar-owner-portal` > Settings > Secrets and variables >
-   Actions > **New repository secret**: `R2_ACCESS_KEY_ID`, then `R2_SECRET_ACCESS_KEY`.
-5. Actions > **Nightly database backup** > **Run workflow**. The run must finish green; the restore
-   drill in Phase C then uses that artifact.
+Optional, for a second copy outside GitHub: an R2 API token for the private bucket `vamar-backups`
+(Cloudflare dashboard > R2 > Manage R2 API Tokens > Create API token, name `vamar-backups-ci`,
+Object Read & Write, only that bucket), saved as the GitHub secrets `R2_ACCESS_KEY_ID` and
+`R2_SECRET_ACCESS_KEY`. The workflow copies to R2 as soon as they exist. Keep the age private key
+(`.local/backup-age-key.txt`) in the password manager as well: without it no backup can be read.
 
 ## 2. Firebase web API key and authorised domain (AUDIT V-041)
 

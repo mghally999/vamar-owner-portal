@@ -122,14 +122,14 @@ the toolchain; the CI job "Docker image" proves it on every push.
 - **Errors**: set the `SENTRY_DSN` Worker secret (BLOCKED.md item 3) and every server error goes
   to Sentry with personal data scrubbed; until then errors are in the logs only. Error tracking
   still needs the Sentry account.
-- **Backups**: **no backup has been taken yet.** The nightly workflow encrypts a database dump to
-  R2 once its R2 key exists (BLOCKED.md item 1); until then it fails every night. Neon keeps 24
-  hours of point-in-time history on the free plan. The restore drill script
-  (`tooling/ops/restore-drill.mjs`) makes a dump the way the workflow does, decrypts it, restores
-  it into a scratch database and compares all 19 tables. The only run so far (22 Oct 2026) dumped
-  the **staging** branch on the dev machine; it has never restored a real nightly backup. Run it
-  on the first nightly file, after any schema change and once a quarter. The decryption key is in
-  `.local/` on the dev machine only: keep a copy in the password manager.
+- **Backups**: every night at 04:30 Dubai the workflow dumps production, compresses and encrypts
+  it with `age`, and keeps it as a private workflow artifact for 35 days (Actions > Nightly
+  database backup > the run > Artifacts); with an R2 key (BLOCKED.md item 1, optional) it also
+  copies it to R2. Neon keeps 6 hours of point-in-time history on top. Restore: download the
+  artifact, then `age --decrypt -i <key file> <file>.sql.gz.age | gunzip | psql "<target url>"`.
+  Drill done on 11 Nov 2026 with run 43005702744: restored into a scratch database, all 31 tables
+  matched production. Repeat it after any schema change and once a quarter. The decryption key is
+  in `.local/` on the dev machine only: keep a copy in the password manager.
 - **Load**: the "Load comparison" workflow (Actions > Load comparison > Run) measures any commit on
   the large synthetic dataset; AUDIT.md section 9 has the numbers before and after this round.
 - **Secrets**: rotate at go-live (GOLIVE.md step 2) and when anyone with access leaves; the
