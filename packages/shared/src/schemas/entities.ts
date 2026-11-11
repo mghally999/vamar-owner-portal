@@ -3,6 +3,7 @@
  * one of these (or a schema derived from them). Output row types come from the db package.
  */
 import { z } from 'zod';
+import { MAX_BULK_CHEQUES } from '../bank-statement.js';
 import {
   auditReasonSchema,
   chequeCountSchema,
@@ -164,11 +165,30 @@ export const chequeStatusChangeSchema = z.object({
 });
 export type ChequeStatusChangeInput = z.infer<typeof chequeStatusChangeSchema>;
 
-export const bulkChequeStatusChangeSchema = z.object({
-  chequeIds: z.array(uuidSchema).min(1).max(200),
-  to: chequeStatusSchema.exclude(['replaced']),
-  note: longText.default(''),
-});
+/**
+ * One status change applied to many cheques at once (the cheque list's bulk bar and bank
+ * statement matching). All or nothing: if any cheque cannot make the move, none is changed.
+ * `date` is the bank's date for the deposit, clearance or return; a cancellation has no bank
+ * date, as with a single cancel.
+ */
+export const BULK_CHEQUE_STATUSES = ['deposited', 'cleared', 'bounced', 'cancelled'] as const;
+export const bulkChequeStatusChangeSchema = z
+  .object({
+    ids: z.array(uuidSchema).min(1).max(MAX_BULK_CHEQUES),
+    status: z.enum(BULK_CHEQUE_STATUSES),
+    date: plainDateSchema.optional(),
+    reason: z.string().trim().max(500).optional(),
+    note: z.string().trim().max(500).optional(),
+  })
+  .refine((v) => v.status === 'cancelled' || v.date !== undefined, {
+    message: 'A date is required',
+    path: ['date'],
+  })
+  .refine((v) => v.status !== 'bounced' || Boolean(v.reason), {
+    message: 'A bounce reason is required',
+    path: ['reason'],
+  });
+export type BulkChequeStatusChangeInput = z.infer<typeof bulkChequeStatusChangeSchema>;
 
 export const updateChequeSchema = z.object({
   dueDate: plainDateSchema.optional(),

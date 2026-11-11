@@ -2,23 +2,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useMemo, useRef, useState } from 'react';
-import { CHEQUE_STATUSES, type ChequeStatus } from '@vamar/shared';
+import { CHEQUE_STATUSES } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriodSearch } from '@/lib/period-search';
-import { prefetchCheque, useBuildings, useBulkChequeStatus, useCheques } from '@/lib/queries';
+import { prefetchCheque, useBuildings, useCheques } from '@/lib/queries';
 import { useHolidaySet, useSettings } from '@/lib/queries-v2';
 import { PeriodBar } from '@/ui/period-bar';
 import type { ChequeRow } from '@/lib/types';
 import { OwnerPicker } from '@/ui/owner-picker';
 import { StatusDialog } from '@/ui/status-dialog';
-import { Dialog } from '@/ui/dialog';
+import { BulkBar, BulkStatusDialog, type BulkStatus } from '@/ui/cheque-bulk';
 import {
   Button,
   Card,
   ChequeStatusChip,
-  Checkbox,
   DateText,
   EmptyState,
   ErrorState,
@@ -26,7 +25,6 @@ import {
   PageHeader,
   Select,
   SkeletonRows,
-  Textarea,
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
@@ -45,7 +43,7 @@ export function ChequesPage() {
   const [buildingId, setBuildingId] = useState('');
   const [ownerId, setOwnerId] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState<BulkStatus | null>(null);
   const [statusFor, setStatusFor] = useState<ChequeRow | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -79,24 +77,31 @@ export function ChequesPage() {
     });
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
+  const someSelected = rows.some((r) => selected.has(r.id));
+  const editor = auth.hasRole('editor');
 
   return (
     <Page>
       <PageHeader
         title={t('cheques_title')}
         actions={
-          auth.hasRole('editor') && selected.size > 0 ? (
-            <Button
-              onClick={() => {
-                setBulkOpen(true);
-              }}
-            >
-              {t('cheque_bulk')} · {t('cheque_selected', { n: selected.size })}
+          editor ? (
+            <Button variant="secondary" asChild>
+              <Link to="/cheques/bank-statement">{t('bank_link')}</Link>
             </Button>
           ) : null
         }
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
+      {editor && selected.size > 0 ? (
+        <BulkBar
+          count={selected.size}
+          onAction={setBulkStatus}
+          onClear={() => {
+            setSelected(new Set());
+          }}
+        />
+      ) : null}
       <PeriodBar state={period} compare={false} holidays={holidays} />
 
       <div className="flex flex-wrap items-center gap-3">
@@ -162,8 +167,19 @@ export function ChequesPage() {
                         type="checkbox"
                         className="size-5 accent-primary"
                         checked={allSelected}
+                        ref={(el) => {
+                          // Some but not all rows ticked shows the mixed state.
+                          if (el) el.indeterminate = someSelected && !allSelected;
+                        }}
                         onChange={() => {
-                          setSelected(allSelected ? new Set() : new Set(rows.map((r) => r.id)));
+                          setSelected((s) => {
+                            const n = new Set(s);
+                            for (const r of rows) {
+                              if (allSelected) n.delete(r.id);
+                              else n.add(r.id);
+                            }
+                            return n;
+                          });
                         }}
                         aria-label={t('all')}
                       />
@@ -283,128 +299,25 @@ export function ChequesPage() {
           }}
         />
       ) : null}
-      <BulkDialog
-        open={bulkOpen}
-        ids={[...selected]}
-        rows={rows}
-        onClose={() => {
-          setBulkOpen(false);
-        }}
-        onDone={(msg) => {
-          setBulkOpen(false);
-          setSelected(new Set());
-          setNotice(msg);
-        }}
-      />
+      {bulkStatus ? (
+        <BulkStatusDialog
+          status={bulkStatus}
+          ids={[...selected]}
+          labelOf={(id) => rows.find((r) => r.id === id)?.chequeNo ?? id}
+          onClose={() => {
+            setBulkStatus(null);
+          }}
+          onDone={(n) => {
+            setBulkStatus(null);
+            setSelected(new Set());
+            setNotice(t('cheque_bulk_done', { n }));
+          }}
+          onDeselect={(ids) => {
+            setBulkStatus(null);
+            setSelected((s) => new Set([...s].filter((id) => !ids.includes(id))));
+          }}
+        />
+      ) : null}
     </Page>
-  );
-}
-
-function BulkDialog({
-  open,
-  ids,
-  rows,
-  onClose,
-  onDone,
-}: {
-  open: boolean;
-  ids: string[];
-  rows: ChequeRow[];
-  onClose: () => void;
-  onDone: (msg: string) => void;
-}) {
-  const { t } = useI18n();
-  const bulk = useBulkChequeStatus();
-  const [to, setTo] = useState<ChequeStatus>('deposited');
-  const [note, setNote] = useState('');
-  const [failed, setFailed] = useState<{ id: string; reason: string }[] | null>(null);
-
-  async function submit() {
-    const r = await bulk.mutateAsync({ chequeIds: ids, to, note });
-    if (r.failed.length) setFailed(r.failed);
-    else onDone(t('cheque_bulk_result', { ok: r.ok.length, failed: 0 }));
-  }
-
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(o) => {
-        if (!o) onClose();
-      }}
-      title={t('cheque_bulk')}
-      description={t('cheque_selected', { n: ids.length })}
-      footer={
-        failed ? (
-          <Button
-            onClick={() => {
-              onDone(
-                t('cheque_bulk_result', { ok: ids.length - failed.length, failed: failed.length }),
-              );
-            }}
-          >
-            {t('close')}
-          </Button>
-        ) : (
-          <>
-            <Button variant="secondary" onClick={onClose}>
-              {t('cancel')}
-            </Button>
-            <Button
-              onClick={() => void submit()}
-              loading={bulk.isPending}
-              disabled={to === 'bounced' && note.trim().length === 0}
-            >
-              {t('confirm')}
-            </Button>
-          </>
-        )
-      }
-    >
-      {failed ? (
-        <div>
-          <p className="mb-2 text-[15px] font-medium">{t('cheque_bulk_failed_title')}</p>
-          <ul className="flex flex-col gap-1 text-[15px]">
-            {failed.map((f) => {
-              const row = rows.find((r) => r.id === f.id);
-              return (
-                <li key={f.id} className="row-line flex justify-between gap-3 py-2 last:border-b-0">
-                  <span className="tnum">{row?.chequeNo ?? f.id}</span>
-                  <span className="text-danger">{f.reason}</span>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <Select
-            value={to}
-            onChange={(e) => {
-              setTo(e.target.value as ChequeStatus);
-            }}
-            aria-label={t('status')}
-          >
-            {(['deposited', 'cleared', 'bounced', 'cancelled'] as ChequeStatus[]).map((s) => (
-              <option key={s} value={s}>
-                {t(`cheque_status_${s}` as MessageKey)}
-              </option>
-            ))}
-          </Select>
-          <label className="block">
-            <span className="mb-1.5 block text-[13px] font-medium text-ink-soft">
-              {to === 'bounced' ? t('cheque_bounceReason') : t('cheque_note')}
-            </span>
-            <Textarea
-              value={note}
-              onChange={(e) => {
-                setNote(e.target.value);
-              }}
-              rows={2}
-            />
-          </label>
-          <Checkbox label={t('confirm')} checked readOnly className="hidden" />
-        </div>
-      )}
-    </Dialog>
   );
 }

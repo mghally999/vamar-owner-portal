@@ -2,9 +2,10 @@ import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
+  canTransitionCheque,
   monthRange,
-  planBulkTransition,
   transitionCheque,
+  type BulkChequeStatusChangeInput,
   type ChequeStatus,
   type ChequeStatusChangeInput,
   type PlainDate,
@@ -174,8 +175,18 @@ export interface StatusChangeResult {
 }
 
 /**
+ * The instant stored for a bank date: midday in Dubai, so the date reads the same in any time
+ * zone staff or owners view it from. Today's date keeps the real time of the change.
+ */
+function bankDateInstant(date: PlainDate, now: Date, todayDate: PlainDate): Date {
+  return date === todayDate ? now : new Date(`${date}T12:00:00+04:00`);
+}
+
+/**
  * Move one cheque through the state machine. Writes the cheque_events row and the audit row in
  * the same transaction. `replaced` creates the replacement cheque here as well.
+ * `bankDate` (bulk changes and bank matching) is the day the bank deposited, cleared or returned
+ * the cheque; it is stamped on deposited_at / cleared_at / bounced_at and noted on the event.
  */
 export async function changeChequeStatus(
   db: Dbx,
@@ -183,6 +194,7 @@ export async function changeChequeStatus(
   isAdmin: boolean,
   id: string,
   input: ChequeStatusChangeInput,
+  bankDate?: { date: PlainDate; today: PlainDate },
 ): Promise<StatusChangeResult> {
   const before = await db.query.cheques.findFirst({ where: eq(cheques.id, id) });
   if (!before) throw notFound('Cheque');
@@ -215,11 +227,12 @@ export async function changeChequeStatus(
   }
 
   const now = new Date();
+  const stampAt = bankDate ? bankDateInstant(bankDate.date, now, bankDate.today) : now;
   const set: Partial<typeof cheques.$inferInsert> = { status: input.to, statusChangedAt: now };
-  if (effects.stamp === 'deposited_at') set.depositedAt = now;
-  if (effects.stamp === 'cleared_at') set.clearedAt = now;
+  if (effects.stamp === 'deposited_at') set.depositedAt = stampAt;
+  if (effects.stamp === 'cleared_at') set.clearedAt = stampAt;
   if (effects.stamp === 'bounced_at') {
-    set.bouncedAt = now;
+    set.bouncedAt = stampAt;
     set.bounceReason = input.bounceReason ?? null;
   }
   const [after] = await db.update(cheques).set(set).where(eq(cheques.id, id)).returning();
@@ -229,6 +242,7 @@ export async function changeChequeStatus(
     input.note,
     effects.overrideReason ? `Admin correction: ${effects.overrideReason}` : '',
     input.to === 'bounced' ? input.bounceReason : '',
+    bankDate ? `Bank date ${bankDate.date}` : '',
   ]
     .filter((s): s is string => Boolean(s?.trim()))
     .join(' | ');
@@ -288,23 +302,41 @@ export async function changeChequeStatus(
   return { cheque: after, replacement, notifyOwners: effects.notifyOwners };
 }
 
+export type BulkRejectionCode = 'not_found' | 'invalid_transition' | 'draft_contract' | 'no_amount';
+
+export interface BulkRejection {
+  id: string;
+  chequeNo: string | null;
+  from: ChequeStatus | null;
+  code: BulkRejectionCode;
+  reason: string;
+}
+
 export interface BulkResult {
-  ok: string[];
-  failed: { id: string; reason: string }[];
+  updated: string[];
+  /** Cheques whose owners get the bounce alert, exactly as a single bounce would send it. */
   notifyChequeIds: string[];
 }
 
-/** Bulk status update: each cheque validated on its own; partial failures reported. */
+/**
+ * One status change for many cheques, all or nothing. Every cheque is checked first against the
+ * same rules as a single change (state machine, draft contract, amount entered); if any fails,
+ * nothing is written and the error lists each refused cheque. Otherwise each cheque goes through
+ * changeChequeStatus, so the cheque_events and audit rows are the ones a single change writes.
+ * The caller runs this inside one transaction, so a failure part-way also undoes everything.
+ */
 export async function bulkChangeChequeStatus(
   db: Dbx,
   actor: AuditActor,
-  ids: string[],
-  to: ChequeStatus,
-  note: string,
+  input: BulkChequeStatusChangeInput,
+  todayDate: PlainDate,
 ): Promise<BulkResult> {
+  if (input.date && input.date > todayDate) throw validation('The date cannot be in the future');
+  const ids = [...new Set(input.ids)];
   const rows = await db
     .select({
       id: cheques.id,
+      chequeNo: cheques.chequeNo,
       status: cheques.status,
       amountFils: cheques.amountFils,
       contractStatus: contracts.status,
@@ -312,40 +344,102 @@ export async function bulkChangeChequeStatus(
     .from(cheques)
     .innerJoin(contracts, eq(contracts.id, cheques.contractId))
     .where(inArray(cheques.id, ids));
-  const result: BulkResult = { ok: [], failed: [], notifyChequeIds: [] };
-  for (const id of ids)
-    if (!rows.some((r) => r.id === id)) result.failed.push({ id, reason: 'Cheque not found' });
-  const plan = planBulkTransition(
-    rows.map((r) => ({ id: r.id, from: r.status })),
-    to,
-  );
-  for (const f of plan.failed) result.failed.push({ id: f.id, reason: f.reason });
-  for (const item of plan.ok) {
-    const row = rows.find((r) => r.id === item.id);
-    if (!row) continue;
-    if (row.contractStatus === 'draft') {
-      result.failed.push({ id: item.id, reason: 'Contract is still a draft' });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+
+  const rejected: BulkRejection[] = [];
+  for (const id of ids) {
+    const row = byId.get(id);
+    if (!row) {
+      rejected.push({
+        id,
+        chequeNo: null,
+        from: null,
+        code: 'not_found',
+        reason: 'Cheque not found',
+      });
       continue;
     }
-    if (row.amountFils === null) {
-      result.failed.push({ id: item.id, reason: 'Amount not entered' });
-      continue;
-    }
-    if (to === 'bounced' && !note.trim()) {
-      result.failed.push({ id: item.id, reason: 'Bounce reason required' });
-      continue;
-    }
-    const r = await changeChequeStatus(db, actor, false, item.id, {
-      to,
-      note,
-      bounceReason: to === 'bounced' ? note : undefined,
-      overrideReason: undefined,
-      replacement: undefined,
-    });
-    result.ok.push(item.id);
-    if (r.notifyOwners) result.notifyChequeIds.push(item.id);
+    const base = { id, chequeNo: row.chequeNo, from: row.status };
+    if (row.contractStatus === 'draft')
+      rejected.push({ ...base, code: 'draft_contract', reason: 'Contract is still a draft' });
+    else if (row.amountFils === null)
+      rejected.push({ ...base, code: 'no_amount', reason: 'Amount not entered' });
+    else if (!canTransitionCheque(row.status, input.status))
+      rejected.push({
+        ...base,
+        code: 'invalid_transition',
+        reason: `Cannot move a cheque from ${row.status} to ${input.status}`,
+      });
+  }
+  if (rejected.length) {
+    throw new ApiError(
+      422,
+      'invalid_transition',
+      `${String(rejected.length)} of ${String(ids.length)} cheques cannot be marked ${input.status}; nothing was changed`,
+      { rejected },
+    );
+  }
+
+  const result: BulkResult = { updated: [], notifyChequeIds: [] };
+  for (const id of ids) {
+    const r = await changeChequeStatus(
+      db,
+      actor,
+      false,
+      id,
+      {
+        to: input.status,
+        note: input.note ?? '',
+        bounceReason: input.status === 'bounced' ? input.reason : undefined,
+        overrideReason: undefined,
+        replacement: undefined,
+      },
+      // A cancellation has no bank date to stamp, exactly as a single cancel.
+      input.date && input.status !== 'cancelled'
+        ? { date: input.date, today: todayDate }
+        : undefined,
+    );
+    result.updated.push(id);
+    if (r.notifyOwners) result.notifyChequeIds.push(id);
   }
   return result;
+}
+
+/**
+ * Cheques a bank statement can settle: upcoming ones due in the statement's window and every
+ * deposited one still waiting to clear (those can be weeks old). depositedOn is the Dubai date.
+ */
+export async function bankMatchCandidates(db: Dbx, from: PlainDate, to: PlainDate) {
+  return db
+    .select({
+      id: cheques.id,
+      chequeNo: cheques.chequeNo,
+      bankName: cheques.bankName,
+      amountFils: cheques.amountFils,
+      dueDate: cheques.dueDate,
+      status: cheques.status,
+      depositedOn: sql<PlainDate | null>`to_char(${cheques.depositedAt} at time zone 'Asia/Dubai', 'YYYY-MM-DD')`,
+      unitNo: units.unitNo,
+      buildingNameAr: buildings.nameAr,
+      buildingNameEn: buildings.nameEn,
+      tenantName: tenants.name,
+    })
+    .from(cheques)
+    .innerJoin(contracts, eq(contracts.id, cheques.contractId))
+    .innerJoin(units, eq(units.id, contracts.unitId))
+    .innerJoin(buildings, eq(buildings.id, units.buildingId))
+    .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
+    .where(
+      and(
+        sql`${contracts.status} <> 'draft'`,
+        or(
+          eq(cheques.status, 'deposited'),
+          and(eq(cheques.status, 'upcoming'), sql`${cheques.dueDate} between ${from} and ${to}`),
+        ),
+      ),
+    )
+    .orderBy(asc(cheques.dueDate), asc(cheques.id))
+    .limit(5000);
 }
 
 /** Cheques whose due date is within the next N days and still pending (dashboard overview). */

@@ -40,6 +40,42 @@ documents linked from each section; this page is the map.
   the "before Vamar's management fee" label (on), the large-expense alert (AED 5,000) and whether
   owners may open invoice files (on). Holidays, expense categories and vendors have their own pages.
 
+## Cheque tools for staff
+
+**Bulk status change.** On **Cheques**, tick the cheques (or the box in the header for every cheque
+loaded on the page). A bar shows how many are selected with **Mark deposited**, **Mark cleared**,
+**Mark bounced** and **Cancel cheque**. The first three ask for the bank's date (today by default,
+never a future date); a bounce also needs a reason, with the common ones one tap away. A cancel, as a
+single cancel, needs neither date nor reason (a note is optional) and only applies to upcoming
+cheques. It is all or nothing: if any selected cheque cannot
+make the move (for example it is still upcoming and you chose cleared), nothing is changed and the
+dialog lists each such cheque and why. **Deselect these and go back** keeps the rest selected. Every
+cheque gets the same timeline entry and audit row as a single change, and owners of bounced cheques get
+the same alert. At most 200 cheques per change.
+
+**Bank statement matching.** **Cheques → Bank statement**. Editors and admins only.
+
+1. Choose the CSV the bank sends. It is read in the browser, never uploaded. Rows above the table
+   (account details) are skipped on their own.
+2. The first time for a bank, type its name and pick which column holds the date, the amount (or the
+   credit amount), and if the file has them the cheque number, the description, a debit/credit
+   indicator (CR/DR) or a separate debit column. **Save mapping and find matches** saves it; next
+   month the saved bank is picked automatically when its columns are in the file.
+3. The page proposes matches against cheques that are upcoming or deposited:
+   - **Strong**: the cheque number and the amount match. Ticked for you.
+   - **Review**: no cheque number on the line, same amount, within 3 days of the due or deposit date.
+     Not ticked; check it before ticking.
+   - A line whose description says RETURN, RTN, BOUNCED or مرتجع proposes **Bounced**; other credits
+     propose **Cleared**. Other debits (bills, transfers out) are listed under "Lines without a match".
+4. **Apply** shows what will happen and asks for the bounce reason ("Returned by the bank" by default).
+   Nothing changes before you confirm. An upcoming cheque the bank already paid is first marked
+   deposited on the statement date, because the bank only clears a deposited cheque. Each date and
+   status is one all-or-nothing step; if a step is refused it stops and lists the cheques, and the
+   steps before it stay saved (they were true).
+
+Amounts may have thousands separators, Arabic digits, brackets or a minus for debits; dates may be
+dd/mm/yyyy, yyyy-mm-dd or dd-MMM-yyyy. Mappings live in the `bank_csv_mappings` setting.
+
 ## Where it runs
 
 | What                    | Address                                                           | Notes                                    |

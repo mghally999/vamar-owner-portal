@@ -17,7 +17,7 @@ import type {
   CreateContractInput,
   CreateOwnerInput,
 } from '@vamar/shared';
-import { qs, request } from './api';
+import { ApiRequestError, qs, request } from './api';
 import type {
   AuditRow,
   BuildingDetail,
@@ -424,17 +424,45 @@ export function useChangeChequeStatus() {
   });
 }
 
+export interface BulkStatusInput {
+  ids: string[];
+  status: 'deposited' | 'cleared' | 'bounced' | 'cancelled';
+  /** The bank's date; not sent for a cancel, which has none. */
+  date?: string | undefined;
+  reason?: string | undefined;
+  note?: string | undefined;
+}
+
+/** A cheque the server refused in a bulk change (then nothing at all was changed). */
+export interface BulkRejection {
+  id: string;
+  chequeNo: string | null;
+  from: ChequeStatus | null;
+  code: 'not_found' | 'invalid_transition' | 'draft_contract' | 'no_amount';
+  reason: string;
+}
+
+/** The refused cheques carried by a 422 from the bulk endpoint, or null for any other error. */
+export function bulkRejections(e: unknown): BulkRejection[] | null {
+  if (!(e instanceof ApiRequestError) || e.code !== 'invalid_transition') return null;
+  const details = e.details as { rejected?: BulkRejection[] } | undefined;
+  return details?.rejected ?? null;
+}
+
+/** All or nothing on the server: one transaction, the same rules and events as a single change. */
 export function useBulkChequeStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (input: { chequeIds: string[]; to: ChequeStatus; note?: string }) =>
-      request<{ ok: string[]; failed: { id: string; reason: string }[] }>(
-        '/api/staff/cheques/bulk-status',
-        { method: 'POST', body: JSON.stringify(input) },
-      ),
+    mutationFn: (input: BulkStatusInput) =>
+      request<{ updated: string[]; notified: number }>('/api/staff/cheques/bulk-status', {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }),
     onSettled: () => {
       void qc.invalidateQueries({ queryKey: ['cheques'] });
       void qc.invalidateQueries({ queryKey: ['contract'] });
+      void qc.invalidateQueries({ queryKey: ['cheque'] });
+      void qc.invalidateQueries({ queryKey: ['bank-candidates'] });
       void qc.invalidateQueries({ queryKey: keys.overview });
     },
   });

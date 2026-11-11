@@ -100,12 +100,33 @@ describe('contracts', () => {
 });
 
 describe('cheque status changes', () => {
-  it('bulk never allows replaced', () => {
+  it('bulk takes deposited, cleared or bounced with a date, cancelled without one, and a reason for bounces', () => {
+    const ok = { ids: [UUID], status: 'deposited', date: '2026-11-03' };
+    expect(bulkChequeStatusChangeSchema.safeParse(ok).success).toBe(true);
+    expect(bulkChequeStatusChangeSchema.safeParse({ ...ok, status: 'replaced' }).success).toBe(
+      false,
+    );
+    expect(bulkChequeStatusChangeSchema.safeParse({ ...ok, status: 'cancelled' }).success).toBe(
+      true,
+    );
     expect(
-      bulkChequeStatusChangeSchema.safeParse({ chequeIds: [UUID], to: 'deposited' }).success,
+      bulkChequeStatusChangeSchema.safeParse({ ids: [UUID], status: 'cancelled', note: 'Ended' })
+        .success,
+    ).toBe(true);
+    expect(bulkChequeStatusChangeSchema.safeParse({ ids: [UUID], status: 'cleared' }).success).toBe(
+      false,
+    );
+    expect(bulkChequeStatusChangeSchema.safeParse({ ...ok, date: '03/11/2026' }).success).toBe(
+      false,
+    );
+    expect(bulkChequeStatusChangeSchema.safeParse({ ...ok, status: 'bounced' }).success).toBe(
+      false,
+    );
+    expect(
+      bulkChequeStatusChangeSchema.safeParse({ ...ok, status: 'bounced', reason: 'Funds' }).success,
     ).toBe(true);
     expect(
-      bulkChequeStatusChangeSchema.safeParse({ chequeIds: [UUID], to: 'replaced' }).success,
+      bulkChequeStatusChangeSchema.safeParse({ ...ok, ids: Array(201).fill(UUID) }).success,
     ).toBe(false);
   });
 

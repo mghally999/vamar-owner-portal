@@ -131,7 +131,7 @@ describe('cheque lifecycle', () => {
     expect(JSON.stringify(audits.at(-1)!.after)).toContain('Bank reversed clearance');
   });
 
-  it('bulk update validates each cheque and reports partial failures', async () => {
+  it('bulk update is all or nothing: one refused cheque leaves every cheque as it was', async () => {
     const upcoming = await w.db
       .select({ id: schema.cheques.id })
       .from(schema.cheques)
@@ -140,25 +140,45 @@ describe('cheque lifecycle', () => {
       .limit(3);
     const cleared = await chequeWithStatus('cleared');
     const ids = [...upcoming.map((u) => u.id), cleared.id];
-    const r = await w.json<{ ok: string[]; failed: { id: string; reason: string }[] }>(
-      '/api/staff/cheques/bulk-status',
-      { method: 'POST', token: editor, body: JSON.stringify({ chequeIds: ids, to: 'deposited' }) },
-    );
-    expect(r.status).toBe(200);
-    expect(r.body.ok.sort()).toEqual(upcoming.map((u) => u.id).sort());
-    expect(r.body.failed).toEqual([
-      { id: cleared.id, reason: 'Cannot move a cheque from cleared to deposited' },
+    const post = (body: unknown) =>
+      w.json<{
+        updated?: string[];
+        error?: { details?: { rejected: { id: string; reason: string }[] } };
+      }>('/api/staff/cheques/bulk-status', {
+        method: 'POST',
+        token: editor,
+        body: JSON.stringify(body),
+      });
+    const r = await post({ ids, status: 'deposited', date: '2026-10-06' });
+    expect(r.status).toBe(422);
+    expect(r.body.error?.details?.rejected).toEqual([
+      expect.objectContaining({
+        id: cleared.id,
+        reason: 'Cannot move a cheque from cleared to deposited',
+      }),
     ]);
-    const rows = await w.db
-      .select({ status: schema.cheques.status })
-      .from(schema.cheques)
-      .where(
-        inArray(
-          schema.cheques.id,
-          upcoming.map((u) => u.id),
-        ),
-      );
-    expect(rows.every((x) => x.status === 'deposited')).toBe(true);
+    const statuses = async () =>
+      (
+        await w.db
+          .select({ status: schema.cheques.status })
+          .from(schema.cheques)
+          .where(
+            inArray(
+              schema.cheques.id,
+              upcoming.map((u) => u.id),
+            ),
+          )
+      ).map((x) => x.status);
+    expect((await statuses()).every((s) => s === 'upcoming')).toBe(true);
+
+    const ok = await post({
+      ids: upcoming.map((u) => u.id),
+      status: 'deposited',
+      date: '2026-10-06',
+    });
+    expect(ok.status).toBe(200);
+    expect(ok.body.updated?.sort()).toEqual(upcoming.map((u) => u.id).sort());
+    expect((await statuses()).every((s) => s === 'deposited')).toBe(true);
   });
 
   it("cheque image upload is type-checked and served to staff and the unit's owner only", async () => {

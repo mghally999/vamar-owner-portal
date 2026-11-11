@@ -1,0 +1,10 @@
+Emirates NBD - Account Statement
+Account,1012345678
+From,01/10/2026,To,31/10/2026
+
+Txn Date,Description,Cheque No,Amount,Dr/Cr
+03/10/2026,CLG CHQ,000101,"23,750.00",CR
+04-Oct-2026,INWARD CLEARING,,"15,000.00",CR
+2026-10-06,شيك مرتجع,000303,"١٢٬٠٠٠٫٠٠",DR
+06/10/2026,DEWA BILL,,"1,200.50",DR
+07/10/2026,CLG CHQ,999999,"5,000.00",CR

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, screen, within } from '@testing-library/react';
-import { monthPeriod, previousPeriod, todayInDubai } from '@vamar/shared';
+import { MAX_BULK_CHEQUES, monthPeriod, previousPeriod, todayInDubai } from '@vamar/shared';
+import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, chequeRow, owner, page } from '@/test/fixtures';
@@ -198,59 +199,236 @@ describe('ChequesPage', () => {
     });
   });
 
-  it('bulk-updates the selected cheques and lists the ones that failed', async () => {
+  it('the bulk bar counts the selection and deposits every selected cheque on one date', async () => {
     const { api, user } = await renderApp('/cheques', {
       routes: routes({
-        'POST /api/staff/cheques/bulk-status': (c: ApiCall) => {
-          const ids = (c.body as { chequeIds: string[] }).chequeIds;
-          return ids.length > 1
-            ? { ok: ['chq-1'], failed: [{ id: 'chq-2', reason: 'Already deposited' }] }
-            : { ok: ids, failed: [] };
-        },
-      }),
-    });
-    await screen.findByText('Sara Khan');
-    await user.click(screen.getByRole('checkbox', { name: 'All' }));
-    await user.click(screen.getByRole('button', { name: 'Bulk update · 2 selected' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.selectOptions(within(dialog).getByRole('combobox', { name: 'Status' }), 'bounced');
-    const confirm = within(dialog).getByRole('button', { name: 'Confirm' });
-    expect(confirm).toHaveProperty('disabled', true);
-    await user.type(within(dialog).getByLabelText('Bounce reason'), 'Insufficient funds');
-    await user.click(confirm);
-
-    expect(await within(dialog).findByText('Not updated')).toBeTruthy();
-    expect(within(dialog).getByText('000202')).toBeTruthy();
-    expect(within(dialog).getByText('Already deposited')).toBeTruthy();
-    expect(api.last('POST', '/api/staff/cheques/bulk-status').body).toEqual({
-      chequeIds: ['chq-1', 'chq-2'],
-      to: 'bounced',
-      note: 'Insufficient funds',
-    });
-    // The footer button, not the dialog's X.
-    await user.click(at(within(dialog).getAllByRole('button', { name: 'Close' }), -1));
-    expect(await screen.findByText('1 updated, 1 failed')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /Bulk update/ })).toBeNull();
-  });
-
-  it('bulk-updates a single cheque with no failures', async () => {
-    const { user } = await renderApp('/cheques', {
-      routes: routes({
         'POST /api/staff/cheques/bulk-status': (c: ApiCall) => ({
-          ok: (c.body as { chequeIds: string[] }).chequeIds,
-          failed: [],
+          updated: (c.body as { ids: string[] }).ids,
+          notified: 0,
         }),
       }),
     });
     await screen.findByText('Sara Khan');
-    const box = screen.getByRole('checkbox', { name: '000101' });
-    await user.click(box);
-    await user.click(screen.getByRole('checkbox', { name: '000202' }));
-    await user.click(screen.getByRole('checkbox', { name: '000202' }));
-    await user.click(screen.getByRole('button', { name: 'Bulk update · 1 selected' }));
-    const dialog = await screen.findByRole('dialog');
+    expect(screen.getByRole('link', { name: 'Bank statement' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Selected cheques' })).toBeNull();
+    await user.click(screen.getByRole('checkbox', { name: 'All' }));
+    const bar = screen.getByRole('region', { name: 'Selected cheques' });
+    expect(within(bar).getByText('2 selected')).toBeTruthy();
+    await user.click(within(bar).getByRole('button', { name: 'Mark deposited' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Mark deposited: 2 cheques' });
+    expect(within(dialog).getByLabelText('Deposit date')).toHaveProperty(
+      'value',
+      todayInDubai().split('-').reverse().join('/'),
+    );
+    await user.type(within(dialog).getByLabelText(/Note/), 'ENBD Marina');
     await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
-    expect(await screen.findByText('1 updated, 0 failed')).toBeTruthy();
+    expect(await screen.findByText('2 cheques updated.')).toBeTruthy();
+    expect(api.last('POST', '/api/staff/cheques/bulk-status').body).toEqual({
+      ids: ['chq-1', 'chq-2'],
+      status: 'deposited',
+      date: todayInDubai(),
+      note: 'ENBD Marina',
+    });
+    expect(screen.queryByRole('region', { name: 'Selected cheques' })).toBeNull();
+  });
+
+  it('a bounce needs a reason; when the server refuses, each cheque is listed and nothing changes', async () => {
+    const { api, user } = await renderApp('/cheques', {
+      routes: routes({
+        'POST /api/staff/cheques/bulk-status': apiError(
+          422,
+          'invalid_transition',
+          '1 of 2 cheques cannot be marked bounced; nothing was changed',
+          {
+            rejected: [
+              {
+                id: 'chq-1',
+                chequeNo: '000101',
+                from: 'upcoming',
+                code: 'invalid_transition',
+                reason: 'Cannot move a cheque from upcoming to bounced',
+              },
+            ],
+          },
+        ),
+      }),
+    });
+    await screen.findByText('Sara Khan');
+    await user.click(screen.getByRole('checkbox', { name: 'All' }));
+    await user.click(screen.getByRole('button', { name: 'Mark bounced' }));
+    const dialog = await screen.findByRole('dialog');
+    const confirm = within(dialog).getByRole('button', { name: 'Confirm' });
+    expect(confirm).toHaveProperty('disabled', true);
+    await user.click(within(dialog).getByRole('button', { name: 'Insufficient funds' }));
+    expect(within(dialog).getByLabelText(/Bounce reason/)).toHaveProperty(
+      'value',
+      'Insufficient funds',
+    );
+    await user.click(confirm);
+
+    expect(
+      await within(dialog).findByText('Nothing was changed. These cheques cannot be updated:'),
+    ).toBeTruthy();
+    expect(within(dialog).getByText('000101')).toBeTruthy();
+    expect(within(dialog).getByText('Is Upcoming; cannot move to Bounced')).toBeTruthy();
+    expect(api.last('POST', '/api/staff/cheques/bulk-status').body).toEqual({
+      ids: ['chq-1', 'chq-2'],
+      status: 'bounced',
+      date: todayInDubai(),
+      reason: 'Insufficient funds',
+    });
+    // Nothing changed on screen either.
+    expect(screen.getAllByText('Upcoming').length).toBeGreaterThan(0);
+    await user.click(within(dialog).getByRole('button', { name: 'Deselect these and go back' }));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(
+      within(screen.getByRole('region', { name: 'Selected cheques' })).getByText('1 selected'),
+    ).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: '000101' })).toHaveProperty('checked', false);
+  });
+
+  it('shows the mixed state, clears the selection, refuses future dates and labels unknown cheques by id', async () => {
+    const { user } = await renderApp('/cheques?status=upcoming,deposited', {
+      routes: routes({
+        'GET /api/staff/cheques': page([
+          chequeRow({ id: 'chq-9', chequeNo: null, bankName: null, tenantName: 'No Number' }),
+          ...ROWS,
+        ]),
+        'POST /api/staff/cheques/bulk-status': apiError(422, 'invalid_transition', 'refused', {
+          rejected: [
+            { id: 'chq-gone', chequeNo: null, from: null, code: 'not_found', reason: 'Not found' },
+          ],
+        }),
+      }),
+    });
+    await screen.findByText('No Number');
+    // A status list from a link (overview cards) stays selectable as it came.
+    expect(screen.getByRole('option', { name: 'upcoming,deposited' })).toBeTruthy();
+    // A cheque without a number is labelled by its id and shows dashes.
+    const all = screen.getByRole('checkbox', { name: 'All' });
+    await user.click(screen.getByRole('checkbox', { name: 'chq-9' }));
+    expect(all).toHaveProperty('indeterminate', true);
+    await user.click(all);
+    expect(all).toHaveProperty('indeterminate', false);
+    expect(screen.getByText('3 selected')).toBeTruthy();
+    await user.click(all);
+    expect(screen.queryByRole('region', { name: 'Selected cheques' })).toBeNull();
+    await user.click(all);
+    await user.click(screen.getByRole('button', { name: 'Clear selection' }));
+    expect(screen.queryByRole('region', { name: 'Selected cheques' })).toBeNull();
+
+    await user.click(all);
+    await user.click(screen.getByRole('button', { name: 'Mark cleared' }));
+    await screen.findByRole('dialog');
+    await user.keyboard('{Escape}');
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Mark cleared' }));
+    const dialog = await screen.findByRole('dialog');
+    const date = within(dialog).getByLabelText('Cleared date');
+    await user.clear(date);
+    await user.type(date, '01/01/2099{Enter}');
+    expect(await within(dialog).findByText('The date cannot be in the future.')).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: 'Confirm' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+    await user.clear(date);
+    await user.type(date, '01/10/2026{Enter}');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(await within(dialog).findByText('chq-gone')).toBeTruthy();
+    expect(within(dialog).getByText('No longer exists')).toBeTruthy();
+    await user.click(at(within(dialog).getAllByRole('button', { name: 'Close' }), -1));
+    await vi.waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+  });
+
+  it('cancels selected cheques without a date or reason, and lists the ones that cannot be cancelled', async () => {
+    let refuse = false;
+    const { api, user } = await renderApp('/cheques', {
+      routes: routes({
+        'POST /api/staff/cheques/bulk-status': (c: ApiCall) =>
+          refuse
+            ? apiError(422, 'invalid_transition', 'refused', {
+                rejected: [
+                  {
+                    id: 'chq-2',
+                    chequeNo: '000202',
+                    from: 'deposited',
+                    code: 'invalid_transition',
+                    reason: 'Cannot move a cheque from deposited to cancelled',
+                  },
+                ],
+              })
+            : { updated: (c.body as { ids: string[] }).ids, notified: 0 },
+      }),
+    });
+    await screen.findByText('Sara Khan');
+    await user.click(screen.getByRole('checkbox', { name: '000101' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel cheque' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel cheque: 1 cheques' });
+    // A cancel has no bank date and no reason, as with a single cancel.
+    expect(within(dialog).queryByLabelText(/date/i)).toBeNull();
+    expect(within(dialog).queryByLabelText(/Bounce reason/)).toBeNull();
+    await user.type(within(dialog).getByLabelText(/Note/), 'Contract ended early');
+    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
+    expect(await screen.findByText('1 cheques updated.')).toBeTruthy();
+    expect(api.last('POST', '/api/staff/cheques/bulk-status').body).toEqual({
+      ids: ['chq-1'],
+      status: 'cancelled',
+      note: 'Contract ended early',
+    });
+
+    refuse = true;
+    await user.click(screen.getByRole('checkbox', { name: 'All' }));
+    await user.click(screen.getByRole('button', { name: 'Cancel cheque' }));
+    const again = await screen.findByRole('dialog');
+    await user.click(within(again).getByRole('button', { name: 'Confirm' }));
+    expect(
+      await within(again).findByText('Nothing was changed. These cheques cannot be updated:'),
+    ).toBeTruthy();
+    expect(within(again).getByText('000202')).toBeTruthy();
+    expect(within(again).getByText('Is Deposited; cannot move to Cancelled')).toBeTruthy();
+    expect(api.last('POST', '/api/staff/cheques/bulk-status').body).toEqual({
+      ids: ['chq-1', 'chq-2'],
+      status: 'cancelled',
+    });
+  });
+
+  it(`blocks a bulk change of more than ${String(MAX_BULK_CHEQUES)} cheques`, async () => {
+    const many = Array.from({ length: MAX_BULK_CHEQUES + 1 }, (_, i) =>
+      chequeRow({ id: `m-${String(i)}`, chequeNo: String(500_000 + i) }),
+    );
+    const { user } = await renderApp('/cheques', {
+      routes: routes({ 'GET /api/staff/cheques': page(many) }),
+    });
+    await screen.findAllByText('Sara Khan');
+    await user.click(screen.getByRole('checkbox', { name: 'All' }));
+    const bar = screen.getByRole('region', { name: 'Selected cheques' });
+    expect(
+      within(bar).getByText(`Select at most ${String(MAX_BULK_CHEQUES)} cheques at a time.`),
+    ).toBeTruthy();
+    expect(within(bar).getByRole('button', { name: 'Mark deposited' })).toHaveProperty(
+      'disabled',
+      true,
+    );
+  });
+
+  it('the bulk bar and dialog have no axe violations', async () => {
+    const { user, container } = await renderApp('/cheques', { routes: routes() });
+    await screen.findByText('Sara Khan');
+    await user.click(screen.getByRole('checkbox', { name: 'All' }));
+    const bar = screen.getByRole('region', { name: 'Selected cheques' });
+    expect((await axe.run(bar)).violations).toEqual([]);
+    await user.click(within(bar).getByRole('button', { name: 'Mark bounced' }));
+    const dialog = await screen.findByRole('dialog');
+    expect((await axe.run(dialog)).violations).toEqual([]);
+    expect(container).toBeTruthy();
   });
 
   it('pages, shows an empty month and the error state, and hides editing from viewers', async () => {
@@ -263,6 +441,7 @@ describe('ChequesPage', () => {
     });
     await screen.findByText('Sara Khan');
     expect(screen.queryByRole('checkbox')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Bank statement' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Change status' })).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Load more' }));
     await vi.waitFor(() => {
@@ -281,42 +460,5 @@ describe('ChequesPage', () => {
     await vi.waitFor(() => {
       expect(failing.api.to('GET', '/api/staff/cheques').length).toBeGreaterThan(1);
     });
-  });
-
-  it('selects all then none, closes the bulk dialog with Escape, and shows cheques without a number', async () => {
-    const { user } = await renderApp('/cheques?status=upcoming,deposited', {
-      routes: routes({
-        'GET /api/staff/cheques': page([
-          chequeRow({ id: 'chq-9', chequeNo: null, bankName: null, tenantName: 'No Number' }),
-          ...ROWS,
-        ]),
-        'POST /api/staff/cheques/bulk-status': {
-          ok: ['chq-1'],
-          failed: [{ id: 'chq-gone', reason: 'Not found' }],
-        },
-      }),
-    });
-    await screen.findByText('No Number');
-    // A status list from a link (overview cards) stays selectable as it came.
-    expect(screen.getByRole('option', { name: 'upcoming,deposited' })).toBeTruthy();
-    // A cheque without a number is labelled by its id and shows dashes.
-    expect(screen.getByRole('checkbox', { name: 'chq-9' })).toBeTruthy();
-    const all = screen.getByRole('checkbox', { name: 'All' });
-    await user.click(all);
-    expect(screen.getByRole('button', { name: 'Bulk update · 3 selected' })).toBeTruthy();
-    await user.click(all);
-    expect(screen.queryByRole('button', { name: /Bulk update/ })).toBeNull();
-    await user.click(all);
-    await user.click(screen.getByRole('button', { name: 'Bulk update · 3 selected' }));
-    await screen.findByRole('dialog');
-    await user.keyboard('{Escape}');
-    await vi.waitFor(() => {
-      expect(screen.queryByRole('dialog')).toBeNull();
-    });
-    // A failure for a cheque no longer in the list is shown by its id.
-    await user.click(screen.getByRole('button', { name: 'Bulk update · 3 selected' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(within(dialog).getByRole('button', { name: 'Confirm' }));
-    expect(await within(dialog).findByText('chq-gone')).toBeTruthy();
   });
 });

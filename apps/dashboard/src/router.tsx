@@ -105,6 +105,11 @@ const chequesRoute = createRoute({
   path: '/cheques',
   component: lazyPage(() => import('@/pages/cheques'), 'ChequesPage'),
 });
+const bankStatementRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/cheques/bank-statement',
+  component: lazyPage(() => import('@/pages/bank-statement'), 'BankStatementPage'),
+});
 const chequeRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/cheques/$chequeId',
@@ -224,6 +229,7 @@ const routeTree = rootRoute.addChildren([
     contractNewRoute,
     contractRoute,
     chequesRoute,
+    bankStatementRoute,
     chequeRoute,
     disputesRoute,
     disputeRoute,

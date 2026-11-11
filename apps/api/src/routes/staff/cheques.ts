@@ -2,9 +2,12 @@
 import { zValidator } from '../../util/validator.js';
 import { eq } from 'drizzle-orm';
 import { Hono } from 'hono';
+import { z } from 'zod';
 import { schema } from '@vamar/db';
 import {
+  bankCsvMappingSchema,
   bulkChequeStatusChangeSchema,
+  diffDays,
   chequeStatusChangeSchema,
   monthKeySchema,
   paginationQuerySchema,
@@ -18,17 +21,63 @@ import type { AppEnv } from '../../env.js';
 import { actorFromContext } from '../../services/audit.js';
 import { storeUpload, removeObject, streamObject } from '../../services/attachments.js';
 import {
+  bankMatchCandidates,
   bulkChangeChequeStatus,
   changeChequeStatus,
   getChequeDetail,
   listCheques,
   updateChequeRow,
 } from '../../services/cheques.js';
+import {
+  deleteBankCsvMapping,
+  getBankCsvMappings,
+  saveBankCsvMapping,
+} from '../../services/bank-mappings.js';
 import { queueBounceAlerts } from '../../services/notifications.js';
-import { ApiError } from '../../errors.js';
+import { ApiError, validation } from '../../errors.js';
+import { today } from '../../util/today.js';
 import { editor, idParam, statusList, viewer } from './common.js';
 
 export const chequesRoutes = new Hono<AppEnv>()
+  // Registered before /cheques/:id so the literal path is not read as a cheque id.
+  .get(
+    '/cheques/bank-candidates',
+    editor,
+    zValidator('query', z.object({ from: plainDateSchema, to: plainDateSchema })),
+    async (c) => {
+      const { from, to } = c.req.valid('query');
+      if (diffDays(from, to) < 0 || diffDays(from, to) > 400)
+        throw validation('Choose a window of up to 400 days');
+      return c.json({ items: await bankMatchCandidates(readDb(c), from, to) });
+    },
+  )
+  .get('/settings/bank-csv-mappings', editor, async (c) =>
+    c.json({ items: await getBankCsvMappings(readDb(c)) }),
+  )
+  .put(
+    '/settings/bank-csv-mappings',
+    editor,
+    zValidator('json', bankCsvMappingSchema),
+    async (c) => {
+      const p = staffOf(c);
+      const items = await withTx(c, (tx) =>
+        saveBankCsvMapping(tx, actorFromContext(c, p), c.req.valid('json')),
+      );
+      return c.json({ items });
+    },
+  )
+  .delete(
+    '/settings/bank-csv-mappings',
+    editor,
+    zValidator('query', z.object({ bank: z.string().trim().min(1).max(80) })),
+    async (c) => {
+      const p = staffOf(c);
+      const items = await withTx(c, (tx) =>
+        deleteBankCsvMapping(tx, actorFromContext(c, p), c.req.valid('query').bank),
+      );
+      return c.json({ items });
+    },
+  )
   .get(
     '/cheques',
     viewer,
@@ -85,10 +134,12 @@ export const chequesRoutes = new Hono<AppEnv>()
       const p = staffOf(c);
       const body = c.req.valid('json');
       const result = await withTx(c, (tx) =>
-        bulkChangeChequeStatus(tx, actorFromContext(c, p), body.chequeIds, body.to, body.note),
+        bulkChangeChequeStatus(tx, actorFromContext(c, p), body, today(c.env)),
       );
-      c.executionCtx.waitUntil(queueBounceAlerts(c.env, result.notifyChequeIds));
-      return c.json(result);
+      // Same alert path as a single bounce, sent only after the transaction has committed.
+      if (result.notifyChequeIds.length)
+        c.executionCtx.waitUntil(queueBounceAlerts(c.env, result.notifyChequeIds));
+      return c.json({ updated: result.updated, notified: result.notifyChequeIds.length });
     },
   )
   .post('/cheques/:id/image', editor, idParam, async (c) => {
