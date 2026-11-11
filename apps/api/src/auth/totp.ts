@@ -18,6 +18,27 @@ export interface TotpEnrollment {
   secretEnc: string;
 }
 
+/**
+ * The enrolment of a secret already stored but not yet confirmed with a code, so a repeated
+ * setup request shows the same key instead of replacing it.
+ */
+export async function pendingTotpEnrollment(
+  email: string,
+  secretEnc: string,
+  encKey: string,
+): Promise<TotpEnrollment> {
+  const secretBase32 = await decryptString(secretEnc, encKey);
+  const totp = new TOTP({
+    issuer: TOTP_ISSUER,
+    label: email,
+    algorithm: 'SHA1',
+    digits: 6,
+    period: 30,
+    secret: Secret.fromBase32(secretBase32),
+  });
+  return { uri: totp.toString(), secretBase32, secretEnc };
+}
+
 export async function createTotpEnrollment(email: string, encKey: string): Promise<TotpEnrollment> {
   const secret = new Secret({ size: 20 });
   const totp = new TOTP({

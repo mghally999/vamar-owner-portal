@@ -324,3 +324,58 @@ describe('staff auth', () => {
     expect((await w.request('/api/staff/audit', { token: admin })).status).toBe(200);
   });
 });
+
+describe('staff authenticator enrolment asked for twice', () => {
+  it('hands out the same pending key, so the code from the key on screen signs in', async () => {
+    const email = 'enrol-twice@vamar.test';
+    await w.db.insert(schema.staffUsers).values({
+      email,
+      name: 'Enrol Twice',
+      role: 'viewer',
+      firebaseUid: 'seed-staff-enrol-twice',
+      active: true,
+    });
+    const fb = await w.firebaseToken({ email, email_verified: true });
+    const ex = await w.json<{ preAuthToken: string }>('/api/auth/staff/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseIdToken: fb }),
+    });
+    // The sign-in page asks twice at once in development (React runs the effect twice).
+    const setup = () =>
+      w.json<{ secret: string; otpauthUri: string }>('/api/auth/staff/totp/setup', {
+        method: 'POST',
+        token: ex.body.preAuthToken,
+      });
+    const [a, b] = await Promise.all([setup(), setup()]);
+    expect(a.status).toBe(200);
+    expect(b.status).toBe(200);
+    expect(b.body.secret).toBe(a.body.secret);
+    expect(b.body.otpauthUri).toBe(a.body.otpauthUri);
+    // Asked again later, before any code: still the same key.
+    const again = await setup();
+    expect(again.body.secret).toBe(a.body.secret);
+
+    const verify = await w.request('/api/auth/staff/totp/verify', {
+      method: 'POST',
+      token: ex.body.preAuthToken,
+      body: JSON.stringify({ code: currentTotpCode(a.body.secret) }),
+    });
+    expect(verify.status).toBe(200);
+
+    // An admin reset clears the key, and the next enrolment gets a new one.
+    await w.db
+      .update(schema.staffUsers)
+      .set({ totpSecretEnc: null, totpEnabled: false, totpLastStep: null })
+      .where(eq(schema.staffUsers.email, email));
+    const ex2 = await w.json<{ preAuthToken: string }>('/api/auth/staff/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ firebaseIdToken: fb }),
+    });
+    const fresh = await w.json<{ secret: string }>('/api/auth/staff/totp/setup', {
+      method: 'POST',
+      token: ex2.body.preAuthToken,
+    });
+    expect(fresh.status).toBe(200);
+    expect(fresh.body.secret).not.toBe(a.body.secret);
+  });
+});

@@ -20,6 +20,7 @@ import {
 } from '../auth/tokens.js';
 import {
   createTotpEnrollment,
+  pendingTotpEnrollment,
   TOTP_LOCK_MS,
   TOTP_MAX_FAILURES,
   verifyTotpCode,
@@ -166,7 +167,12 @@ export const authStaffRoutes = new Hono<AppEnv>()
     const p = staffOf(c);
     await rejectUsedPreAuth(c, p);
     const enrollment = await withTx(c, async (tx) => {
-      const user = await tx.query.staffUsers.findFirst({ where: eq(staffUsers.id, p.id) });
+      // Locked so two setup requests at once are served one after the other.
+      const [user] = await tx
+        .select()
+        .from(staffUsers)
+        .where(eq(staffUsers.id, p.id))
+        .for('update');
       if (!user) throw unauthorized();
       if (user.totpEnabled)
         throw new ApiError(
@@ -174,6 +180,12 @@ export const authStaffRoutes = new Hono<AppEnv>()
           'conflict',
           'Authenticator already set up; ask an admin to reset it',
         );
+      // A key handed out but not yet confirmed is handed out again. The sign-in page can ask
+      // twice (React runs effects twice in development; people retry on a slow line), and a new
+      // key would silently replace the one on their screen, so every code they typed was wrong.
+      // An admin reset clears the stored key, so that still starts a fresh enrolment.
+      if (user.totpSecretEnc)
+        return pendingTotpEnrollment(user.email, user.totpSecretEnc, c.env.TOTP_ENC_KEY);
       const e = await createTotpEnrollment(user.email, c.env.TOTP_ENC_KEY);
       await tx
         .update(staffUsers)
