@@ -218,11 +218,13 @@ export async function ownerSummary(
     parts.length ? sql` and ${sql.join(parts, sql` and `)}` : sql``;
 
   // The owner's current units in the requested scope: next cheque, contracts ending, counts.
+  // Units are joined only to filter by building: every ownership and contract has its unit (a
+  // required foreign key), and each join left out is one fewer for the planner on every request.
   const scopeUnitsSql = sql`
-    select uo.unit_id, uo.share_bp from unit_ownerships uo join units u on u.id = uo.unit_id
+    select uo.unit_id, uo.share_bp from unit_ownerships uo
+    ${q.buildingId ? sql`join units u on u.id = uo.unit_id and u.building_id = ${q.buildingId}` : sql``}
     where uo.owner_id = ${ownerId} and uo.to_date is null
-      ${q.buildingId ? sql`and u.building_id = ${q.buildingId}` : sql``}
-      ${q.unitId ? sql`and u.id = ${q.unitId}` : sql``}`;
+      ${q.unitId ? sql`and uo.unit_id = ${q.unitId}` : sql``}`;
 
   // Statement 1: every figure and list of the screen as one JSON document, so a summary costs one
   // round trip (one pooled connection locally, one HTTPS request on Neon) instead of six.
@@ -236,7 +238,7 @@ export async function ownerSummary(
       select q.due_date as d, q.status, (q.amount_fils * uo.share_bp / 10000)::bigint as fils
       from cheques q
       join contracts c on c.id = q.contract_id and c.status <> 'draft'
-      join units u on u.id = c.unit_id
+      ${q.buildingId ? sql`join units u on u.id = c.unit_id` : sql``}
       join unit_ownerships uo on uo.unit_id = c.unit_id and uo.owner_id = ${ownerId}
            and uo.from_date <= q.due_date and (uo.to_date is null or uo.to_date > q.due_date)
       where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
