@@ -520,3 +520,47 @@ export async function ownerSummary(
     occupancy: { occupied, total, pct: total === 0 ? 0 : Math.round((100 * occupied) / total) },
   };
 }
+
+/**
+ * The calendar years the owner can ask a yearly statement for: this year, and every earlier year
+ * with a cheque due on one of their units while they owned it or an expense allocated to them.
+ * Newest first. Future years are left out: a statement of a year that has not started says
+ * nothing yet.
+ */
+export async function ownerStatementYears(
+  db: Dbx,
+  ownerId: string,
+  todayDate: PlainDate,
+): Promise<number[]> {
+  const result = await db.execute(sql`
+    with mine as (
+      select unit_id, from_date, to_date from unit_ownerships
+      where owner_id = ${ownerId} and from_date <= ${todayDate}
+    ),
+    rent_years as (
+      select distinct extract(year from q.due_date)::int as y
+      from mine uo
+      join contracts c on c.unit_id = uo.unit_id and c.status <> 'draft'
+      join cheques q on q.contract_id = c.id
+      where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
+        and q.due_date >= uo.from_date and (uo.to_date is null or uo.to_date > q.due_date)
+        and q.due_date <= ${todayDate}
+    ),
+    spent_years as (
+      select distinct extract(year from a.on_date)::int as y
+      from expense_allocations a
+      -- A primary-key lookup per allocation, as in the summary: joined as a table the planner
+      -- reads every posted expense.
+      cross join lateral (
+        select 1 from expenses e
+        where e.id = a.expense_id and e.status = 'posted' and e.visible_to_owner
+        limit 1
+      ) x
+      where a.owner_id = ${ownerId} and a.on_date <= ${todayDate}
+    )
+    select y from rent_years union select y from spent_years`);
+  const thisYear = Number(todayDate.slice(0, 4));
+  const years = new Set<number>([thisYear]);
+  for (const r of rowsOf<{ y: number | string }>(result)) years.add(Number(r.y));
+  return [...years].sort((a, b) => b - a);
+}

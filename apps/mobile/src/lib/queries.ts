@@ -1,5 +1,11 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ChequeStatus, ExpenseKind, TimelineKind, WorkOrderStatus } from '@vamar/shared';
+import {
+  todayInDubai,
+  type ChequeStatus,
+  type ExpenseKind,
+  type TimelineKind,
+  type WorkOrderStatus,
+} from '@vamar/shared';
 import type { PeriodQuery } from './period';
 import { qs, request } from './api';
 import type {
@@ -144,6 +150,29 @@ export function useSummary(period: PeriodQuery, options: { buildingId?: string |
     queryKey: ['summary', period, options.buildingId ?? ''],
     queryFn: () => request<Summary>(`/api/owner/summary${qs({ ...period, ...options })}`),
     staleTime: 60_000,
+  });
+}
+
+/** How many years back the yearly statement offers when the API cannot say which have data. */
+export const FALLBACK_STATEMENT_YEARS = 5;
+
+/**
+ * The years a yearly statement can be made for, newest first: this year and every earlier year
+ * with data. An API without the endpoint (older than this app) gets this year and the four before.
+ */
+export function useStatementYears(enabled = true) {
+  return useQuery({
+    queryKey: ['statement-years'],
+    enabled,
+    queryFn: async () => {
+      try {
+        return (await request<{ years: number[] }>('/api/owner/statement-years')).years;
+      } catch {
+        const thisYear = Number(todayInDubai().slice(0, 4));
+        return Array.from({ length: FALLBACK_STATEMENT_YEARS }, (_, i) => thisYear - i);
+      }
+    },
+    staleTime: 60 * 60_000,
   });
 }
 

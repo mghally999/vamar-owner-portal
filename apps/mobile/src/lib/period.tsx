@@ -5,8 +5,11 @@
  */
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import {
+  firstDayOfMonth,
   formatPeriod,
   isPeriodPreset,
+  isPlainDate,
+  lastDayOfMonth,
   monthPeriod,
   PERIOD_PRESET_LABEL,
   resolvePreset,
@@ -48,8 +51,42 @@ export function presetFromSearch(search: string): ResolvablePreset | null {
   return presetFromParam(new URLSearchParams(search).get('preset'));
 }
 
+export interface LinkParams {
+  preset?: unknown;
+  from?: unknown;
+  to?: unknown;
+}
+
 /**
- * The web app opened on a link with a period (a notification or a shared `/app/?preset=this_year`).
+ * The period a link or a tapped notification asks for: dates (`from`, `to`) win over a preset,
+ * because they stay right however late the link is followed. A whole month or a whole calendar
+ * year becomes that month or year, so the switcher names it ("October 2026") rather than showing
+ * a date range. Null when the link names no usable period.
+ */
+export function selectionFromLink(params: LinkParams): PeriodSelection | null {
+  const first = (v: unknown) => (Array.isArray(v) ? (v as unknown[])[0] : v);
+  const from = first(params.from);
+  const to = first(params.to);
+  if (isPlainDate(from) && isPlainDate(to) && from <= to) {
+    const [y, m] = from.split('-').map(Number) as [number, number];
+    if (from === firstDayOfMonth(from) && to === lastDayOfMonth(from))
+      return { kind: 'month', year: y, month: m };
+    if (from === `${String(y)}-01-01` && to === `${String(y)}-12-31`)
+      return { kind: 'year', year: y };
+    return { kind: 'custom', from, to };
+  }
+  const preset = presetFromParam(params.preset);
+  return preset ? { kind: 'preset', preset } : null;
+}
+
+/** The period in a URL query string, as `selectionFromLink`. */
+export function selectionFromSearch(search: string): PeriodSelection | null {
+  return selectionFromLink(Object.fromEntries(new URLSearchParams(search)));
+}
+
+/**
+ * The web app opened on a link with a period (a notification or a shared `/app/?preset=this_year`
+ * or `/app/?from=2026-10-01&to=2026-10-31`).
  * The router drops the query of its index route while it starts, so the address is read here,
  * once, when the bundle loads. Native apps have no `window.location`; their links arrive as route
  * params instead (see Home).
@@ -57,12 +94,12 @@ export function presetFromSearch(search: string): ResolvablePreset | null {
 // React Native defines `window` without `location`, which the DOM types do not allow for.
 const launchLocation = (globalThis as { location?: { search?: unknown } }).location;
 const launchSearch = typeof launchLocation?.search === 'string' ? launchLocation.search : '';
-const launchPreset = presetFromSearch(launchSearch);
+const launchSelection = selectionFromSearch(launchSearch);
 
-/** The period the app starts on: the launch link's preset, else this month. */
+/** The period the app starts on: the launch link's period, else this month. */
 export function initialSelection(search = launchSearch): PeriodSelection {
-  const preset = search === launchSearch ? launchPreset : presetFromSearch(search);
-  return preset ? { kind: 'preset', preset } : DEFAULT_SELECTION;
+  const linked = search === launchSearch ? launchSelection : selectionFromSearch(search);
+  return linked ?? DEFAULT_SELECTION;
 }
 
 export function resolveSelection(sel: PeriodSelection, today: PlainDate = todayInDubai()): Period {

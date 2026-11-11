@@ -27,7 +27,18 @@ describe('routeForNotification', () => {
     expect(routeForNotification({ type: 'large_expense' })).toBe('/(tabs)/expenses');
     expect(routeForNotification({ type: 'monthly_summary', entityId: 'o1' })).toEqual({
       pathname: '/(tabs)',
-      params: { preset: 'last_month' },
+      params: { preset: 'last_month', statement: '1' },
+    });
+    expect(
+      routeForNotification({
+        type: 'monthly_summary',
+        entityId: 'o1',
+        from: '2026-10-01',
+        to: '2026-10-31',
+      }),
+    ).toEqual({
+      pathname: '/(tabs)',
+      params: { from: '2026-10-01', to: '2026-10-31', statement: '1' },
     });
     expect(routeForNotification({ type: 'new_device_login' })).toBe('/settings');
     expect(routeForNotification({ type: 'something_else' })).toBe('/(tabs)');

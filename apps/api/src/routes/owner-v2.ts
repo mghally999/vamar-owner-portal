@@ -23,7 +23,7 @@ import { readDb, type Dbx } from '../db.js';
 import type { AppEnv } from '../env.js';
 import { calendarItems, holidayDates } from '../services/calendar.js';
 import { optionalPeriod, ownerExpenseDetail, ownerExpenses } from '../services/expenses.js';
-import { ownerSummary } from '../services/owner-summary.js';
+import { ownerStatementYears, ownerSummary } from '../services/owner-summary.js';
 import { ownerUnitTimeline } from '../services/records.js';
 import { getSettings } from '../services/settings.js';
 import { ownerWorkOrderDetail, ownerWorkOrders } from '../services/work-orders.js';
@@ -46,6 +46,13 @@ export const ownerV2Routes = new Hono<AppEnv>()
     return c.json(
       await ownerSummary(db, ownerOf(c).id, q, today(c.env), await weekStartFor(db, q.preset)),
     );
+  })
+
+  /** The years a yearly statement can be made for: this year and every earlier year with data. */
+  .get('/statement-years', async (c) => {
+    return c.json({
+      years: await ownerStatementYears(readDb(c), ownerOf(c).id, today(c.env)),
+    });
   })
 
   .get('/expenses', zValidator('query', ownerExpenseListQuerySchema), async (c) => {

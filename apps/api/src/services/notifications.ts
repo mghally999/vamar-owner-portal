@@ -14,6 +14,8 @@ import {
   chunk,
   dedupeKey,
   EXPO_PUSH_BATCH_SIZE,
+  firstDayOfMonth,
+  lastDayOfMonth,
   notificationCopy,
   ownerShareAmount,
   todayInDubai,
@@ -69,6 +71,24 @@ interface ExpoTicket {
 }
 
 type BatchOutcome = { tickets: ExpoTicket[] } | { transportError: string };
+
+/**
+ * What the app reads when the owner taps a push: the type and the record it is about. The monthly
+ * summary also names the month (`from`, `to`), so a tap days or weeks later still opens that
+ * month's statement rather than whatever "last month" is by then. Apps that predate the period
+ * ignore the extra keys.
+ */
+export function pushData(
+  p: Pick<PendingNotification, 'type' | 'entityId' | 'params'>,
+): Record<string, string> {
+  const data = { type: p.type, entityId: p.entityId };
+  if (p.params.type !== 'monthly_summary') return data;
+  return {
+    ...data,
+    from: firstDayOfMonth(p.params.month),
+    to: lastDayOfMonth(p.params.month),
+  };
+}
 
 /** Deliver a batch: claims the dedupe keys first, then pushes to every active device. */
 export async function deliver(
@@ -159,7 +179,7 @@ export async function deliver(
           title: copy.title,
           body: copy.body,
           sound: 'default',
-          data: { type: p.type, entityId: p.entityId },
+          data: pushData(p),
         },
       })),
     });

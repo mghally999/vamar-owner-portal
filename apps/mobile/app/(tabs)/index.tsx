@@ -1,10 +1,11 @@
 import { Link, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { presetFromParam, usePeriod } from '@/lib/period';
+import { formatPeriod } from '@vamar/shared';
+import { sameSelection, selectionFromLink, usePeriod } from '@/lib/period';
 import { useMe, useSummary } from '@/lib/queries';
 import { shareStatementForPeriod } from '@/lib/statement-period';
 import { useTheme } from '@/lib/theme';
@@ -46,14 +47,36 @@ export default function HomeScreen() {
   const auth = useAuth();
   const { selection, setSelection, query, period } = usePeriod();
   // A push notification (the monthly summary) or a link can open Home on a period: the route's
-  // own param, or the address's when the router keeps it at the top level. The web app's launch
-  // link is applied before the first render by the period provider.
-  const local = useLocalSearchParams<{ preset?: string }>();
-  const global = useGlobalSearchParams<{ preset?: string }>();
-  const linkPreset = presetFromParam(local.preset) ?? presetFromParam(global.preset);
+  // own params, or the address's when the router keeps them at the top level. The web app's
+  // launch link is applied before the first render by the period provider. The params are those
+  // push-routes.ts puts on Home: a preset, or the dates of the month a summary is about.
+  const local = useLocalSearchParams<{
+    preset?: string;
+    from?: string;
+    to?: string;
+    statement?: string;
+  }>();
+  const global = useGlobalSearchParams<{
+    preset?: string;
+    from?: string;
+    to?: string;
+    statement?: string;
+  }>();
+  const linked = useMemo(
+    () =>
+      selectionFromLink({ preset: local.preset, from: local.from, to: local.to }) ??
+      selectionFromLink({ preset: global.preset, from: global.from, to: global.to }),
+    [local.preset, local.from, local.to, global.preset, global.from, global.to],
+  );
   useEffect(() => {
-    if (linkPreset) setSelection({ kind: 'preset', preset: linkPreset });
-  }, [linkPreset, setSelection]);
+    if (linked) setSelection(linked);
+  }, [linked, setSelection]);
+  // The monthly summary push asks for its statement: offered at the top while Home still shows
+  // that period, so the owner does not have to look for it at the bottom.
+  const statementLink =
+    linked !== null &&
+    (local.statement ?? global.statement) === '1' &&
+    sameSelection(selection, linked);
   const me = useMe();
   const settings = me.data?.settings;
   const q = useSummary(query);
@@ -61,6 +84,26 @@ export default function HomeScreen() {
   const d = q.data;
   const [sharing, setSharing] = useState(false);
   const [shareError, setShareError] = useState(false);
+  const makeStatement = () => {
+    if (!d) return;
+    setSharing(true);
+    setShareError(false);
+    const ownerName = auth.owner ? pick(auth.owner.nameAr, auth.owner.nameEn) : '';
+    void shareStatementForPeriod({
+      ownerName,
+      lang,
+      period,
+      query,
+      summary: d,
+      beforeFeeLabel: settings?.showBeforeFeeLabel !== false,
+    })
+      .catch(() => {
+        setShareError(true);
+      })
+      .finally(() => {
+        setSharing(false);
+      });
+  };
   const projected = d?.isFuture === true;
   const netLabel = tr(projected ? 'home_projectedNet' : 'home_net');
   const nothing = d
@@ -117,7 +160,31 @@ export default function HomeScreen() {
       }
     >
       {update.kind === 'available' ? <UpdateBanner state={update} /> : null}
-      <PeriodSwitcher value={selection} onChange={setSelection} weekStart={settings?.weekStart} />
+      <PeriodSwitcher
+        value={selection}
+        onChange={setSelection}
+        weekStart={settings?.weekStart}
+        yearStatement
+      />
+
+      {statementLink && d && !q.isError ? (
+        <Card
+          testID="statement-link"
+          style={{ padding: 16, gap: 10, borderColor: t.colors.primary }}
+        >
+          <Text variant="secondary">{tr('home_statementFor_body')}</Text>
+          <Button
+            title={tr('home_statementFor', { period: formatPeriod(period, lang) })}
+            loading={sharing}
+            onPress={makeStatement}
+          />
+          {shareError ? (
+            <Text variant="caption" color="danger">
+              {tr('error_generic')}
+            </Text>
+          ) : null}
+        </Card>
+      ) : null}
 
       {q.isError ? (
         <ErrorState onRetry={() => void q.refetch()} />
@@ -388,25 +455,7 @@ export default function HomeScreen() {
                 title={tr('home_statement')}
                 variant="secondary"
                 loading={sharing}
-                onPress={() => {
-                  setSharing(true);
-                  setShareError(false);
-                  const ownerName = auth.owner ? pick(auth.owner.nameAr, auth.owner.nameEn) : '';
-                  void shareStatementForPeriod({
-                    ownerName,
-                    lang,
-                    period,
-                    query,
-                    summary: d,
-                    beforeFeeLabel: settings?.showBeforeFeeLabel !== false,
-                  })
-                    .catch(() => {
-                      setShareError(true);
-                    })
-                    .finally(() => {
-                      setSharing(false);
-                    });
-                }}
+                onPress={makeStatement}
               />
               {shareError ? (
                 <Text variant="caption" color="danger">

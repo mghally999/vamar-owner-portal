@@ -12,6 +12,7 @@ import { THEME_NAMES } from '@vamar/tokens';
 import { useTheme, useThemeChoice } from '@/lib/theme';
 import type { ChequeItem, Page } from '@/lib/types';
 import { Button, Card, Row, SectionTitle, Separator, Text, layout } from '@/ui';
+import { YearStatementPicker } from '@/ui/year-statement';
 
 export default function SettingsScreen() {
   const t = useTheme();
@@ -25,33 +26,31 @@ export default function SettingsScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [notify, setNotify] = useState(true);
   const [pushState, setPushState] = useState<PushState | null>(null);
-  const [busyStatement, setBusyStatement] = useState<'month' | 'year' | null>(null);
+  const [busyStatement, setBusyStatement] = useState(false);
 
   useEffect(() => {
     void notificationsEnabled().then(setNotify);
     void lastPushState().then(setPushState);
   }, []);
 
-  async function statement(kind: 'month' | 'year') {
-    setBusyStatement(kind);
+  /** This month's cheques; the yearly statement has its own picker below. */
+  async function monthStatement() {
+    setBusyStatement(true);
     try {
       const today = todayInDubai();
-      const qs = kind === 'month' ? `?month=${today.slice(0, 7)}&limit=100` : `?limit=100`;
-      const page = await request<Page<ChequeItem>>(`/api/owner/cheques${qs}`);
-      const cheques =
-        kind === 'year'
-          ? page.items.filter((c) => c.dueDate.startsWith(today.slice(0, 4)))
-          : page.items;
+      const page = await request<Page<ChequeItem>>(
+        `/api/owner/cheques?month=${today.slice(0, 7)}&limit=100`,
+      );
       const ownerName = auth.owner ? (lang === 'ar' ? auth.owner.nameAr : auth.owner.nameEn) : '';
       await shareStatement({
         ownerName,
-        periodLabel: periodLabel(kind, today, lang),
-        cheques,
+        periodLabel: periodLabel('month', today, lang),
+        cheques: page.items,
         lang,
         generatedOn: today,
       });
     } finally {
-      setBusyStatement(null);
+      setBusyStatement(false);
     }
   }
 
@@ -139,15 +138,14 @@ export default function SettingsScreen() {
           <Button
             title={tr('settings_statement_month')}
             variant="secondary"
-            loading={busyStatement === 'month'}
-            onPress={() => void statement('month')}
+            loading={busyStatement}
+            onPress={() => void monthStatement()}
           />
-          <Button
-            title={tr('settings_statement_year')}
-            variant="secondary"
-            loading={busyStatement === 'year'}
-            onPress={() => void statement('year')}
-          />
+          <Separator />
+          <Text weight="medium" style={{ paddingTop: 4 }}>
+            {tr('yearStatement_title')}
+          </Text>
+          <YearStatementPicker />
         </Card>
       </View>
 

@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react-native';
 import { useState } from 'react';
 import { Linking, Text } from 'react-native';
 import { formatPeriod, resolvePreset, todayInDubai } from '@vamar/shared';
@@ -269,6 +269,105 @@ describe('Home', () => {
     await waitFor(() => {
       expect(lastQuery()).toEqual({ preset: 'next_month' });
     });
+  });
+
+  it('opens the month a monthly summary push names and offers its statement at the top', async () => {
+    mockApi({
+      'GET /api/owner/cheques': {
+        body: { items: [cheque({ status: 'cleared' })], nextCursor: null },
+      },
+      'GET /api/owner/expenses': { body: { items: [expense()], nextCursor: null } },
+      'GET /api/owner/disputes': { body: { items: [], nextCursor: null } },
+    });
+    routeState.params = { from: '2026-10-01', to: '2026-10-31', statement: '1' };
+    await renderApp(<HomeHost />);
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ from: '2026-10-01', to: '2026-10-31' });
+    });
+    const card = await screen.findByTestId('statement-link');
+    expect(
+      within(card).getByText('Rent, expenses and net for this period, as a PDF to keep or share.'),
+    ).toBeTruthy();
+    // The switcher names the month rather than a date range.
+    expect(screen.getByRole('button', { name: 'October 2026' })).toBeTruthy();
+    await fireEvent.press(within(card).getByRole('button', { name: 'Statement for October 2026' }));
+    await waitFor(() => {
+      expect(sharing.shareAsync).toHaveBeenCalledWith(
+        'file:///cache/vamar-statement-October-2026.pdf',
+        expect.anything(),
+      );
+    });
+    const html = print.printToFileAsync.mock.calls[0]![0].html;
+    expect(html).toContain('Salem Al Kaabi · October 2026');
+    expect(Object.fromEntries(sent('GET /api/owner/cheques')[0]!.query)).toMatchObject({
+      from: '2026-10-01',
+      to: '2026-10-31',
+    });
+    // Choosing another period puts the offer away.
+    await fireEvent.press(screen.getByRole('button', { name: 'This year' }));
+    await waitFor(() => {
+      expect(screen.queryByTestId('statement-link')).toBeNull();
+    });
+  });
+
+  it('a monthly summary push without dates (older payload) opens last month with its statement', async () => {
+    routeState.params = { preset: 'last_month', statement: '1' };
+    await renderApp(<HomeScreen />);
+    await waitFor(() => {
+      expect(lastQuery()).toEqual({ preset: 'last_month' });
+    });
+    const lastMonth = formatPeriod(resolvePreset('last_month', today), 'en');
+    const card = await screen.findByTestId('statement-link');
+    expect(within(card).getByRole('button', { name: `Statement for ${lastMonth}` })).toBeTruthy();
+  });
+
+  it('shows no statement offer for a plain period link', async () => {
+    routeState.params = { preset: 'last_month' };
+    await renderApp(<HomeScreen />);
+    await screen.findByText('75,000');
+    expect(screen.queryByTestId('statement-link')).toBeNull();
+  });
+
+  it('offers the statement in Arabic', async () => {
+    routeState.params = { from: '2026-10-01', to: '2026-10-31', statement: '1' };
+    await renderApp(<HomeScreen />, { lang: 'ar' });
+    const card = await screen.findByTestId('statement-link');
+    expect(within(card).getByRole('button', { name: 'كشف حساب أكتوبر 2026' })).toBeTruthy();
+  });
+
+  it('makes the yearly statement from the More sheet', async () => {
+    const year = Number(today.slice(0, 4));
+    mockApi({
+      'GET /api/owner/statement-years': { body: { years: [year, year - 1] } },
+      'GET /api/owner/cheques': { body: { items: [], nextCursor: null } },
+      'GET /api/owner/expenses': { body: { items: [], nextCursor: null } },
+      'GET /api/owner/disputes': { body: { items: [], nextCursor: null } },
+    });
+    await renderApp(<HomeScreen />);
+    await screen.findByText('75,000');
+    await fireEvent.press(screen.getByRole('button', { name: 'More' }));
+    await fireEvent.press(await screen.findByRole('button', { name: 'Yearly statement (PDF)' }));
+    await fireEvent.press(await screen.findByRole('button', { name: String(year - 1) }));
+    await fireEvent.press(
+      screen.getByRole('button', { name: `Statement for ${String(year - 1)}` }),
+    );
+    await waitFor(() => {
+      expect(sharing.shareAsync).toHaveBeenCalled();
+    });
+    expect(Object.fromEntries(sent('GET /api/owner/summary').at(-1)!.query)).toEqual({
+      from: `${String(year - 1)}-01-01`,
+      to: `${String(year - 1)}-12-31`,
+    });
+    expect(print.printToFileAsync.mock.calls[0]![0].html.match(/<tr class="month"/g)).toHaveLength(
+      12,
+    );
+    // The sheet closes once the PDF is shared; Home stays on its own period.
+    await waitFor(() => {
+      expect(
+        screen.queryByRole('button', { name: `Statement for ${String(year - 1)}` }),
+      ).toBeNull();
+    });
+    expect(screen.getByRole('button', { name: 'More' })).toBeTruthy();
   });
 
   it('shows the four quick chips and More together, wrapping instead of scrolling', async () => {

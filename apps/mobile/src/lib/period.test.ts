@@ -8,6 +8,7 @@ import {
   QUICK_PRESETS,
   resolveSelection,
   sameSelection,
+  selectionFromLink,
   selectionLabel,
   toQuery,
 } from './period';
@@ -84,6 +85,42 @@ describe('period links', () => {
       preset: 'next_6_months',
     });
     expect(initialSelection('?preset=bogus')).toEqual(DEFAULT_SELECTION);
+    expect(initialSelection('?from=2026-10-01&to=2026-10-31')).toEqual({
+      kind: 'month',
+      year: 2026,
+      month: 10,
+    });
     expect(initialSelection()).toEqual(DEFAULT_SELECTION);
+  });
+
+  it('reads the period of a link: dates first, a whole month or year by name', () => {
+    expect(selectionFromLink({ from: '2026-10-01', to: '2026-10-31' })).toEqual({
+      kind: 'month',
+      year: 2026,
+      month: 10,
+    });
+    expect(
+      selectionFromLink({ from: '2028-02-01', to: '2028-02-29', preset: 'this_year' }),
+    ).toEqual({ kind: 'month', year: 2028, month: 2 });
+    expect(selectionFromLink({ from: '2025-01-01', to: '2025-12-31' })).toEqual({
+      kind: 'year',
+      year: 2025,
+    });
+    expect(selectionFromLink({ from: '2026-10-03', to: '2026-10-20' })).toEqual({
+      kind: 'custom',
+      from: '2026-10-03',
+      to: '2026-10-20',
+    });
+    expect(selectionFromLink({ from: ['2026-09-01'], to: ['2026-09-30'] })).toEqual({
+      kind: 'month',
+      year: 2026,
+      month: 9,
+    });
+    // Bad or reversed dates fall back to the preset, then to nothing.
+    expect(
+      selectionFromLink({ from: '2026-10-31', to: '2026-10-01', preset: 'last_month' }),
+    ).toEqual({ kind: 'preset', preset: 'last_month' });
+    expect(selectionFromLink({ from: '2026-02-30', to: '2026-03-01' })).toBeNull();
+    expect(selectionFromLink({})).toBeNull();
   });
 });

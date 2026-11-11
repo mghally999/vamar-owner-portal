@@ -1,11 +1,14 @@
-import type { PlainDate } from '@vamar/shared';
+import { formatAmount, type PlainDate } from '@vamar/shared';
 import {
   disputeInPeriod,
   fetchAllPages,
+  monthRows,
   periodStatementHtml,
   shareStatementForPeriod,
+  shareYearStatement,
   STATEMENT_MAX_PAGES,
 } from '@/lib/statement-period';
+import type { Summary } from '@/lib/types';
 import { mockApi, sent, type SentRequest } from '@/test/api';
 import { cheque, dispute, expense, summary } from '@/test/fixtures';
 import { print, sharing } from '@/test/native';
@@ -190,5 +193,159 @@ describe('period statement', () => {
     expect(printedHtml()).toContain('الفترة طويلة جداً');
     const en = periodStatementHtml({ ...base, lang: 'en', truncated: true }, 'x');
     expect(en).toContain('This period is too long to list every cheque and expense below');
+  });
+
+  it('says the amounts are the owner’s share and never shows a commission', () => {
+    for (const monthly of [false, true]) {
+      const en = periodStatementHtml({ ...base, lang: 'en', monthly }, 'x');
+      expect(en).toContain('Amounts are the owner’s share of the gross rent and of each expense.');
+      expect(en).not.toMatch(/commission/i);
+      const ar = periodStatementHtml({ ...base, lang: 'ar', monthly }, 'x');
+      expect(ar).toContain('المبالغ تمثل حصة المالك من الإيجار الإجمالي ومن كل مصروف.');
+      expect(ar).not.toContain('عمولة');
+    }
+  });
+});
+
+/** A calendar year of buckets with different figures each month, and totals that match them. */
+function yearSummary(year: number): Summary {
+  const one = summary().buckets[0]!;
+  const buckets = Array.from({ length: 12 }, (_, i) => ({
+    ...one,
+    key: `${String(year)}-${String(i + 1).padStart(2, '0')}`,
+    expectedFils: 1_000_000 + i * 10_000,
+    collectedFils: 900_000 + i * 10_000,
+    fixedFils: 100_000,
+    variableFils: i % 3 === 0 ? 55_000 : 0,
+    totalFils: 100_000 + (i % 3 === 0 ? 55_000 : 0),
+    projectedFixedFils: 0,
+    netFils: 800_000 + i * 10_000 - (i % 3 === 0 ? 55_000 : 0),
+  }));
+  const total = (pick: (b: (typeof buckets)[number]) => number) =>
+    buckets.reduce((a, b) => a + pick(b), 0);
+  const collected = total((b) => b.collectedFils);
+  const fixed = total((b) => b.fixedFils);
+  const variable = total((b) => b.variableFils);
+  return summary({
+    preset: 'custom',
+    period: { from: `${String(year)}-01-01`, to: `${String(year)}-12-31` },
+    rent: {
+      ...summary().rent,
+      expectedFils: total((b) => b.expectedFils),
+      collectedFils: collected,
+    },
+    expenses: {
+      fixedFils: fixed,
+      variableFils: variable,
+      totalFils: fixed + variable,
+      count: 16,
+      projectedFixedFils: 0,
+    },
+    netFils: collected - fixed - variable,
+    buckets,
+  });
+}
+
+const year2025 = {
+  ...base,
+  period: { from: '2025-01-01' as PlainDate, to: '2025-12-31' as PlainDate },
+  summary: yearSummary(2025),
+  monthly: true,
+};
+
+/** The amount in a total cell of the month table. */
+const totalCell = (html: string, which: 'collected' | 'expenses' | 'net') =>
+  new RegExp(`data-total="${which}">([^<]+)<`).exec(html)?.[1];
+
+describe('yearly statement', () => {
+  it('has twelve month rows whose totals equal the sum of the months and the year', () => {
+    const rows = monthRows(year2025.period, year2025.summary.buckets);
+    expect(rows.map((r) => r.key)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `2025-${String(i + 1).padStart(2, '0')}`),
+    );
+    const sum = (pick: (r: (typeof rows)[number]) => number) =>
+      rows.reduce((a, r) => a + pick(r), 0);
+    expect(sum((r) => r.collectedFils)).toBe(year2025.summary.rent.collectedFils);
+    expect(sum((r) => r.expensesFils)).toBe(year2025.summary.expenses.totalFils);
+    expect(sum((r) => r.netFils)).toBe(year2025.summary.netFils);
+    for (const r of rows) expect(r.netFils).toBe(r.collectedFils - r.expensesFils);
+
+    const en = periodStatementHtml({ ...year2025, lang: 'en' }, 'x');
+    expect(en.match(/<tr class="month"/g)).toHaveLength(12);
+    expect(en).toContain('<h1>Yearly statement</h1>');
+    expect(en).toContain('Salem Al Kaabi · 2025');
+    expect(en).toContain('<h2>Month by month</h2>');
+    expect(en).toContain('<td>January 2025</td>');
+    expect(en).toContain('<td>December 2025</td>');
+    expect(en).toContain('Total for the year');
+    expect(totalCell(en, 'collected')).toBe(
+      formatAmount(
+        sum((r) => r.collectedFils),
+        'en',
+      ),
+    );
+    expect(totalCell(en, 'expenses')).toBe(
+      formatAmount(
+        sum((r) => r.expensesFils),
+        'en',
+      ),
+    );
+    expect(totalCell(en, 'net')).toBe(formatAmount(year2025.summary.netFils, 'en'));
+    // March: collected 9,200, expenses 1,000 fixed only, net 8,200.
+    expect(en).toMatch(
+      /data-month="2025-03">\s*<td>March 2025<\/td>\s*<td class="n amt">AED 9,200<\/td>\s*<td class="n amt">AED 1,000<\/td>\s*<td class="n amt">AED 8,200<\/td>/,
+    );
+    // The rest of the period statement is still there: rent, expenses with reason and invoice
+    // number, net before the fee.
+    expect(en).toContain('<td class="n">GL-2026-0417</td>');
+    expect(en).toContain('<td>October salaries</td>');
+    expect(en).toContain("Net · Before Vamar's management fee");
+    // A period statement has no month table.
+    expect(periodStatementHtml({ ...base, lang: 'en' }, 'x')).not.toContain('class="month"');
+  });
+
+  it('is in Arabic, right to left, with Western digits', () => {
+    const ar = periodStatementHtml({ ...year2025, lang: 'ar' }, 'x');
+    expect(ar).toContain('<html lang="ar" dir="rtl">');
+    expect(ar).toContain('<h1>كشف الحساب السنوي</h1>');
+    expect(ar).toContain('<h2>حسب الشهر</h2>');
+    expect(ar).toContain('<td>يناير 2025</td>');
+    expect(ar).toContain('إجمالي السنة');
+    expect(ar.match(/<tr class="month"/g)).toHaveLength(12);
+    expect(totalCell(ar, 'net')).toBe(formatAmount(year2025.summary.netFils, 'ar'));
+    expect(ar).not.toMatch(/[٠-٩]/);
+  });
+
+  it('keeps twelve rows when the summary leaves months out', () => {
+    const sparse = { ...year2025.summary, buckets: year2025.summary.buckets.slice(0, 3) };
+    const rows = monthRows(year2025.period, sparse.buckets);
+    expect(rows).toHaveLength(12);
+    expect(rows[11]).toEqual({ key: '2025-12', collectedFils: 0, expensesFils: 0, netFils: 0 });
+  });
+
+  it('loads the year summary, then the year’s cheques and expenses, and shares one PDF', async () => {
+    mockApi({
+      'GET /api/owner/summary': { body: yearSummary(2025) },
+      'GET /api/owner/cheques': { body: { items: [cheque()], nextCursor: null } },
+      'GET /api/owner/expenses': { body: { items: [expense()], nextCursor: null } },
+      'GET /api/owner/disputes': { body: { items: [], nextCursor: null } },
+    });
+    await shareYearStatement({ ownerName: 'S', lang: 'en', year: 2025 });
+    expect(Object.fromEntries(sent('GET /api/owner/summary')[0]!.query)).toEqual({
+      from: '2025-01-01',
+      to: '2025-12-31',
+    });
+    expect(sent('GET /api/owner/cheques')[0]!.query.get('from')).toBe('2025-01-01');
+    expect(sent('GET /api/owner/cheques')[0]!.query.get('to')).toBe('2025-12-31');
+    expect(Object.fromEntries(sent('GET /api/owner/expenses')[0]!.query)).toEqual({
+      from: '2025-01-01',
+      to: '2025-12-31',
+      limit: '100',
+    });
+    expect(printedHtml().match(/<tr class="month"/g)).toHaveLength(12);
+    expect(sharing.shareAsync).toHaveBeenCalledWith(
+      'file:///cache/vamar-statement-2025.pdf',
+      expect.anything(),
+    );
   });
 });

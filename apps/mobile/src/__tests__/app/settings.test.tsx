@@ -6,7 +6,7 @@ import { API_BASE } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { getItem, setItem } from '@/lib/storage';
 import { mockApi, sent } from '@/test/api';
-import { cheque, deviceItem } from '@/test/fixtures';
+import { cheque, deviceItem, summary } from '@/test/fixtures';
 import { application, localAuth, notifications, print, sharing, updates } from '@/test/native';
 import { renderApp } from '@/test/render';
 
@@ -173,27 +173,29 @@ describe('Settings', () => {
     expect(screen.getByRole('button', { name: 'This month (PDF)' })).toBeTruthy();
   });
 
-  it("shares this year's statement with only this year's cheques", async () => {
+  it('makes the yearly statement for a year the owner picks', async () => {
+    const y = Number(year);
     mockApi({
-      'GET /api/owner/cheques': {
-        body: {
-          items: [
-            cheque({ dueDate: `${year}-02-01` }),
-            cheque({ id: 'old', dueDate: `${Number(year) - 1}-12-01` }),
-          ],
-          nextCursor: null,
-        },
-      },
+      'GET /api/owner/statement-years': { body: { years: [y, y - 1] } },
+      'GET /api/owner/summary': { body: summary({ preset: 'custom' }) },
+      'GET /api/owner/cheques': { body: { items: [cheque()], nextCursor: null } },
+      'GET /api/owner/expenses': { body: { items: [], nextCursor: null } },
+      'GET /api/owner/disputes': { body: { items: [], nextCursor: null } },
     });
     await open();
-    await fireEvent.press(screen.getByRole('button', { name: 'This year (PDF)' }));
+    expect(screen.getByText('Yearly statement (PDF)')).toBeTruthy();
+    await fireEvent.press(await screen.findByRole('button', { name: String(y - 1) }));
+    await fireEvent.press(screen.getByRole('button', { name: `Statement for ${String(y - 1)}` }));
     await waitFor(() => {
       expect(sharing.shareAsync).toHaveBeenCalled();
     });
-    expect(sent('GET /api/owner/cheques')[0]?.query.has('month')).toBe(false);
+    expect(Object.fromEntries(sent('GET /api/owner/summary')[0]!.query)).toEqual({
+      from: `${String(y - 1)}-01-01`,
+      to: `${String(y - 1)}-12-31`,
+    });
     const html = print.printToFileAsync.mock.calls[0]?.[0].html ?? '';
-    expect(html).toContain(`Salem Al Kaabi · ${year}`);
-    expect(html).toContain('Cheques: 1');
+    expect(html).toContain(`Salem Al Kaabi · ${String(y - 1)}`);
+    expect(html.match(/<tr class="month"/g)).toHaveLength(12);
   });
 
   it('signs out the other devices', async () => {

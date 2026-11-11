@@ -14,6 +14,7 @@ import { QUICK_PRESETS, sameSelection, selectionLabel, type PeriodSelection } fr
 import { useTheme } from '@/lib/theme';
 import { Button, Row, Text } from '.';
 import { DatePickerField, YearMonthPicker } from './date-picker';
+import { YearStatementPicker } from './year-statement';
 
 /** Chip text for a quick preset: the shared label, shortened where a chip needs it. */
 export function chipLabel(
@@ -28,22 +29,28 @@ export function chipLabel(
  * The period switcher at the top of Home and Expenses: four quick chips and a "More" sheet with
  * last month, last year, a year, a month, or a custom range. The chips wrap onto a second row
  * instead of scrolling sideways, so This year and More are always in view on a 360 px phone. The
- * sheet is a bottom modal so it works the same on the phone and in the web app.
+ * sheet is a bottom modal so it works the same on the phone and in the web app. On Home the sheet
+ * also offers the yearly statement (`yearStatement`), next to the year a period can be.
  */
 export function PeriodSwitcher({
   value,
   onChange,
   weekStart = 'monday',
   quick = QUICK_PRESETS,
+  yearStatement = false,
 }: {
   value: PeriodSelection;
   onChange: (next: PeriodSelection) => void;
   weekStart?: WeekStart | undefined;
   quick?: typeof QUICK_PRESETS;
+  /** Offer the yearly statement PDF in the sheet. */
+  yearStatement?: boolean;
 }) {
   const t = useTheme();
   const { lang, t: tr } = useI18n();
-  const [sheet, setSheet] = useState<'menu' | 'year' | 'month' | 'custom' | null>(null);
+  const [sheet, setSheet] = useState<'menu' | 'year' | 'month' | 'custom' | 'yearStatement' | null>(
+    null,
+  );
   const today = todayInDubai();
   const [y, m] = today.split('-').map(Number) as [number, number];
   const [pickYear, setPickYear] = useState(y);
@@ -161,7 +168,9 @@ export function PeriodSwitcher({
                     ? tr('period_pickMonth')
                     : sheet === 'custom'
                       ? tr('period_custom')
-                      : tr('period_title')}
+                      : sheet === 'yearStatement'
+                        ? tr('yearStatement_title')
+                        : tr('period_title')}
               </Text>
               {sheet === 'menu' ? (
                 <View>
@@ -202,7 +211,19 @@ export function PeriodSwitcher({
                     },
                     value.kind === 'custom',
                   )}
+                  {yearStatement
+                    ? option(tr('yearStatement_title'), () => {
+                        setSheet('yearStatement');
+                      })
+                    : null}
                 </View>
+              ) : null}
+              {sheet === 'yearStatement' ? (
+                <YearStatementPicker
+                  onShared={() => {
+                    setSheet(null);
+                  }}
+                />
               ) : null}
               {sheet === 'year' || sheet === 'month' ? (
                 <YearMonthPicker
