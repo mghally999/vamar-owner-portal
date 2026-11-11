@@ -85,6 +85,8 @@ describe('Home', () => {
     expect(screen.getByText('Calendar')).toBeTruthy();
     expect(screen.getByText('3 of 4 units rented')).toBeTruthy();
     expect(screen.getByRole('progressbar').props.accessibilityValue).toMatchObject({ now: 75 });
+    // The web app (react-native-web) only renders the aria-value props.
+    expect(screen.getByRole('progressbar').props).toMatchObject({ 'aria-valuenow': 75 });
     expect(screen.getByText('2 open disputes')).toBeTruthy();
     expect(screen.getByText('Statement (PDF)')).toBeTruthy();
   });

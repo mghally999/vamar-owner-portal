@@ -52,6 +52,10 @@ function BudgetLineRow({ line }: { line: OwnerBudgetLine }) {
         accessibilityRole="progressbar"
         accessibilityLabel={name}
         accessibilityValue={{ min: 0, max: 100, now: spent }}
+        // react-native-web drops accessibilityValue: without these the web app's bar has no value.
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={spent}
         style={{
           height: 7,
           borderRadius: 999,

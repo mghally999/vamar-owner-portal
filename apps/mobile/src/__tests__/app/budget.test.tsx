@@ -84,10 +84,13 @@ describe('Building budget card', () => {
     expect(
       within(card).getByText("The building's full figures as Vamar manages them, not your share."),
     ).toBeTruthy();
-    expect(within(card).getByLabelText('Lifts (repairs)').props.accessibilityValue).toEqual({
-      min: 0,
-      max: 100,
-      now: 86,
+    const bar = within(card).getByLabelText('Lifts (repairs)');
+    expect(bar.props.accessibilityValue).toEqual({ min: 0, max: 100, now: 86 });
+    // The web app (react-native-web) only renders the aria-value props.
+    expect(bar.props).toMatchObject({
+      'aria-valuemin': 0,
+      'aria-valuemax': 100,
+      'aria-valuenow': 86,
     });
     // A building without a budget shows no card.
     expect(screen.queryByTestId('budget-bld-2')).toBeNull();

@@ -357,6 +357,10 @@ export function ProgressBar({ pct }: { pct: number }) {
       accessible
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now }}
+      // react-native-web drops accessibilityValue: without these the web app's bar has no value.
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={now}
       style={{ height: 7, borderRadius: 999, backgroundColor: t.colors.track, overflow: 'hidden' }}
     >
       <View
