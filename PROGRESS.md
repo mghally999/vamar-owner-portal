@@ -314,3 +314,26 @@ demo admin without a second step until go-live day.
 
 تم فحص النسخة الثانية فحصاً مستقلاً: كل مالك يرى بياناته فقط في كل الشاشات الجديدة، وتوزيع المصروفات صحيح
 حتى آخر فلس، وكل الروابط المحمية ترفض أي دخول بدون تسجيل صحيح على بيئة الاختبار والنسخة الحقيقية.
+
+## v3, improvements round (11 Nov 2026)
+
+**Built.** Owners approve large repairs before work starts (AED 5,000 by default, silent approval
+after 3 days, admin override with a reason). Building budgets per year and category with 80 % and
+100 % alerts to staff and owners. Owners message Vamar from the app, linked to a unit, cheque,
+expense, job or case; staff answer from an inbox. The monthly push opens last month's statement,
+and owners download a yearly statement with a month-by-month table. Staff get a Today panel,
+bulk actions on cheques and expenses, bank statement matching from any bank's CSV, and renewal
+suggestions from Vamar's own recent contracts with the Dubai rent increase cap. Faster: the staff
+report handles 40 requests a second at 20 staff (p95 535 ms, was 3.5 s), the calendar stays
+smooth with 2,000 items. Operations: the nightly backup works (encrypted, kept 35 days) and a
+restore from a real backup matched production table for table; an uptime check every 10 minutes
+opens an issue when production or staging is down. 432 new screenshots reviewed; seven issues
+fixed. Invoice reading from a photo was postponed by the client (FUTURE.md).
+
+**Try it.** Staging https://vamar-owner-portal-staging.vamar-api.workers.dev; screenshots in
+`demo/screenshots/v4`.
+
+تم إضافة موافقة الملاك على أعمال الصيانة الكبيرة قبل البدء فيها، وميزانية سنوية لكل مبنى مع تنبيه عند 80% و100%،
+ومراسلة فامار من داخل التطبيق، وكشف حساب سنوي، ولوحة "اليوم" للموظفين، وتحديث الشيكات والمصروفات دفعة واحدة،
+ومطابقة كشف البنك، واقتراحات تجديد العقود حسب سقف الزيادة في دبي. وأصبحت التقارير أسرع بأكثر من ست مرات، والنسخ
+الاحتياطي يعمل كل ليلة وتمت تجربة الاسترجاع بنجاح، ويوجد تنبيه تلقائي إذا توقف النظام.
