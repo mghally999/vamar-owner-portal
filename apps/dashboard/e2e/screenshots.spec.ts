@@ -121,7 +121,8 @@ for (const lang of ['ar', 'en'] as const) {
         await page.goto('/login');
         await expect(page.getByRole('button', { name: /تسجيل الدخول|Sign in/ })).toBeVisible();
         await page.evaluate(() => document.fonts.ready);
-        await shoot(page, 'login', lang, width);
+        // The sign-in page uses only colours both palettes share: one picture, in the default run.
+        if (THEME === 'default') await shoot(page, 'login', lang, width);
         await login(page, 'admin', lang);
       });
 
