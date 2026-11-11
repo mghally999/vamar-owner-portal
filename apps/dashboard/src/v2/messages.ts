@@ -86,6 +86,12 @@ const en = {
   calendar_timed: 'Time',
   calendar_weekend: 'Weekend',
   calendar_items: '{n} items',
+  // Count on one day in the year view, one key per plural category (Arabic uses all five).
+  calendar_dayItems_one: '1 item',
+  calendar_dayItems_two: '2 items',
+  calendar_dayItems_few: '{n} items',
+  calendar_dayItems_many: '{n} items',
+  calendar_dayItems_other: '{n} items',
 
   // kinds
   kind_cheque_due: 'Cheque due',
@@ -324,6 +330,11 @@ const ar: Record<V2MessageKey, string> = {
   calendar_timed: 'الوقت',
   calendar_weekend: 'عطلة نهاية الأسبوع',
   calendar_items: '{n} عناصر',
+  calendar_dayItems_one: 'عنصر واحد',
+  calendar_dayItems_two: 'عنصران',
+  calendar_dayItems_few: '{n} عناصر',
+  calendar_dayItems_many: '{n} عنصرًا',
+  calendar_dayItems_other: '{n} عنصر',
 
   kind_cheque_due: 'شيك مستحق',
   kind_contract_end: 'نهاية عقد',

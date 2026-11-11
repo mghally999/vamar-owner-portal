@@ -63,3 +63,44 @@
   cursor: pointer;
   font-weight: 500;
 }
+
+/*
+ * The year view shows one count per day instead of the items: a small button under the day number
+ * with a dot in the colour of the day's main kind. The number carries the meaning, so the dot can
+ * stay decorative; text uses the soft ink token, which keeps its contrast on weekend, holiday and
+ * today shading in both themes.
+ */
+.vamar-calendar .vc-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.vamar-calendar .vc-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-height: 16px;
+  padding: 0 3px;
+  border-radius: 999px;
+  color: var(--color-ink-soft);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.vamar-calendar .vc-count:hover {
+  background: var(--color-chip);
+  color: var(--color-ink);
+}
+.vamar-calendar .vc-count:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+.vamar-calendar .vc-count-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  flex: none;
+}

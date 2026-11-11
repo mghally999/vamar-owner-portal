@@ -6,13 +6,16 @@ import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import type {
   DatesSetArg,
+  DayCellContentArg,
+  DayHeaderContentArg,
   EventClickArg,
   EventDropArg,
   EventInput,
   EventSourceFuncArg,
+  MoreLinkContentArg,
 } from '@fullcalendar/core';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CALENDAR_EVENT_TYPES,
   CALENDAR_EVENT_TYPE_LABEL,
@@ -45,7 +48,7 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import './calendar.css';
-import { useV2 } from './messages';
+import { useV2, type V2MessageKey } from './messages';
 import {
   useCalendar,
   useCalendarEvent,
@@ -120,14 +123,15 @@ function addDaysIso(date: PlainDate, days: number): PlainDate {
   return iso(next);
 }
 
-/** Items drawn per day in the month and year grids. */
+/** Items drawn per day in the month grid. */
 export const DAY_LIMIT = 3;
 
 /**
- * In the month and year grids a busy day keeps its first `DAY_LIMIT` items and gets one "+N more"
- * entry that opens the day in the list. Given every item, FullCalendar builds and measures each
+ * In the month grid a busy day keeps its first `DAY_LIMIT` items and gets one "+N more" entry that
+ * opens the day in the list. Given every item, FullCalendar builds and measures each
  * hidden one to count them (2,000 items in a month froze the page for 1.5 s). Items spanning
- * several days are always kept; the week and list views get every item.
+ * several days are always kept; the week and list views get every item, the year view none
+ * (see `dayCounts`).
  */
 export function capPerDay(events: EventInput[], moreTitle: (n: number) => string): EventInput[] {
   const out: EventInput[] = [];
@@ -171,6 +175,84 @@ export function capPerDay(events: EventInput[], moreTitle: (n: number) => string
   }
   return out;
 }
+
+/** What the year view shows on a day: how many items it holds and the kind most of them are. */
+export interface DayCount {
+  n: number;
+  kind: CalendarItemKind;
+}
+
+/**
+ * The year view draws one count per day instead of the items: FullCalendar builds and measures
+ * every event element even when a day only has room for a few, which with 2,000 items in a month
+ * blocked the page for over a second. An item spanning several days counts on each of them.
+ */
+export function dayCounts(items: CalendarItem[]): Map<PlainDate, DayCount> {
+  const perKind = new Map<PlainDate, Map<CalendarItemKind, number>>();
+  for (const i of items) {
+    // A guard against a bad end date turning one item into an endless loop; a year view is 366 days.
+    for (let d = i.date, step = 0; d <= i.endDate && step < 400; d = addDaysIso(d, 1), step++) {
+      let kinds = perKind.get(d);
+      if (!kinds) perKind.set(d, (kinds = new Map<CalendarItemKind, number>()));
+      kinds.set(i.kind, (kinds.get(i.kind) ?? 0) + 1);
+    }
+  }
+  const out = new Map<PlainDate, DayCount>();
+  for (const [day, kinds] of perKind) {
+    let n = 0;
+    let top: CalendarItemKind = 'event';
+    let topN = 0;
+    // Ties go to the kind listed first, so the colour does not change between fetches.
+    for (const k of CALENDAR_ITEM_KINDS) {
+      const c = kinds.get(k) ?? 0;
+      n += c;
+      if (c > topN) {
+        top = k;
+        topN = c;
+      }
+    }
+    out.set(day, { n, kind: top });
+  }
+  return out;
+}
+
+const PLURALS = {
+  ar: new Intl.PluralRules('ar'),
+  en: new Intl.PluralRules('en'),
+};
+
+/** "5 items" / "5 عناصر", with Western digits like the rest of the dashboard. */
+export function dayCountLabel(
+  n: number,
+  lang: 'ar' | 'en',
+  t: (key: V2MessageKey, vars?: Record<string, string | number>) => string,
+): string {
+  const form = PLURALS[lang].select(n);
+  const key: V2MessageKey =
+    form === 'one' || form === 'two' || form === 'few' || form === 'many'
+      ? `calendar_dayItems_${form}`
+      : 'calendar_dayItems_other';
+  return t(key, { n });
+}
+
+/** What the year view gets as events: none (see `dayCounts`). */
+const NO_EVENTS: EventInput[] = [];
+const NO_ITEMS: CalendarItem[] = [];
+/**
+ * The React wrapper hands every option to the calendar again on each render of the page, and the
+ * calendar then redraws the whole view (0.2 s for the year). The options below never change
+ * identity unless their content does, so a memoised wrapper skips renders that change nothing
+ * (the title, the range and the loading state all re-render the page).
+ */
+const Calendar = memo(FullCalendar);
+/** FullCalendar's own `createElement` (Preact), handed to content functions; React's in tests. */
+type CreateElement = (
+  tag: string,
+  props: Record<string, unknown> | null,
+  ...children: unknown[]
+) => object;
+const PLUGINS = [dayGridPlugin, timeGridPlugin, multiMonthPlugin, listPlugin, interactionPlugin];
+const TIME_FORMAT = { hour: '2-digit', minute: '2-digit', hour12: false } as const;
 
 /** FullCalendar event records built from the API items; memoised per fetch. */
 function toEvents(items: CalendarItem[], lang: 'ar' | 'en'): EventInput[] {
@@ -230,31 +312,186 @@ export function CalendarPage() {
   const weekStart = settings.data?.weekStart ?? 'monday';
   const firstDay = weekStart === 'sunday' ? 0 : weekStart === 'saturday' ? 6 : 1;
 
-  const items = q.data ?? [];
-  const events = useMemo(() => {
-    const all = toEvents(items, lang);
-    return view === 'dayGridMonth' || view === 'multiMonthYear'
-      ? capPerDay(all, (n) => t('calendar_more', { n }))
-      : all;
-  }, [items, lang, view, t]);
+  // A new range's items often come straight from the cache in the same click that switched the
+  // view. Deferred, they let the new view draw first and the lists and counts follow in a later
+  // task instead of making one long one.
+  const items = useDeferredValue(q.data ?? NO_ITEMS);
+  // Both lists are kept ready (a few milliseconds for thousands of items): FullCalendar asks for the
+  // events of a new view before it reports the change, so the source must pick by the view asked
+  // for, not by the last one drawn. The month grid gets the capped list, week and list every item.
+  const allEvents = useMemo(() => toEvents(items, lang), [items, lang]);
+  const monthEvents = useMemo(
+    () => capPerDay(allEvents, (n) => t('calendar_more', { n })),
+    [allEvents, t],
+  );
+  // Counted for every view so the day cell renderer does not change when the view does: a changed
+  // renderer redraws the whole year a second time.
+  const counts = useMemo(() => dayCounts(items), [items]);
+
+  const api = useCallback(() => calendarRef.current?.getApi(), []);
+  // The view a tab (or a day) asked for, set before FullCalendar fetches for it.
+  const nextView = useRef<View>('dayGridMonth');
+  // FullCalendar redraws everything when any option changes, so every option below keeps its
+  // identity across renders of this page; the source reads the latest lists from a ref.
+  const lists = useRef({ all: NO_EVENTS, month: NO_EVENTS });
+  const listFor = useCallback(
+    (v: View) =>
+      v === 'multiMonthYear'
+        ? NO_EVENTS
+        : v === 'dayGridMonth'
+          ? lists.current.month
+          : lists.current.all,
+    [],
+  );
   const eventSource = useCallback(
     (_arg: EventSourceFuncArg, ok: (events: EventInput[]) => void) => {
-      ok(events);
+      ok(listFor(nextView.current));
     },
-    [events],
+    [listFor],
+  );
+  const goTo = useCallback(
+    (to: View, date?: string) => {
+      const before = listFor(nextView.current);
+      nextView.current = to;
+      const cal = api();
+      if (!cal) return;
+      if (date === undefined) cal.changeView(to);
+      else cal.changeView(to, date);
+      // A range inside the one already fetched (a day of the year or month, the week of a month)
+      // keeps the previous view's events, so ask again when this view draws a different list.
+      if (listFor(to) !== before) cal.refetchEvents();
+    },
+    [api, listFor],
+  );
+  const openDay = useCallback(
+    (day: string) => {
+      goTo('listDay', day);
+    },
+    [goTo],
   );
   useEffect(() => {
-    calendarRef.current?.getApi().refetchEvents();
-  }, [events]);
+    lists.current = { all: allEvents, month: monthEvents };
+    // The year view draws counts, not events, so new items need no fetch there.
+    if (nextView.current !== 'multiMonthYear') api()?.refetchEvents();
+  }, [allEvents, monthEvents, api]);
 
-  const api = () => calendarRef.current?.getApi();
-  const onDatesSet = (arg: DatesSetArg) => {
-    const from = iso(arg.start);
-    const to = addDaysIso(iso(arg.end), -1);
-    setRange((r) => (r.from === from && r.to === to ? r : { from, to }));
-    setTitle(viewTitle(arg, lang));
-    setView(arg.view.type as View);
-  };
+  const onDatesSet = useCallback(
+    (arg: DatesSetArg) => {
+      const from = iso(arg.start);
+      const to = addDaysIso(iso(arg.end), -1);
+      setRange((r) => (r.from === from && r.to === to ? r : { from, to }));
+      setTitle(viewTitle(arg, lang));
+      nextView.current = arg.view.type as View;
+      setView(arg.view.type as View);
+    },
+    [lang],
+  );
+  const moreLinkContent = useCallback(
+    (arg: MoreLinkContentArg) => t('calendar_more', { n: arg.num }),
+    [t],
+  );
+  const dayHeaderContent = useCallback(
+    (arg: DayHeaderContentArg) => WEEKDAY_SHORT[lang][arg.date.getDay()] ?? '',
+    [lang],
+  );
+  // The count is built with the element factory FullCalendar passes in, so it is drawn together
+  // with the calendar. Returned as JSX it would go through a React portal, and the first portal
+  // makes the calendar re-measure the whole year synchronously (about 0.3 s on a slow laptop).
+  const dayCellContent = useCallback(
+    (arg: DayCellContentArg, h: CreateElement) => {
+      const day = String(arg.date.getDate());
+      const c = arg.view.type === 'multiMonthYear' ? counts.get(iso(arg.date)) : undefined;
+      if (!c) return day;
+      const label = dayCountLabel(c.n, lang, t);
+      const date = iso(arg.date);
+      return h(
+        'span',
+        { className: 'vc-day' },
+        day,
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'vc-count',
+            'aria-label': label,
+            title: label,
+            onClick: (e: MouseEvent) => {
+              // The number sits inside FullCalendar's day link; keep the click to ourselves.
+              e.preventDefault();
+              e.stopPropagation();
+              openDay(date);
+            },
+          },
+          h('span', {
+            className: 'vc-count-dot',
+            style: { background: KIND_COLOR[c.kind] },
+            'aria-hidden': 'true',
+          }),
+          String(c.n),
+        ),
+      );
+    },
+    [counts, lang, t, openDay],
+  );
+  const listDayFormat = useCallback(
+    (arg: { date: { marker: Date } }) => formatDate(iso(arg.date.marker), lang),
+    [lang],
+  );
+  const listDaySideFormat = useCallback(
+    (arg: { date: { marker: Date } }) => WEEKDAY_SHORT[lang][arg.date.marker.getDay()] ?? '',
+    [lang],
+  );
+  const dayCellClassNames = useCallback(
+    (arg: DayCellContentArg) => {
+      const d = iso(arg.date);
+      const classes: string[] = [];
+      if (holidaySet.has(d)) classes.push('vc-holiday');
+      else if (isWeekend(d)) classes.push('vc-weekend');
+      return classes;
+    },
+    [holidaySet],
+  );
+  const eventClick = useCallback(
+    (arg: EventClickArg) => {
+      arg.jsEvent.preventDefault();
+      const props = arg.event.extendedProps as { item?: CalendarItem; moreDate?: string };
+      if (props.moreDate) {
+        openDay(props.moreDate);
+        return;
+      }
+      if (props.item) setSelected(props.item);
+    },
+    [openDay],
+  );
+  const moveEvent = move.mutateAsync;
+  const eventDrop = useCallback(
+    (arg: EventDropArg) => {
+      const item = (arg.event.extendedProps as { item: CalendarItem }).item;
+      if (item.kind !== 'event' || !arg.event.start) {
+        arg.revert();
+        return;
+      }
+      const start = arg.event.start;
+      const end = arg.event.end ?? arg.event.start;
+      const toIso = (d: Date, allDay: boolean) =>
+        allDay ? `${iso(d)}T00:00:00+04:00` : new Date(d.getTime()).toISOString();
+      const endsAt = arg.event.allDay
+        ? `${addDaysIso(iso(end), -1)}T23:59:59+04:00`
+        : toIso(end, false);
+      void moveEvent({
+        id: item.entityId,
+        startsAt: toIso(start, arg.event.allDay),
+        endsAt,
+      })
+        .then(() => {
+          setNotice(t('calendar_moved'));
+        })
+        .catch(() => {
+          arg.revert();
+        });
+    },
+    [moveEvent, t],
+  );
   const monthOf = api()?.getDate() ?? new Date();
 
   return (
@@ -342,7 +579,7 @@ export function CalendarPage() {
                   role="tab"
                   aria-selected={view === v.id || (v.id === 'listMonth' && view === 'listDay')}
                   onClick={() => {
-                    api()?.changeView(v.id);
+                    goTo(v.id);
                   }}
                   className={cx(
                     'h-9 rounded-sm px-3 text-[13px] font-medium',
@@ -416,15 +653,9 @@ export function CalendarPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <Card className="vamar-calendar p-2 sm:p-4" aria-busy={q.isPending}>
-          <FullCalendar
+          <Calendar
             ref={calendarRef}
-            plugins={[
-              dayGridPlugin,
-              timeGridPlugin,
-              multiMonthPlugin,
-              listPlugin,
-              interactionPlugin,
-            ]}
+            plugins={PLUGINS}
             initialView="dayGridMonth"
             initialDate={today}
             headerToolbar={false}
@@ -432,7 +663,7 @@ export function CalendarPage() {
             firstDay={firstDay}
             height="auto"
             dayMaxEvents={DAY_LIMIT + 1}
-            moreLinkContent={(arg) => t('calendar_more', { n: arg.num })}
+            moreLinkContent={moreLinkContent}
             editable={canEdit}
             eventStartEditable={canEdit}
             eventDurationEditable={false}
@@ -440,55 +671,16 @@ export function CalendarPage() {
             events={eventSource}
             datesSet={onDatesSet}
             multiMonthMaxColumns={3}
-            eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-            slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-            dayHeaderContent={(arg) => WEEKDAY_SHORT[lang][arg.date.getDay()] ?? ''}
-            dayCellContent={(arg) => String(arg.date.getDate())}
-            listDayFormat={(arg) => formatDate(iso(arg.date.marker), lang)}
-            listDaySideFormat={(arg) => WEEKDAY_SHORT[lang][arg.date.marker.getDay()] ?? ''}
+            eventTimeFormat={TIME_FORMAT}
+            slotLabelFormat={TIME_FORMAT}
+            dayHeaderContent={dayHeaderContent}
+            dayCellContent={dayCellContent}
+            listDayFormat={listDayFormat}
+            listDaySideFormat={listDaySideFormat}
             noEventsContent={t('calendar_empty')}
-            dayCellClassNames={(arg) => {
-              const d = iso(arg.date);
-              const classes: string[] = [];
-              if (holidaySet.has(d)) classes.push('vc-holiday');
-              else if (isWeekend(d)) classes.push('vc-weekend');
-              return classes;
-            }}
-            eventClick={(arg: EventClickArg) => {
-              arg.jsEvent.preventDefault();
-              const props = arg.event.extendedProps as { item?: CalendarItem; moreDate?: string };
-              if (props.moreDate) {
-                api()?.changeView('listDay', props.moreDate);
-                return;
-              }
-              if (props.item) setSelected(props.item);
-            }}
-            eventDrop={(arg: EventDropArg) => {
-              const item = (arg.event.extendedProps as { item: CalendarItem }).item;
-              if (item.kind !== 'event' || !arg.event.start) {
-                arg.revert();
-                return;
-              }
-              const start = arg.event.start;
-              const end = arg.event.end ?? arg.event.start;
-              const toIso = (d: Date, allDay: boolean) =>
-                allDay ? `${iso(d)}T00:00:00+04:00` : new Date(d.getTime()).toISOString();
-              const endsAt = arg.event.allDay
-                ? `${addDaysIso(iso(end), -1)}T23:59:59+04:00`
-                : toIso(end, false);
-              void move
-                .mutateAsync({
-                  id: item.entityId,
-                  startsAt: toIso(start, arg.event.allDay),
-                  endsAt,
-                })
-                .then(() => {
-                  setNotice(t('calendar_moved'));
-                })
-                .catch(() => {
-                  arg.revert();
-                });
-            }}
+            dayCellClassNames={dayCellClassNames}
+            eventClick={eventClick}
+            eventDrop={eventDrop}
           />
         </Card>
 

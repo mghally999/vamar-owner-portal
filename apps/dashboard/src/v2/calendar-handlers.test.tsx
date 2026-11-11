@@ -5,14 +5,17 @@
  * click, holiday and weekend shading, titles per view, toolbar, formatters) are driven directly.
  * Drawing and dragging themselves are the library's job and are not re-tested here.
  */
-import { act, cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PlainDate } from '@vamar/shared';
 import type { ApiCall } from '@/test/api';
 import { apiError } from '@/test/api';
 import { building } from '@/test/fixtures';
 import { pickOption } from '@/test/render';
 import { calendarEvent, calendarItems, holidays, settings } from './test-fixtures';
-import { capPerDay, DAY_LIMIT } from './calendar-page';
+import { capPerDay, DAY_LIMIT, dayCountLabel, dayCounts } from './calendar-page';
+import { v2Messages, type V2MessageKey } from './messages';
 import { renderV2 } from './test-render';
 import type { CalendarItem } from './types';
 
@@ -86,6 +89,46 @@ const item = (kind: CalendarItem['kind']): CalendarItem => {
   return found;
 };
 
+/** Five more manual events on 15 Oct, beside the one in the fixtures: six items that day. */
+const busyDay: CalendarItem[] = Array.from({ length: 5 }, (_, i) => ({
+  ...item('event'),
+  id: `event:busy-${String(i)}`,
+  entityId: `busy-${String(i)}`,
+}));
+
+/** What the page currently hands FullCalendar as events. */
+function fed(): Record<string, unknown>[] {
+  let out: Record<string, unknown>[] = [];
+  (fc.props['events'] as (a: unknown, ok: (e: Record<string, unknown>[]) => void) => void)(
+    {},
+    (e) => {
+      out = e;
+    },
+  );
+  return out;
+}
+
+/** What the page draws in one day cell of the given view. */
+function dayCell(view: string, date: Date): ReactNode {
+  // FullCalendar passes its own element factory; React's stands in for it here.
+  return (
+    fc.props['dayCellContent'] as (
+      a: { date: Date; view: { type: string } },
+      h: typeof createElement,
+    ) => ReactNode
+  )({ date, view: { type: view } }, createElement);
+}
+
+function showYear() {
+  act(() => {
+    (fc.props['datesSet'] as (a: unknown) => void)({
+      start: new Date(2026, 0, 1),
+      end: new Date(2027, 0, 1),
+      view: { type: 'multiMonthYear', currentStart: new Date(2026, 0, 1) },
+    });
+  });
+}
+
 function dropArg(it: CalendarItem, start: Date | null, end: Date | null, allDay: boolean) {
   return {
     event: { extendedProps: { item: it }, start, end, allDay },
@@ -146,9 +189,7 @@ describe('CalendarPage handlers', () => {
         date: new Date(2026, 9, 12),
       }),
     ).toBe('Mon');
-    expect(
-      (fc.props['dayCellContent'] as (a: { date: Date }) => string)({ date: new Date(2026, 9, 7) }),
-    ).toBe('7');
+    expect(dayCell('dayGridMonth', new Date(2026, 9, 7))).toBe('7');
     expect(
       (fc.props['listDayFormat'] as (a: { date: { marker: Date } }) => string)({
         date: { marker: new Date(2026, 9, 7) },
@@ -377,6 +418,10 @@ describe('CalendarPage handlers', () => {
 
     await renderV2('/calendar', { routes: routes() });
     await screen.findByRole('heading', { name: 'October 2026' });
+    await vi.waitFor(() => {
+      expect(fed()).toHaveLength(4);
+    });
+    fc.api.refetchEvents.mockClear();
     act(() => {
       (fc.props['eventClick'] as (a: unknown) => void)({
         jsEvent: { preventDefault: vi.fn() },
@@ -384,7 +429,101 @@ describe('CalendarPage handlers', () => {
       });
     });
     expect(fc.api.changeView).toHaveBeenLastCalledWith('listDay', '2026-10-05');
+    // The day is inside the month already fetched; the list asks again for the uncapped items.
+    expect(fc.api.refetchEvents).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('region')).toBeNull();
+  });
+
+  it('counts the items of each day for the year view, spanning items on every day', () => {
+    const counts = dayCounts([
+      ...busyDay,
+      item('cheque_due'),
+      { ...item('holiday'), date: '2026-10-14', endDate: '2026-10-16' },
+    ]);
+    expect(counts.get('2026-10-15' as PlainDate)).toEqual({ n: 6, kind: 'event' });
+    expect(counts.get('2026-10-14' as PlainDate)).toEqual({ n: 1, kind: 'holiday' });
+    expect(counts.get('2026-10-16' as PlainDate)).toEqual({ n: 1, kind: 'holiday' });
+    expect(counts.get('2026-10-05' as PlainDate)).toEqual({ n: 1, kind: 'cheque_due' });
+    expect(counts.has('2026-10-17' as PlainDate)).toBe(false);
+    // A tie keeps the kind listed first so the colour is stable.
+    expect(
+      dayCounts([
+        item('event'),
+        { ...item('cheque_due'), date: '2026-10-15', endDate: '2026-10-15' },
+      ]).get('2026-10-15' as PlainDate)?.kind,
+    ).toBe('cheque_due');
+
+    const tEn = (k: V2MessageKey, v?: Record<string, string | number>) =>
+      v2Messages.en[k].replaceAll('{n}', String(v?.['n']));
+    const tAr = (k: V2MessageKey, v?: Record<string, string | number>) =>
+      v2Messages.ar[k].replaceAll('{n}', String(v?.['n']));
+    expect([1, 2, 5, 11, 100].map((n) => dayCountLabel(n, 'en', tEn))).toEqual([
+      '1 item',
+      '2 items',
+      '5 items',
+      '11 items',
+      '100 items',
+    ]);
+    expect([1, 2, 5, 11, 100].map((n) => dayCountLabel(n, 'ar', tAr))).toEqual([
+      'عنصر واحد',
+      'عنصران',
+      '5 عناصر',
+      '11 عنصرًا',
+      '100 عنصر',
+    ]);
+  });
+
+  it('gives the year view one count per day instead of the items, and opens a day in the list', async () => {
+    const { user } = await renderV2('/calendar', {
+      routes: routes({ 'GET /api/staff/calendar': { items: [...calendarItems(), ...busyDay] } }),
+    });
+    await screen.findByRole('heading', { name: 'October 2026' });
+    // The month view still caps a busy day at three items and a "+N more" entry.
+    await vi.waitFor(() => {
+      const on15 = fed().filter((e) => String(e['start']).startsWith('2026-10-15'));
+      expect(on15.map((e) => e['title'])).toHaveLength(DAY_LIMIT + 1);
+      expect(on15.at(-1)?.['title']).toBe(`+${String(6 - DAY_LIMIT)} more`);
+    });
+    // Counts are known in every view but only the year view draws them.
+    expect(dayCell('dayGridMonth', new Date(2026, 9, 15))).toBe('15');
+
+    showYear();
+    expect(fed()).toEqual([]);
+    await vi.waitFor(() => {
+      expect(dayCell('multiMonthYear', new Date(2026, 9, 15))).not.toBe('15');
+    });
+    expect(dayCell('multiMonthYear', new Date(2026, 9, 7))).toBe('7');
+    const { container } = render(<>{dayCell('multiMonthYear', new Date(2026, 9, 15))}</>);
+    const count = within(container).getByRole('button', { name: '6 items' });
+    expect(count.textContent).toBe('6');
+    expect(container.textContent).toBe('156');
+    render(<>{dayCell('multiMonthYear', new Date(2026, 9, 5))}</>);
+    expect(screen.getByRole('button', { name: '1 item' })).toBeTruthy();
+
+    fc.api.refetchEvents.mockClear();
+    await user.click(count);
+    expect(fc.api.changeView).toHaveBeenLastCalledWith('listDay', '2026-10-15');
+    // The day lies inside the year already fetched, so the calendar is asked for its items again,
+    // and this time the source hands out every item.
+    expect(fc.api.refetchEvents).toHaveBeenCalled();
+    expect(fed().filter((e) => String(e['start']).startsWith('2026-10-15'))).toHaveLength(6);
+    expect(screen.queryByRole('region')).toBeNull();
+  });
+
+  it('labels the year counts in Arabic with Western digits', async () => {
+    await renderV2('/calendar', {
+      lang: 'ar',
+      routes: routes({ 'GET /api/staff/calendar': { items: [...calendarItems(), ...busyDay] } }),
+    });
+    await screen.findByRole('heading', { name: 'أكتوبر 2026' });
+    showYear();
+    await vi.waitFor(() => {
+      expect(dayCell('multiMonthYear', new Date(2026, 9, 15))).not.toBe('15');
+    });
+    const { container } = render(<>{dayCell('multiMonthYear', new Date(2026, 9, 15))}</>);
+    expect(within(container).getByRole('button', { name: '6 عناصر' }).textContent).toBe('6');
+    render(<>{dayCell('multiMonthYear', new Date(2026, 9, 5))}</>);
+    expect(screen.getByRole('button', { name: 'عنصر واحد' })).toBeTruthy();
   });
 
   it('closes the side panel, and opens the editor of a clicked manual event', async () => {
