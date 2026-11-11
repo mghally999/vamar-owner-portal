@@ -337,8 +337,12 @@ export async function ownerSummary(
 
   // Statement 2: the recurring rules that can touch the owner's units and, only when there are
   // some, every unit of the owner's buildings with its owners (a building rule is split over all
-  // of them). Projections then allocate in memory, with no query per rule.
-  const projectionQ = db.execute(sql`
+  // of them). Projections then allocate in memory, with no query per rule. Only due dates after
+  // today are projected, so a period that has ended skips the statement.
+  const projectionQ =
+    period.to <= todayDate
+      ? null
+      : db.execute(sql`
     with mine as (select unit_id from unit_ownerships where owner_id = ${ownerId} and to_date is null),
     blds as (select distinct u.building_id from units u where u.id in (select unit_id from mine)),
     rules as (
@@ -370,7 +374,10 @@ export async function ownerSummary(
 
   const [figuresRaw, projectionRaw] = await Promise.all([figuresQ, projectionQ]);
   const figures = jsonColumn(figuresRaw, 'figures') as Figures;
-  const projection = jsonColumn(projectionRaw, 'projection') as Projection;
+  const projection: Projection =
+    projectionRaw === null
+      ? { rules: [], units: [], ownerships: [] }
+      : (jsonColumn(projectionRaw, 'projection') as Projection);
   const rentRaw = figures.rent;
   const expenseRaw = figures.spent;
   const nextRows = figures.next ? [figures.next] : [];

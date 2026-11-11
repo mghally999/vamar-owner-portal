@@ -38,6 +38,27 @@ export const STAFF_SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
 const enc = new TextEncoder();
 
+/**
+ * The HMAC key for a secret, imported once per isolate or process: with raw bytes the library
+ * imports the key again on every sign and verify, which is most of the cost of checking a token.
+ */
+const hmacKeys = new Map<string, Promise<CryptoKey>>();
+function hmacKey(secret: string): Promise<CryptoKey> {
+  let key = hmacKeys.get(secret);
+  if (!key) {
+    key = crypto.subtle.importKey(
+      'raw',
+      enc.encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign', 'verify'],
+    );
+    key.catch(() => hmacKeys.delete(secret));
+    hmacKeys.set(secret, key);
+  }
+  return key;
+}
+
 export async function signAccessToken(env: Bindings, principal: Principal): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const jwt = new SignJWT({
@@ -51,13 +72,13 @@ export async function signAccessToken(env: Bindings, principal: Principal): Prom
     .setIssuedAt(now)
     .setExpirationTime(now + ACCESS_TTL_SECONDS)
     .setIssuer('vamar-owner-portal');
-  return jwt.sign(enc.encode(env.JWT_SECRET));
+  return jwt.sign(await hmacKey(env.JWT_SECRET));
 }
 
 export async function verifyAccessToken(env: Bindings, token: string): Promise<Principal> {
   let payload: Record<string, unknown>;
   try {
-    const res = await jwtVerify(token, enc.encode(env.JWT_SECRET), {
+    const res = await jwtVerify(token, await hmacKey(env.JWT_SECRET), {
       issuer: 'vamar-owner-portal',
       algorithms: ['HS256'],
     });

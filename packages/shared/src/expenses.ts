@@ -256,9 +256,12 @@ export function allocateExpense(
     }
   }
   return [...out.values()].sort(
-    (a, b) => a.unitId.localeCompare(b.unitId) || a.ownerId.localeCompare(b.ownerId),
+    (a, b) => byText.compare(a.unitId, b.unitId) || byText.compare(a.ownerId, b.ownerId),
   );
 }
+
+/** Same order as `localeCompare` with the default locale, without building a collator per call. */
+const byText = new Intl.Collator();
 
 export function sumAllocations(allocations: readonly { amountFils: number }[]): number {
   return allocations.reduce((acc, a) => acc + assertFils(a.amountFils), 0);
