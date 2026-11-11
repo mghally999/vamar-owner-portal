@@ -54,7 +54,7 @@ const DETAILS: { name: string; list: string; links: string[] }[] = [
     list: '/contracts',
     links: ['a[href^="/contracts/"]:not([href$="/new"])'],
   },
-  { name: 'cheque-detail', list: '/cheques', links: ['a[href^="/cheques/"]'] },
+  { name: 'cheque-detail', list: '/cheques', links: ['a[href^="/cheques/"]:not([href="/cheques/bank-statement"])'] },
   { name: 'owner-detail', list: '/owners', links: ['a[href^="/owners/"]'] },
   { name: 'dispute-detail', list: '/disputes', links: ['a[href^="/disputes/"]'] },
   // v2: a posted expense with its invoice and a work order with photos

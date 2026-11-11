@@ -106,6 +106,9 @@ describe('rentPerSqftFils and medianInt', () => {
     expect(rentPerSqftFils(1000, 3)).toBe(333);
     expect(rentPerSqftFils(1000, 400)).toBe(3); // 2.5 -> 3
     expect(() => rentPerSqftFils(1000, 0)).toThrow(RangeError);
+    expect(() => rentPerSqftFils(0, 1200)).toThrow(RangeError);
+    expect(() => rentPerSqftFils(1.5, 1200)).toThrow(RangeError);
+    expect(() => rentPerSqftFils(1000, 1.5)).toThrow(RangeError);
   });
 
   it('takes the middle value, or the rounded mean of the middle two', () => {

@@ -113,7 +113,8 @@ test('change a cheque status: deposit, bounce with a reason, replace', async ({ 
   await login(page, 'admin', 'en');
   await page.goto('/cheques');
   await page.getByLabel(/^Status/).selectOption('upcoming');
-  await page.locator('a[href^="/cheques/"]').first().click();
+  // A cheque row, not the page's "Bank statement" link (also under /cheques/).
+  await page.locator('a[href^="/cheques/"]:not([href="/cheques/bank-statement"])').first().click();
   await expect(page.getByRole('heading', { level: 1 })).toContainText(/Cheque/);
 
   // upcoming -> deposited
