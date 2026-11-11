@@ -1,6 +1,6 @@
 /**
  * The v2 pages (calendar, unit records, settings, holidays, expense categories, vendors,
- * building budgets) as routes under the shell and as navigation entries. router.tsx adds
+ * building budgets, owner messages) as routes under the shell and as navigation entries. router.tsx adds
  * `v2Routes(shellRoute)` to the shell's children and shell.tsx appends `V2_NAV` to its NAV list.
  */
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
@@ -32,6 +32,8 @@ export const V2_PAGES = {
   categories: lazyPage(() => import('./categories-page'), 'CategoriesPage'),
   vendors: lazyPage(() => import('./vendors-page'), 'VendorsPage'),
   budgets: lazyPage(() => import('./budgets-panel'), 'BudgetsPage'),
+  messages: lazyPage(() => import('./messages-page'), 'MessagesPage'),
+  messageThread: lazyPage(() => import('./messages-page'), 'MessageThreadPage'),
 };
 
 export function v2Routes(shellRoute: AnyRoute): AnyRoute[] {
@@ -45,6 +47,8 @@ export function v2Routes(shellRoute: AnyRoute): AnyRoute[] {
     route('/expense-categories', V2_PAGES.categories),
     route('/vendors', V2_PAGES.vendors),
     route('/budgets', V2_PAGES.budgets),
+    route('/messages', V2_PAGES.messages),
+    route('/messages/$threadId', V2_PAGES.messageThread),
   ];
 }
 

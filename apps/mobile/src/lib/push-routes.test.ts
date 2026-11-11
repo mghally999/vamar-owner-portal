@@ -44,6 +44,12 @@ describe('routeForNotification', () => {
       params: { from: '2026-10-01', to: '2026-10-31', statement: '1' },
     });
     expect(routeForNotification({ type: 'new_device_login' })).toBe('/settings');
+    // A reply opens its thread through the answer's id; without one, the list of threads.
+    expect(routeForNotification({ type: 'message_reply', entityId: 'msg-1' })).toEqual({
+      pathname: '/message/[id]',
+      params: { id: 'msg-1' },
+    });
+    expect(routeForNotification({ type: 'message_reply' })).toBe('/messages');
     expect(routeForNotification({ type: 'something_else' })).toBe('/(tabs)');
     expect(routeForNotification(null)).toBe('/(tabs)');
     expect(routeForNotification({ type: 42, entityId: 7 })).toBe('/(tabs)');

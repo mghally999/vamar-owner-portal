@@ -125,6 +125,8 @@ describe('GET /api/staff/today', () => {
       ownerApprovals: { workOrders: 1, expenses: 0, rejected: 0, silentLast7Days: 0 },
       // The seeded Al Noor lift repairs line is past 80 % of its budget.
       budgets: { year: 2026, near: 1, over: 0 },
+      // The seeded leak report from Fatima, sent yesterday at 18:20 Dubai time.
+      ownerMessages: { waiting: 1, oldestAt: '2026-10-06T14:20:00.000Z' },
     });
     const e = await expected();
     expect(t).toMatchObject({

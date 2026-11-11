@@ -138,6 +138,28 @@ describe('TodayPanel', () => {
     expect(within(arTile).getByText('منها 2 نفدت')).toBeTruthy();
   });
 
+  it('counts owner messages waiting for an answer, linking to the inbox filtered on them', async () => {
+    await renderApp('/', { routes: routes() });
+    const panel = await screen.findByRole('region', { name: 'Today' });
+    const messages = await within(panel).findByRole('link', {
+      name: /Unanswered owner messages/,
+    });
+    expect(within(messages).getByText('1')).toBeTruthy();
+    expect(within(messages).getByText(/^Oldest since /)).toBeTruthy();
+    expect(target(messages)).toEqual({ path: '/messages', search: { waiting: '1' } });
+    cleanup();
+    await renderApp('/', {
+      lang: 'ar',
+      routes: routes({
+        'GET /api/staff/today': staffToday({ ownerMessages: { waiting: 0, oldestAt: null } }),
+      }),
+    });
+    const ar = await screen.findByRole('region', { name: 'اليوم' });
+    const arTile = await within(ar).findByRole('link', { name: /رسائل ملاك بلا رد/ });
+    expect(within(arTile).getByText('0')).toBeTruthy();
+    expect(within(arTile).queryByText(/الأقدم/)).toBeNull();
+  });
+
   it('says so when nothing needs action, and offers a retry when the request fails', async () => {
     let fail = true;
     const { api, user } = await renderApp('/', {

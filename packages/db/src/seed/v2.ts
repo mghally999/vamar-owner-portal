@@ -4,12 +4,14 @@
  * breakdown with before and after photos, legal fees on the bounced-cheque case), work orders,
  * unit statuses and identifiers, the cheques behind the dispute, calendar events. Everything is
  * relative to "today" so the demo always has a draft waiting for staff, a job scheduled next
- * week and a hearing about a week away.
+ * week and a hearing about a week away. Also two owner message threads, one answered and one
+ * waiting for staff.
  */
 import {
   addDays,
   addMonthsClamped,
   allocateExpense,
+  defaultThreadSubject,
   expenseTotal,
   ownersOnDate,
   recurringDueDates,
@@ -57,6 +59,7 @@ export interface SeedV2Summary {
   calendarEvents: number;
   budgets: number;
   attachments: number;
+  messageThreads: number;
 }
 
 const AED = (aed: number) => Math.round(aed * 100);
@@ -1162,6 +1165,108 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
   await db.insert(s.attachments).values(attachmentRows.map(({ bytes: _b, ...row }) => row));
   if (ctx.files) for (const a of attachmentRows) await ctx.files(a.r2Key, a.bytes, a.mime);
 
+  // Owner messages ---------------------------------------------------------------------------
+  // Two threads in Arabic so the inbox and the app show both states: Khalid asked about one of
+  // his cheques and Vamar answered (the answer still unread in his app); Fatima reported a leak
+  // in her flat last evening and waits for an answer (the Today line).
+  const dubaiTime = (date: PlainDate, hhmm: string) => new Date(`${date}T${hhmm}:00+04:00`);
+  const currentUnits = (ownerId: string) =>
+    ctx.ownerships.filter((o) => o.ownerId === ownerId && o.toDate === null).map((o) => o.unitId);
+  const khalidUnits = new Set(currentUnits(ctx.owners.khalid.id));
+  const khalidContracts = new Set(
+    ctx.contracts
+      .filter((c) => c.status === 'active' && khalidUnits.has(c.unitId))
+      .map((c) => c.id),
+  );
+  const askedCheque = ctx.cheques.find(
+    (q) => q.status === 'upcoming' && khalidContracts.has(q.contractId),
+  );
+  const [askedChequeRow] = askedCheque
+    ? await db
+        .select({ chequeNo: s.cheques.chequeNo })
+        .from(s.cheques)
+        .where(eqId(s.cheques.id, askedCheque.id))
+    : [];
+  const fatimaUnit = ctx.units.find((u) => u.id === currentUnits(ctx.owners.fatima.id)[0]);
+  const [fatimaBuilding] = fatimaUnit
+    ? await db
+        .select({ nameAr: s.buildings.nameAr })
+        .from(s.buildings)
+        .where(eqId(s.buildings.id, fatimaUnit.buildingId))
+    : [];
+
+  const threadRows: (typeof s.messageThreads.$inferInsert)[] = [];
+  const messageRows: (typeof s.threadMessages.$inferInsert)[] = [];
+  if (askedCheque) {
+    const asked = dubaiTime(addDays(today, -3), '09:15');
+    const answered = dubaiTime(addDays(today, -3), '10:40');
+    const thread = {
+      id: uuidv7(),
+      ownerId: ctx.owners.khalid.id,
+      linkType: 'cheque' as const,
+      linkId: askedCheque.id,
+      subject: defaultThreadSubject('cheque', askedChequeRow?.chequeNo ?? '', 'ar'),
+      status: 'open' as const,
+      assignedStaffId: adminId,
+      lastMessageAt: answered,
+      lastSenderType: 'staff' as const,
+      ownerLastReadAt: asked,
+      staffLastReadAt: answered,
+      createdAt: asked,
+    };
+    threadRows.push(thread);
+    messageRows.push(
+      {
+        id: uuidv7(),
+        threadId: thread.id,
+        senderType: 'owner',
+        senderId: ctx.owners.khalid.id,
+        body: 'السلام عليكم، هل هذا الشيك مسجّل لديكم وسيُودَع في موعده؟ سأكون مسافراً ذلك الأسبوع.',
+        createdAt: asked,
+      },
+      {
+        id: uuidv7(),
+        threadId: thread.id,
+        senderType: 'staff',
+        senderId: adminId,
+        body: 'وعليكم السلام أستاذ خالد، الشيك مسجّل لدينا وسيُودَع في تاريخ استحقاقه، وسيصلك إشعار في التطبيق عند صرفه. رحلة موفقة.',
+        createdAt: answered,
+      },
+    );
+  }
+  if (fatimaUnit) {
+    const asked = dubaiTime(addDays(today, -1), '18:20');
+    const thread = {
+      id: uuidv7(),
+      ownerId: ctx.owners.fatima.id,
+      linkType: 'unit' as const,
+      linkId: fatimaUnit.id,
+      subject: defaultThreadSubject(
+        'unit',
+        `${fatimaBuilding?.nameAr ?? ''} ${fatimaUnit.unitNo}`,
+        'ar',
+      ),
+      status: 'open' as const,
+      lastMessageAt: asked,
+      lastSenderType: 'owner' as const,
+      ownerLastReadAt: asked,
+      createdAt: asked,
+    };
+    threadRows.push(thread);
+    messageRows.push({
+      id: uuidv7(),
+      threadId: thread.id,
+      senderType: 'owner',
+      senderId: ctx.owners.fatima.id,
+      body: 'مساء الخير، أبلغني المستأجر بوجود تسريب ماء تحت مغسلة المطبخ. هل يمكن إرسال فني للمعاينة هذا الأسبوع؟',
+      createdAt: asked,
+    });
+  }
+  if (threadRows.length > 0) {
+    await db.insert(s.messageThreads).values(threadRows);
+    await db.insert(s.threadMessages).values(messageRows);
+  }
+
   return {
     vendors: vendorRows.length,
     recurringRules: rules.length,
@@ -1172,5 +1277,6 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
     calendarEvents: eventRows.length,
     budgets: budgetRows.length,
     attachments: attachmentRows.length,
+    messageThreads: threadRows.length,
   };
 }

@@ -32,6 +32,7 @@ const SearchPalette = lazy(async () => ({
   default: (await import('./search-palette')).SearchPalette,
 }));
 import { V2_NAV } from '@/v2';
+import { MessagesHeaderLink } from '@/v2/messages-link';
 
 export interface NavItem {
   to: string;
@@ -173,23 +174,31 @@ export function AppShell() {
       {/* The sidebar scrolls when the entries do not fit the window, so the last ones never spill
           onto the page background (where their light text would fail contrast). */}
       <aside className="hidden lg:flex lg:flex-col lg:gap-4 lg:border-e lg:border-header-line lg:bg-header lg:px-3 lg:py-5 lg:sticky lg:top-0 lg:h-dvh lg:overflow-y-auto">
-        <Brand />
+        {/* Messages sit beside the logo, not in the menu: the negative margin keeps the row at
+            the logo's height, so the sidebar still fits a 900 px tall screen. */}
+        <div className="flex items-center justify-between gap-2">
+          <Brand />
+          <MessagesHeaderLink className="-my-1 size-9" />
+        </div>
         {nav}
         {footer}
       </aside>
 
       <header className="flex h-14 items-center justify-between rounded-b-2xl border-b border-header-line bg-header px-4 text-on-header lg:hidden">
         <Brand compact />
-        <button
-          type="button"
-          className="flex size-11 items-center justify-center rounded-md"
-          onClick={() => {
-            setOpen(true);
-          }}
-          aria-label="Menu"
-        >
-          <Menu className="size-6" />
-        </button>
+        <div className="flex items-center gap-1">
+          <MessagesHeaderLink className="size-11" />
+          <button
+            type="button"
+            className="flex size-11 items-center justify-center rounded-md"
+            onClick={() => {
+              setOpen(true);
+            }}
+            aria-label="Menu"
+          >
+            <Menu className="size-6" />
+          </button>
+        </div>
       </header>
       {open ? (
         <div className="fixed inset-0 z-50 flex lg:hidden">

@@ -350,4 +350,59 @@ describe('seed data', () => {
         WHERE category_id IS NULL LIMIT 1`),
     ).rejects.toThrow();
   });
+
+  it('demo messages: one thread answered, one waiting for staff, both in Arabic', async () => {
+    expect(summary.messageThreads).toBe(2);
+    const threads = await db.execute<{
+      owner: string;
+      link_type: string;
+      subject: string;
+      last_sender_type: string;
+      status: string;
+      messages: number;
+      last_body: string;
+      last_sender: string;
+      owner_unread: number;
+      staff_unread: number;
+    }>(sql`
+      SELECT o.name_en AS owner, t.link_type, t.subject, t.last_sender_type, t.status,
+        (SELECT count(*)::int FROM thread_messages m WHERE m.thread_id = t.id) AS messages,
+        (SELECT m.body FROM thread_messages m WHERE m.thread_id = t.id
+          ORDER BY m.created_at DESC LIMIT 1) AS last_body,
+        (SELECT m.sender_type FROM thread_messages m WHERE m.thread_id = t.id
+          ORDER BY m.created_at DESC LIMIT 1) AS last_sender,
+        (SELECT count(*)::int FROM thread_messages m WHERE m.thread_id = t.id
+          AND m.sender_type = 'staff'
+          AND m.created_at > coalesce(t.owner_last_read_at, '-infinity')) AS owner_unread,
+        (SELECT count(*)::int FROM thread_messages m WHERE m.thread_id = t.id
+          AND m.sender_type = 'owner'
+          AND m.created_at > coalesce(t.staff_last_read_at, '-infinity')) AS staff_unread
+      FROM message_threads t JOIN owners o ON o.id = t.owner_id ORDER BY t.created_at`);
+    const rows = threads.rows;
+    expect(
+      rows.map((r) => [r.owner, r.link_type, r.last_sender_type, r.status, r.messages]),
+    ).toEqual([
+      ['Khalid Al Mansoori', 'cheque', 'staff', 'open', 2],
+      ['Fatima Al Suwaidi', 'unit', 'owner', 'open', 1],
+    ]);
+    for (const r of rows) {
+      // The thread's own "last" columns agree with its messages.
+      expect(r.last_sender).toBe(r.last_sender_type);
+      expect(r.subject).toMatch(/[؀-ۿ]/);
+      expect(r.last_body).toMatch(/[؀-ۿ]/);
+    }
+    // Khalid has the answer still to read; staff have Fatima's message still to read.
+    expect(rows.map((r) => [r.owner_unread, r.staff_unread])).toEqual([
+      [1, 0],
+      [0, 1],
+    ]);
+    // Messages longer than 4,000 characters and a half-given link are refused.
+    await expect(
+      db.execute(sql`INSERT INTO thread_messages (id, thread_id, sender_type, sender_id, body)
+        SELECT gen_random_uuid(), id, 'owner', owner_id, repeat('x', 4001) FROM message_threads LIMIT 1`),
+    ).rejects.toThrow();
+    await expect(
+      db.execute(sql`UPDATE message_threads SET link_id = NULL WHERE link_id IS NOT NULL`),
+    ).rejects.toThrow();
+  });
 });

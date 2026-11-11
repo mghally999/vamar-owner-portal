@@ -40,6 +40,10 @@ export const attachmentsRoutes = new Hono<AppEnv>()
         'entityType and entityId are required',
         parsed.error.issues,
       );
+    // A message's file is sent with the message (POST /messages/:id/messages), so it is never
+    // added afterwards to someone else's words.
+    if (parsed.data.entityType === 'message')
+      throw new ApiError(422, 'validation', 'Send the file with a reply in the thread');
     const file = form.get('file');
     if (!(file instanceof File)) throw new ApiError(422, 'validation', 'file is required');
     const row = await withTx(c, (tx) =>

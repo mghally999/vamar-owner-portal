@@ -57,6 +57,7 @@ const cases: NotificationParams[] = [
     totalFils: 1_850_000,
     shareFils: 925_000,
   },
+  { type: 'message_reply', subject: 'Lift repair' },
 ];
 
 describe('notificationCopy', () => {

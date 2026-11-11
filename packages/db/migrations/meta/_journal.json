@@ -85,6 +85,13 @@
       "when": 1794398480390,
       "tag": "0011_v3_building_budgets",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794400712202,
+      "tag": "0012_v3_owner_messages",
+      "breakpoints": true
     }
   ]
 }

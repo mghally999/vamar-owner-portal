@@ -46,6 +46,9 @@ export function routeForNotification(data: PushData | null | undefined): PushHre
     }
     case 'new_device_login':
       return '/settings';
+    // The push carries the answer's id; the thread screen opens the thread it belongs to.
+    case 'message_reply':
+      return id ? { pathname: '/message/[id]', params: { id } } : '/messages';
     default:
       return '/(tabs)';
   }

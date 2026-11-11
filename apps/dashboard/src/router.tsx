@@ -216,6 +216,16 @@ const budgetsRoute = createRoute({
   path: '/budgets',
   component: V2_PAGES.budgets,
 });
+const messagesRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/messages',
+  component: V2_PAGES.messages,
+});
+const messageThreadRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/messages/$threadId',
+  component: V2_PAGES.messageThread,
+});
 const catchAll = createRoute({
   getParentRoute: () => rootRoute,
   path: '$',
@@ -256,6 +266,8 @@ const routeTree = rootRoute.addChildren([
     categoriesRoute,
     vendorsRoute,
     budgetsRoute,
+    messagesRoute,
+    messageThreadRoute,
   ]),
   catchAll,
 ]);

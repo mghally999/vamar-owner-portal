@@ -1,10 +1,13 @@
 import * as Application from 'expo-application';
+import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Linking, ScrollView, Switch, View } from 'react-native';
+import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { todayInDubai } from '@vamar/shared';
 import { API_BASE, request } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { useThreads } from '@/lib/message-queries';
+import { useMessageText } from '@/lib/message-text';
 import { lastPushState, notificationsEnabled, setNotifications, type PushState } from '@/lib/push';
 import { useDevices, useRequestDeletion, useRevokeOtherDevices, useSetLang } from '@/lib/queries';
 import { periodLabel, shareStatement } from '@/lib/statement';
@@ -27,6 +30,9 @@ export default function SettingsScreen() {
   const [notify, setNotify] = useState(true);
   const [pushState, setPushState] = useState<PushState | null>(null);
   const [busyStatement, setBusyStatement] = useState(false);
+  const tm = useMessageText();
+  const threads = useThreads();
+  const unreadThreads = threads.data?.unreadThreads ?? 0;
 
   useEffect(() => {
     void notificationsEnabled().then(setNotify);
@@ -130,6 +136,37 @@ export default function SettingsScreen() {
             thumbColor={t.colors.bgElevated}
           />
         </Row>
+      </Card>
+
+      <Card style={{ paddingHorizontal: 16 }}>
+        <Link href="/messages" asChild>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadThreads > 0
+                ? `${tm('settings_messages')}, ${tm('messages_unread', { n: unreadThreads })}`
+                : tm('settings_messages')
+            }
+          >
+            <Row style={{ justifyContent: 'space-between', minHeight: 56, gap: 12 }}>
+              <Text>{tm('settings_messages')}</Text>
+              {unreadThreads > 0 ? (
+                <View
+                  style={{
+                    backgroundColor: t.colors.primary,
+                    borderRadius: t.radius.full,
+                    paddingHorizontal: 10,
+                    paddingVertical: 3,
+                  }}
+                >
+                  <Text variant="caption" weight="medium" color="onPrimary" tnum>
+                    {tm('messages_unread', { n: unreadThreads })}
+                  </Text>
+                </View>
+              ) : null}
+            </Row>
+          </Pressable>
+        </Link>
       </Card>
 
       <View>

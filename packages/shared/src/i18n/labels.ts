@@ -19,6 +19,7 @@ import type {
 import type { CalendarEventType, CalendarItemKind } from '../calendar.js';
 import type { ApprovalState, RepairApprovalStatus } from '../approvals.js';
 import type { BudgetLevel } from '../budgets.js';
+import type { MessageThreadStatus } from '../owner-messages.js';
 
 type Labels<K extends string> = Record<K, Record<Lang, string>>;
 
@@ -173,6 +174,12 @@ export const BUDGET_LEVEL_LABEL: Labels<BudgetLevel> = {
 export const BUDGET_TOTAL_LABEL: Record<Lang, string> = {
   ar: 'إجمالي المصروفات',
   en: 'All expenses',
+};
+
+/** An owner message thread: open until staff close it (an owner's new message reopens it). */
+export const MESSAGE_THREAD_STATUS_LABEL: Labels<MessageThreadStatus> = {
+  open: { ar: 'مفتوحة', en: 'Open' },
+  closed: { ar: 'مغلقة', en: 'Closed' },
 };
 
 /** Net amounts carry this when the setting is on; Vamar's commission itself is never shown. */

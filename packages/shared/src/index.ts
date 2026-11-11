@@ -14,6 +14,7 @@ export * from './settings.js';
 export * from './approvals.js';
 export * from './renewals.js';
 export * from './budgets.js';
+export * from './owner-messages.js';
 export * from './i18n/notifications.js';
 export * from './i18n/labels.js';
 export * from './schemas/index.js';

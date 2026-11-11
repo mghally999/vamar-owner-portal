@@ -23,6 +23,7 @@ export function staffToday(o: Partial<StaffToday> = {}): StaffToday {
     contractsEnding: { count: 1, from: '2026-10-07', to: '2026-11-06' },
     ownerApprovals: { workOrders: 1, expenses: 0, rejected: 0, silentLast7Days: 0 },
     budgets: { year: 2026, near: 1, over: 0 },
+    ownerMessages: { waiting: 1, oldestAt: '2026-10-06T14:20:00.000Z' },
     ...o,
   };
 }
@@ -38,5 +39,6 @@ export function staffTodayClear(): StaffToday {
     contractsEnding: { count: 0, from: '2026-10-07', to: '2026-11-06' },
     ownerApprovals: { workOrders: 0, expenses: 0, rejected: 0, silentLast7Days: 0 },
     budgets: { year: 2026, near: 0, over: 0 },
+    ownerMessages: { waiting: 0, oldestAt: null },
   });
 }

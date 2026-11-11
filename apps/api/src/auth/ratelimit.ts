@@ -1,11 +1,12 @@
 /**
  * Fixed-window rate limits stored in Postgres (no KV on the free plan is needed). One row per
  * key; the window restarts when it is older than `windowMs`. Used on auth and TOTP endpoints,
- * keyed per IP and per phone/email. Callers run this on an autocommit connection, before any
+ * keyed per IP and per phone/email, and on owner messages, keyed per owner. Callers run this on an autocommit connection, before any
  * transaction, so a refused attempt still counts.
  */
 import { sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
+import { OWNER_MESSAGES_PER_HOUR } from '@vamar/shared';
 import type { Dbx } from '../db.js';
 import { ApiError } from '../errors.js';
 
@@ -25,6 +26,8 @@ export const RATE_LIMITS = {
   staffExchangeEmail: { name: 'staff_exchange:email', limit: 10, windowMs: 10 * 60 * 1000 },
   totpIp: { name: 'totp:ip', limit: 60, windowMs: 15 * 60 * 1000 },
   totpUser: { name: 'totp:user', limit: 10, windowMs: 15 * 60 * 1000 },
+  // New threads and replies together: plenty for a conversation, a stop for a stuck client.
+  ownerMessage: { name: 'owner_message', limit: OWNER_MESSAGES_PER_HOUR, windowMs: 60 * 60 * 1000 },
 } as const satisfies Record<string, RateLimitRule>;
 
 /**

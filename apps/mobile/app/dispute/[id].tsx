@@ -17,6 +17,7 @@ import {
   Text,
   layout,
 } from '@/ui';
+import { AskVamar } from '@/ui/ask-vamar';
 
 /** One case: case number and the cheque number(s), bank, amount, due and bounce dates and reason, then the updates. */
 export default function DisputeDetailScreen() {
@@ -150,6 +151,7 @@ export default function DisputeDetailScreen() {
           </Card>
         )}
       </View>
+      <AskVamar type="dispute" id={id} label={d?.caseNo} />
     </ScrollView>
   );
 }

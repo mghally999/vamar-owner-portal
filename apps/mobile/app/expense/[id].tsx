@@ -8,6 +8,7 @@ import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useExpense } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { AskVamar } from '@/ui/ask-vamar';
 import {
   Button,
   Card,
@@ -224,6 +225,7 @@ export default function ExpenseDetailScreen() {
           ) : null}
         </Pressable>
       </Modal>
+      <AskVamar type="expense" id={id} label={e ? pick(e.reasonAr, e.reasonEn) : null} />
     </ScrollView>
   );
 }

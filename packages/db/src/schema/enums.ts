@@ -13,6 +13,8 @@ import {
   EXPENSE_SCOPES,
   EXPENSE_STATUSES,
   IMPORT_STATUSES,
+  MESSAGE_LINK_TYPES,
+  MESSAGE_THREAD_STATUSES,
   NOTIFICATION_TYPES,
   OWNER_STATUSES,
   PAYMENT_METHODS,
@@ -56,3 +58,5 @@ export const calendarEventType = pgEnum('calendar_event_type', CALENDAR_EVENT_TY
 
 // v3
 export const repairApprovalStatus = pgEnum('repair_approval_status', REPAIR_APPROVAL_STATUSES);
+export const messageThreadStatus = pgEnum('message_thread_status', MESSAGE_THREAD_STATUSES);
+export const messageLinkType = pgEnum('message_link_type', MESSAGE_LINK_TYPES);

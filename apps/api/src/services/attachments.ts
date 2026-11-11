@@ -21,6 +21,7 @@ import { approvalAttachmentInOwnerScope } from './approvals.js';
 import { audit, type AuditActor } from './audit.js';
 import { disputeInOwnerScope } from './owner-scope.js';
 import { expenseAttachmentInOwnerScope } from './expenses.js';
+import { messageAttachmentInOwnerScope } from './messages.js';
 import { workOrderAttachmentInOwnerScope } from './work-orders.js';
 
 export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
@@ -63,6 +64,7 @@ async function assertEntityExists(db: Dbx, type: AttachmentEntityType, id: strin
     unit: schema.units,
     expense: schema.expenses,
     work_order: schema.workOrders,
+    message: schema.threadMessages,
   }[type];
   const [row] = await db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1);
   if (!row) throw notFound(type.charAt(0).toUpperCase() + type.slice(1));
@@ -169,7 +171,8 @@ export async function getAttachmentForStaff(db: Dbx, id: string) {
 
 /**
  * Owners may fetch the files of disputes on their units, of expenses they have a share in (when
- * the setting allows invoice files) and of work orders they can see. Anything else is a 404.
+ * the setting allows invoice files), of work orders they can see and of the messages in their
+ * own threads. Anything else is a 404.
  */
 export async function getAttachmentForOwner(
   db: Dbx,
@@ -191,6 +194,8 @@ export async function getAttachmentForOwner(
       options.invoiceFiles && (await expenseAttachmentInOwnerScope(db, ownerId, row.entityId));
   } else if (row.entityType === 'work_order') {
     allowed = await workOrderAttachmentInOwnerScope(db, ownerId, row.entityId);
+  } else if (row.entityType === 'message') {
+    allowed = await messageAttachmentInOwnerScope(db, ownerId, row.entityId);
   }
   // An owner asked to approve a repair may open its photos and quote to decide, even while the
   // expense is still a draft that owners otherwise never see.

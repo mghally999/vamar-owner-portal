@@ -13,6 +13,7 @@ import { keys } from '@/lib/queries';
 import { Amount, Button, cx, DateText, SectionTitle, Skeleton } from '@/ui/primitives';
 import { useApprovalText, type ApprovalMessageKey } from '@/v2/approvals-messages';
 import { useBudgetText, type BudgetMessageKey } from '@/v2/budgets-messages';
+import { useMessageText, type MessageTextKey } from '@/v2/messages-messages';
 
 export interface StaffToday {
   today: string;
@@ -42,6 +43,8 @@ export interface StaffToday {
   };
   /** Building budget lines of this year at 80 % or more (`near`) and at 100 % or more (`over`). */
   budgets: { year: number; near: number; over: number };
+  /** Open owner message threads whose last message is the owner's, and the oldest of them. */
+  ownerMessages: { waiting: number; oldestAt: string | null };
 }
 
 /** Under the overview key, so every change that refreshes the overview refreshes this too. */
@@ -121,11 +124,34 @@ function budgetsTile(d: StaffToday, tb: BudgetText): Tile {
   };
 }
 
+type MessageText = (k: MessageTextKey, v?: Record<string, string | number>) => string;
+
+/** Owner threads waiting for an answer, with since when; links to the inbox's waiting filter. */
+function messagesTile(
+  d: StaffToday,
+  tm: MessageText,
+  dateTime: (iso: string | null | undefined) => string,
+): Tile {
+  const m = d.ownerMessages;
+  return {
+    key: 'messages',
+    label: { text: tm('today_messages') },
+    count: m.waiting,
+    detail: m.oldestAt ? (
+      <span className="tnum">{tm('today_messages_oldest', { date: dateTime(m.oldestAt) })}</span>
+    ) : undefined,
+    to: '/messages',
+    search: { waiting: 1 },
+  };
+}
+
 function tiles(
   d: StaffToday,
   t: (k: MessageKey, v?: Record<string, string>) => string,
   ta: ApprovalText,
   tb: BudgetText,
+  tm: MessageText,
+  dateTime: (iso: string | null | undefined) => string,
 ): Tile[] {
   return [
     {
@@ -195,6 +221,7 @@ function tiles(
     },
     approvalsTile(d, ta),
     budgetsTile(d, tb),
+    messagesTile(d, tm, dateTime),
   ];
 }
 
@@ -212,12 +239,13 @@ function When({
 }
 
 export function TodayPanel() {
-  const { t } = useI18n();
+  const { t, dateTime } = useI18n();
   const { t: ta } = useApprovalText();
   const { t: tb } = useBudgetText();
+  const { t: tm } = useMessageText();
   const q = useStaffToday();
   const d = q.data;
-  const list = d ? tiles(d, t, ta, tb) : [];
+  const list = d ? tiles(d, t, ta, tb, tm, dateTime) : [];
   const clear = d !== undefined && list.every((x) => x.count === 0);
 
   return (
@@ -236,7 +264,7 @@ export function TodayPanel() {
         </div>
       ) : !d ? (
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy>
-          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
             <li key={i} className="card p-4">
               <Skeleton className="h-7 w-10" />
               <Skeleton className="mt-2 h-4 w-full" />

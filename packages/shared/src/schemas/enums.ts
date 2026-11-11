@@ -43,7 +43,10 @@ export const DISPUTE_STATUSES = [
 export const disputeStatusSchema = z.enum(DISPUTE_STATUSES);
 export type DisputeStatus = (typeof DISPUTE_STATUSES)[number];
 
-/** `expense` holds invoice images and PDFs, `work_order` the before and after photos. */
+/**
+ * `expense` holds invoice images and PDFs, `work_order` the before and after photos, `message`
+ * the photos and PDFs sent with an owner message or a staff answer.
+ */
 export const ATTACHMENT_ENTITY_TYPES = [
   'cheque',
   'dispute',
@@ -51,6 +54,7 @@ export const ATTACHMENT_ENTITY_TYPES = [
   'unit',
   'expense',
   'work_order',
+  'message',
 ] as const;
 export const attachmentEntityTypeSchema = z.enum(ATTACHMENT_ENTITY_TYPES);
 export type AttachmentEntityType = (typeof ATTACHMENT_ENTITY_TYPES)[number];

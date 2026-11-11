@@ -9,6 +9,7 @@ import { useCallback, useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { approvalText } from '@/lib/approval-messages';
+import { messageText } from '@/lib/message-text';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
 import { PeriodProvider } from '@/lib/period';
@@ -161,6 +162,18 @@ function Root() {
           <Stack.Screen
             name="approval/[id]"
             options={stackHeader(approvalText(lang, 'approval_detail'))}
+          />
+          <Stack.Screen
+            name="messages"
+            options={stackHeader(messageText(lang, 'messages_title'))}
+          />
+          <Stack.Screen
+            name="message/new"
+            options={stackHeader(messageText(lang, 'message_new_title'))}
+          />
+          <Stack.Screen
+            name="message/[id]"
+            options={stackHeader(messageText(lang, 'message_thread'))}
           />
         </Stack.Protected>
         <Stack.Protected guard={auth.stage !== 'authenticated'}>

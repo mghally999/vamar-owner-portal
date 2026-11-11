@@ -24,6 +24,7 @@ import { reportsRoutes } from './staff/reports.js';
 import { settingsRoutes } from './staff/settings.js';
 import { searchRoutes } from './staff/search.js';
 import { budgetsRoutes } from './staff/budgets.js';
+import { messagesRoutes } from './staff/messages.js';
 
 /**
  * After a staff expense write that went through (post, void with a correction, the bulk actions,
@@ -56,4 +57,5 @@ export const staffRoutes = new Hono<AppEnv>()
   .route('/', reportsRoutes)
   .route('/', settingsRoutes)
   .route('/', searchRoutes)
-  .route('/', budgetsRoutes);
+  .route('/', budgetsRoutes)
+  .route('/', messagesRoutes);

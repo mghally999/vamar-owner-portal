@@ -56,6 +56,11 @@ export interface StaffToday {
    * taken to 80 % or more of the budget and still under it (`near`), or to all of it (`over`).
    */
   budgets: { year: number; near: number; over: number };
+  /**
+   * Owner message threads waiting for a staff answer (open, last message the owner's), and when
+   * the longest-waiting one was last written to.
+   */
+  ownerMessages: { waiting: number; oldestAt: string | null };
 }
 
 type Figures = Omit<
@@ -147,7 +152,10 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
           'near', count(*) filter (where spent * 100 >= amount_fils * ${near}
             and spent * 100 < amount_fils * ${over})::int,
           'over', count(*) filter (where spent * 100 >= amount_fils * ${over})::int)
-        from budget_lines)
+        from budget_lines),
+      'ownerMessages', (select json_build_object('waiting', count(*)::int,
+          'oldestAt', min(t.last_message_at))
+        from message_threads t where t.status = 'open' and t.last_sender_type = 'owner')
     ) as today`);
 
   const f = jsonColumn(result, 'today') as Figures;
@@ -162,5 +170,10 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
     contractsEnding: { ...f.contractsEnding, from: todayDate, to: endingTo },
     ownerApprovals: f.ownerApprovals,
     budgets: { year, ...f.budgets },
+    // Postgres writes the instant with its own offset inside JSON; the API speaks ISO in UTC.
+    ownerMessages: {
+      waiting: f.ownerMessages.waiting,
+      oldestAt: f.ownerMessages.oldestAt ? new Date(f.ownerMessages.oldestAt).toISOString() : null,
+    },
   };
 }

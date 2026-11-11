@@ -29,6 +29,7 @@ import {
   Text,
   layout,
 } from '@/ui';
+import { AskVamar } from '@/ui/ask-vamar';
 
 /** An unknown status (an older API) is shown as it came. */
 const contractLabels = CONTRACT_STATUS_LABEL as Partial<
@@ -265,6 +266,11 @@ export default function UnitDetailScreen() {
           </Card>
         )}
       </View>
+      <AskVamar
+        type="unit"
+        id={id}
+        label={u ? `${pick(u.buildingNameAr, u.buildingNameEn)} ${u.unitNo}` : null}
+      />
     </ScrollView>
   );
 }

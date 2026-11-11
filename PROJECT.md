@@ -276,6 +276,14 @@ keyset-paged on `(at, id)`.
   still bring after today. A line at or above 80 % and at or above 100 % shows on the staff Today
   panel and sends the building's current owners one push per line, threshold and year (only the
   highest reached), counted on owner-visible expenses only, as is the budget card in the app.
+- **Owner messages** (v3, `owner-messages.ts`, tables `message_threads` and `thread_messages`). An
+  owner writes to Vamar in their own threads only (anyone else's thread, file or item link is a
+  404), optionally about a unit, cheque, expense, work order or case they can see; messages are
+  plain text up to 4,000 characters, append-only, with at most one photo or PDF each through the
+  attachments pipeline, and owners may send 20 an hour. Each side's unread count is the other
+  side's messages after its last read; an open thread whose last message is the owner's waits for
+  staff (the Today line), each staff answer pushes the owner once (`message_reply`, keyed on the
+  message), and close, reopen and assign are audit rows (an owner writing reopens a closed thread).
 
 ## Design tokens and brand
 

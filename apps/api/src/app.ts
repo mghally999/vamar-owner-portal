@@ -12,6 +12,7 @@ import { authOwnerRoutes } from './routes/auth-owner.js';
 import { authStaffRoutes } from './routes/auth-staff.js';
 import { ownerApprovalRoutes } from './routes/owner-approvals.js';
 import { ownerBudgetRoutes } from './routes/owner-budgets.js';
+import { ownerMessageRoutes } from './routes/owner-messages.js';
 import { ownerRoutes } from './routes/owner.js';
 import { ownerV2Routes } from './routes/owner-v2.js';
 import { staffRoutes } from './routes/staff.js';
@@ -229,6 +230,7 @@ export const app = new Hono<AppEnv>()
   .route('/api/owner', ownerV2Routes)
   .route('/api/owner', ownerApprovalRoutes)
   .route('/api/owner', ownerBudgetRoutes)
+  .route('/api/owner', ownerMessageRoutes)
   .route('/api/staff', staffRoutes)
   .notFound((c) =>
     c.req.path.startsWith('/api/')

@@ -6,6 +6,7 @@ import { API_BASE, authHeaders } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useCheque } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
+import { AskVamar } from '@/ui/ask-vamar';
 import {
   Card,
   DateText,
@@ -135,6 +136,11 @@ export default function ChequeDetailScreen() {
         </View>
       ) : null}
       <DateText date={null} style={{ display: 'none' }} />
+      <AskVamar
+        type="cheque"
+        id={id}
+        label={c ? (c.chequeNo ?? `${pick(c.buildingNameAr, c.buildingNameEn)} ${c.unitNo}`) : null}
+      />
     </ScrollView>
   );
 }

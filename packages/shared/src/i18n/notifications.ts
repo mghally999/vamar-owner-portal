@@ -92,6 +92,13 @@ export interface BudgetThresholdParams {
   budgetFils: number;
 }
 
+/** Staff answered one of the owner's message threads. */
+export interface MessageReplyParams {
+  type: 'message_reply';
+  /** The thread's subject, as the owner sees it in the app. */
+  subject: string;
+}
+
 export type NotificationParams =
   | ChequeDueSoonParams
   | ChequeBouncedParams
@@ -102,7 +109,8 @@ export type NotificationParams =
   | WorkOrderDoneParams
   | LargeExpenseParams
   | RepairApprovalNeededParams
-  | BudgetThresholdParams;
+  | BudgetThresholdParams
+  | MessageReplyParams;
 
 export function notificationCopy(params: NotificationParams, lang: Lang): NotificationCopy {
   switch (params.type) {
@@ -248,6 +256,17 @@ export function notificationCopy(params: NotificationParams, lang: Lang): Notifi
             body: `${line} at ${params.buildingName}: ${actual} spent of the ${year} budget of ${budget} (${pct}%).`,
           };
     }
+    // The answer itself stays in the app: a lock screen is no place for a reply about money.
+    case 'message_reply':
+      return lang === 'ar'
+        ? {
+            title: 'رد جديد من فامار',
+            body: `بخصوص «${params.subject}». افتح التطبيق لقراءة الرد.`,
+          }
+        : {
+            title: 'New reply from Vamar',
+            body: `About "${params.subject}". Open the app to read it.`,
+          };
   }
 }
 
@@ -263,4 +282,5 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, Record<Lang, stri
   large_expense: { ar: 'مصروف كبير', en: 'Large expense' },
   repair_approval_needed: { ar: 'طلب موافقة', en: 'Approval request' },
   budget_threshold: { ar: 'تنبيه الميزانية', en: 'Budget alert' },
+  message_reply: { ar: 'رد على رسالة', en: 'Message reply' },
 };

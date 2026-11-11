@@ -20,6 +20,7 @@ import {
   Text,
   layout,
 } from '@/ui';
+import { AskVamar } from '@/ui/ask-vamar';
 
 /** One maintenance job: status, dates, contractor, the before and after photos and the invoice. */
 export default function WorkOrderDetailScreen() {
@@ -134,6 +135,7 @@ export default function WorkOrderDetailScreen() {
           </View>
         )}
       </View>
+      <AskVamar type="work_order" id={id} label={w ? pick(w.titleAr, w.titleEn) : null} />
     </ScrollView>
   );
 }
