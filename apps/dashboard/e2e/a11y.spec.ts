@@ -28,6 +28,10 @@ const PAGES = [
 for (const lang of ['ar', 'en'] as const) {
   test(`no serious axe violations (${lang})`, async ({ page }) => {
     await login(page, 'admin', lang);
+    // Sign-in lands on the Overview and returns while it is still loading; navigating away
+    // mid-load aborts module requests that the network-idle wait below then never sees end.
+    await page.getByRole('heading', { level: 1 }).first().waitFor();
+    await page.waitForLoadState('networkidle');
     const report: string[] = [];
     for (const path of PAGES) {
       await page.goto(path);
