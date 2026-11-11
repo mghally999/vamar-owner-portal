@@ -371,6 +371,7 @@ export function v2Routes(extra: Record<string, unknown> = {}) {
     'GET /api/staff/vendors': { items: vendors },
     'GET /api/staff/holidays': { items: holidays },
     'GET /api/staff/settings': settings(),
+    'GET /api/staff/budgets': { year: 2026, today: '2026-10-07', buildings: [] },
     ...extra,
   };
 }

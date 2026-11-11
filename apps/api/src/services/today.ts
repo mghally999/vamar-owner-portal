@@ -4,7 +4,7 @@
  * returns the whole panel as one JSON document (the pattern of owner-summary.ts): one round trip.
  */
 import { sql } from 'drizzle-orm';
-import { addDays, type PlainDate } from '@vamar/shared';
+import { addDays, BUDGET_THRESHOLDS, budgetYearPeriod, type PlainDate } from '@vamar/shared';
 import { statusIn, type Dbx } from '../db.js';
 import { jsonColumn } from './owner-summary.js';
 
@@ -51,9 +51,18 @@ export interface StaffToday {
     rejected: number;
     silentLast7Days: number;
   };
+  /**
+   * Building budget lines of this year that posted expenses (every one, hidden included) have
+   * taken to 80 % or more of the budget and still under it (`near`), or to all of it (`over`).
+   */
+  budgets: { year: number; near: number; over: number };
 }
 
-type Figures = Omit<StaffToday, 'today' | 'dueSoon' | 'hearings' | 'contractsEnding'> & {
+type Figures = Omit<
+  StaffToday,
+  'today' | 'dueSoon' | 'hearings' | 'contractsEnding' | 'budgets'
+> & {
+  budgets: { near: number; over: number };
   dueSoon: { count: number; amountFils: number };
   hearings: { count: number; next: PlainDate | null };
   contractsEnding: { count: number };
@@ -64,6 +73,9 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
   const soonTo = addDays(todayDate, TODAY_DUE_SOON_DAYS);
   const hearingTo = addDays(todayDate, TODAY_HEARING_DAYS);
   const endingTo = addDays(todayDate, TODAY_CONTRACT_ENDING_DAYS);
+  const year = Number(todayDate.slice(0, 4));
+  const budgetYear = budgetYearPeriod(year);
+  const [near, over] = BUDGET_THRESHOLDS;
 
   const result = await db.execute(sql`
     with pending as (
@@ -85,6 +97,15 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
       left join expenses x on x.id = a.expense_id
       where a.status in ('pending', 'rejected') and a.overridden_at is null
         and (w.status in ('open', 'scheduled') or x.status = 'draft')
+    ),
+    -- Each budget line of the year with what was posted against it: its category, or every
+    -- category for the building's total. The thresholds are the shared ones (budgets.ts).
+    budget_lines as (
+      select b.amount_fils, (select coalesce(sum(x.total_fils), 0) from expenses x
+          where x.building_id = b.building_id and x.status = 'posted'
+            and x.invoice_date between ${budgetYear.from} and ${budgetYear.to}
+            and (b.category_id is null or x.category_id = b.category_id)) as spent
+      from budgets b where b.year = ${year}
     )
     select json_build_object(
       'dueToday', (select json_build_object('count', count(*)::int,
@@ -121,7 +142,12 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
             from blocking r where r.status = 'rejected'),
           'silentLast7Days', (select count(*)::int from repair_approvals s
             where s.status = 'approved_by_silence' and s.answered_at >= now() - interval '7 days'))
-        from blocking b)
+        from blocking b),
+      'budgets', (select json_build_object(
+          'near', count(*) filter (where spent * 100 >= amount_fils * ${near}
+            and spent * 100 < amount_fils * ${over})::int,
+          'over', count(*) filter (where spent * 100 >= amount_fils * ${over})::int)
+        from budget_lines)
     ) as today`);
 
   const f = jsonColumn(result, 'today') as Figures;
@@ -135,5 +161,6 @@ export async function staffToday(db: Dbx, todayDate: PlainDate): Promise<StaffTo
     expenseDrafts: f.expenseDrafts,
     contractsEnding: { ...f.contractsEnding, from: todayDate, to: endingTo },
     ownerApprovals: f.ownerApprovals,
+    budgets: { year, ...f.budgets },
   };
 }

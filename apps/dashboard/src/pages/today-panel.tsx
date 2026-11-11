@@ -12,6 +12,7 @@ import type { MessageKey } from '@/lib/messages';
 import { keys } from '@/lib/queries';
 import { Amount, Button, cx, DateText, SectionTitle, Skeleton } from '@/ui/primitives';
 import { useApprovalText, type ApprovalMessageKey } from '@/v2/approvals-messages';
+import { useBudgetText, type BudgetMessageKey } from '@/v2/budgets-messages';
 
 export interface StaffToday {
   today: string;
@@ -39,6 +40,8 @@ export interface StaffToday {
     rejected: number;
     silentLast7Days: number;
   };
+  /** Building budget lines of this year at 80 % or more (`near`) and at 100 % or more (`over`). */
+  budgets: { year: number; near: number; over: number };
 }
 
 /** Under the overview key, so every change that refreshes the overview refreshes this too. */
@@ -96,10 +99,33 @@ function approvalsTile(d: StaffToday, ta: ApprovalText): Tile {
   };
 }
 
+type BudgetText = (k: BudgetMessageKey, v?: Record<string, string | number>) => string;
+
+/**
+ * Budget lines past 80 % this year, the used-up ones counted in the detail; red once one is
+ * used up. Links to /budgets for that year.
+ */
+function budgetsTile(d: StaffToday, tb: BudgetText): Tile {
+  const b = d.budgets;
+  return {
+    key: 'budgets',
+    label: { text: tb('today_budgets') },
+    count: b.near + b.over,
+    urgent: b.over > 0,
+    detail:
+      b.over > 0 ? (
+        <span className="tnum">{tb('today_budgets_over', { n: b.over })}</span>
+      ) : undefined,
+    to: '/budgets',
+    search: { year: b.year },
+  };
+}
+
 function tiles(
   d: StaffToday,
   t: (k: MessageKey, v?: Record<string, string>) => string,
   ta: ApprovalText,
+  tb: BudgetText,
 ): Tile[] {
   return [
     {
@@ -168,6 +194,7 @@ function tiles(
       search: { endingWithinDays: 30, withoutRenewal: 1 },
     },
     approvalsTile(d, ta),
+    budgetsTile(d, tb),
   ];
 }
 
@@ -187,9 +214,10 @@ function When({
 export function TodayPanel() {
   const { t } = useI18n();
   const { t: ta } = useApprovalText();
+  const { t: tb } = useBudgetText();
   const q = useStaffToday();
   const d = q.data;
-  const list = d ? tiles(d, t, ta) : [];
+  const list = d ? tiles(d, t, ta, tb) : [];
   const clear = d !== undefined && list.every((x) => x.count === 0);
 
   return (
@@ -208,7 +236,7 @@ export function TodayPanel() {
         </div>
       ) : !d ? (
         <ul className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy>
-          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <li key={i} className="card p-4">
               <Skeleton className="h-7 w-10" />
               <Skeleton className="mt-2 h-4 w-full" />

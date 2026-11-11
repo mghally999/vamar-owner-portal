@@ -211,6 +211,11 @@ const vendorsRoute = createRoute({
   path: '/vendors',
   component: V2_PAGES.vendors,
 });
+const budgetsRoute = createRoute({
+  getParentRoute: () => shellRoute,
+  path: '/budgets',
+  component: V2_PAGES.budgets,
+});
 const catchAll = createRoute({
   getParentRoute: () => rootRoute,
   path: '$',
@@ -250,6 +255,7 @@ const routeTree = rootRoute.addChildren([
     holidaysRoute,
     categoriesRoute,
     vendorsRoute,
+    budgetsRoute,
   ]),
   catchAll,
 ]);

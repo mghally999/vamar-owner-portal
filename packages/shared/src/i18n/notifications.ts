@@ -5,6 +5,8 @@
 import { formatDate, formatMonth, type Lang, type PlainDate } from '../dates.js';
 import { formatAmount } from '../money.js';
 import type { NotificationType } from '../alerts.js';
+import { budgetPercent, type BudgetThreshold } from '../budgets.js';
+import { BUDGET_TOTAL_LABEL } from './labels.js';
 
 export interface NotificationCopy {
   title: string;
@@ -78,6 +80,18 @@ export interface RepairApprovalNeededParams {
   shareFils: number;
 }
 
+/** A building budget line reached 80 % or 100 % of the year's amount. */
+export interface BudgetThresholdParams {
+  type: 'budget_threshold';
+  threshold: BudgetThreshold;
+  year: number;
+  buildingName: string;
+  /** The category's name, or null for the building's total. */
+  categoryName: string | null;
+  actualFils: number;
+  budgetFils: number;
+}
+
 export type NotificationParams =
   | ChequeDueSoonParams
   | ChequeBouncedParams
@@ -87,7 +101,8 @@ export type NotificationParams =
   | HearingSoonParams
   | WorkOrderDoneParams
   | LargeExpenseParams
-  | RepairApprovalNeededParams;
+  | RepairApprovalNeededParams
+  | BudgetThresholdParams;
 
 export function notificationCopy(params: NotificationParams, lang: Lang): NotificationCopy {
   switch (params.type) {
@@ -206,6 +221,33 @@ export function notificationCopy(params: NotificationParams, lang: Lang): Notifi
             body: `${params.title} at ${params.placeLabel}, estimated at ${total} (your share ${share}). Open the app to approve or reject.`,
           };
     }
+    case 'budget_threshold': {
+      const actual = formatAmount(params.actualFils, lang);
+      const budget = formatAmount(params.budgetFils, lang);
+      const pct = budgetPercent(params.actualFils, params.budgetFils);
+      const year = String(params.year);
+      const line = params.categoryName ?? BUDGET_TOTAL_LABEL[lang];
+      if (lang === 'ar') {
+        return params.threshold === 100
+          ? {
+              title: 'نفدت الميزانية',
+              body: `${line} في ${params.buildingName}: صُرف ${actual} مقابل ميزانية ${year} البالغة ${budget} (${pct}%).`,
+            }
+          : {
+              title: 'استُخدم 80% من الميزانية',
+              body: `${line} في ${params.buildingName}: صُرف ${actual} من ميزانية ${year} البالغة ${budget} (${pct}%).`,
+            };
+      }
+      return params.threshold === 100
+        ? {
+            title: 'Budget used up',
+            body: `${line} at ${params.buildingName}: ${actual} spent against the ${year} budget of ${budget} (${pct}%).`,
+          }
+        : {
+            title: '80% of a budget used',
+            body: `${line} at ${params.buildingName}: ${actual} spent of the ${year} budget of ${budget} (${pct}%).`,
+          };
+    }
   }
 }
 
@@ -220,4 +262,5 @@ export const NOTIFICATION_TYPE_LABEL: Record<NotificationType, Record<Lang, stri
   work_order_done: { ar: 'صيانة منجزة', en: 'Maintenance done' },
   large_expense: { ar: 'مصروف كبير', en: 'Large expense' },
   repair_approval_needed: { ar: 'طلب موافقة', en: 'Approval request' },
+  budget_threshold: { ar: 'تنبيه الميزانية', en: 'Budget alert' },
 };

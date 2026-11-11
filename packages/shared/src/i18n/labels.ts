@@ -18,6 +18,7 @@ import type {
 } from '../expenses.js';
 import type { CalendarEventType, CalendarItemKind } from '../calendar.js';
 import type { ApprovalState, RepairApprovalStatus } from '../approvals.js';
+import type { BudgetLevel } from '../budgets.js';
 
 type Labels<K extends string> = Record<K, Record<Lang, string>>;
 
@@ -159,6 +160,19 @@ export const APPROVAL_STATE_LABEL: Labels<ApprovalState> = {
   rejected: { ar: 'رفضه مالك', en: 'Rejected by an owner' },
   approved: { ar: 'وافق الملاك', en: 'Approved by the owners' },
   overridden: { ar: 'تجاوز المدير الموافقة', en: 'Approval overridden by admin' },
+};
+
+/** Where a budget line stands (see budgetLevel). */
+export const BUDGET_LEVEL_LABEL: Labels<BudgetLevel> = {
+  ok: { ar: 'ضمن الميزانية', en: 'Within budget' },
+  near: { ar: 'تجاوز 80% من الميزانية', en: '80% or more used' },
+  over: { ar: 'نفدت الميزانية', en: 'Budget used up' },
+};
+
+/** The name of a building's total budget line (a budget row without a category). */
+export const BUDGET_TOTAL_LABEL: Record<Lang, string> = {
+  ar: 'إجمالي المصروفات',
+  en: 'All expenses',
 };
 
 /** Net amounts carry this when the setting is on; Vamar's commission itself is never shown. */

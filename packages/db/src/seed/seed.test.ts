@@ -315,4 +315,39 @@ describe('seed data', () => {
       ),
     ).rejects.toThrow();
   });
+
+  it('demo budgets: one line past 80 %, the others under it, one total per building', async () => {
+    expect(summary.budgets).toBe(5);
+    const rows = await db.execute<{
+      building: string;
+      category: string | null;
+      budget: string;
+      spent: string;
+    }>(sql`
+      SELECT bl.name_en AS building, c.name_en AS category, b.amount_fils AS budget,
+        (SELECT coalesce(sum(x.total_fils), 0) FROM expenses x
+          WHERE x.building_id = b.building_id AND x.status = 'posted'
+            AND (b.category_id IS NULL OR x.category_id = b.category_id)
+            AND x.invoice_date BETWEEN '2026-01-01' AND '2026-12-31') AS spent
+      FROM budgets b JOIN buildings bl ON bl.id = b.building_id
+      LEFT JOIN expense_categories c ON c.id = b.category_id
+      WHERE b.year = 2026 ORDER BY bl.name_en, c.name_en NULLS LAST`);
+    const pct = rows.rows.map((r) => [
+      r.building,
+      r.category,
+      Math.floor((Number(r.spent) * 100) / Number(r.budget)),
+    ]);
+    const near = pct.filter(([, , p]) => Number(p) >= 80);
+    expect(near).toEqual([['Al Noor Tower', 'Lifts (repairs)', 86]]);
+    expect(pct.filter(([, c]) => c === null).map(([b]) => b)).toEqual([
+      'Al Khan Residence',
+      'Al Noor Tower',
+    ]);
+    // A second total for the same building and year is refused (the partial unique index).
+    await expect(
+      db.execute(sql`INSERT INTO budgets (id, building_id, year, amount_fils)
+        SELECT gen_random_uuid(), building_id, year, 100 FROM budgets
+        WHERE category_id IS NULL LIMIT 1`),
+    ).rejects.toThrow();
+  });
 });

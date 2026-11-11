@@ -11,6 +11,9 @@ describe('routeForNotification', () => {
     expect(routeForNotification({ type: 'contract_ending_30', entityId: 'c1' })).toBe(
       '/(tabs)/properties',
     );
+    expect(routeForNotification({ type: 'budget_threshold', entityId: 'b1' })).toBe(
+      '/(tabs)/properties',
+    );
     expect(routeForNotification({ type: 'hearing_soon', entityId: 'd1' })).toEqual({
       pathname: '/dispute/[id]',
       params: { id: 'd1' },

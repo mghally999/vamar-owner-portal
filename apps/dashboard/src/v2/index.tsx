@@ -1,7 +1,7 @@
 /**
- * The v2 pages (calendar, unit records, settings, holidays, expense categories, vendors) as
- * routes under the shell and as navigation entries. router.tsx adds `v2Routes(shellRoute)` to
- * the shell's children and shell.tsx appends `V2_NAV` to its NAV list.
+ * The v2 pages (calendar, unit records, settings, holidays, expense categories, vendors,
+ * building budgets) as routes under the shell and as navigation entries. router.tsx adds
+ * `v2Routes(shellRoute)` to the shell's children and shell.tsx appends `V2_NAV` to its NAV list.
  */
 import { createRoute, type AnyRoute } from '@tanstack/react-router';
 import { CalendarDays, ListTree, Settings, Store, Sun } from 'lucide-react';
@@ -31,6 +31,7 @@ export const V2_PAGES = {
   holidays: lazyPage(() => import('./holidays-page'), 'HolidaysPage'),
   categories: lazyPage(() => import('./categories-page'), 'CategoriesPage'),
   vendors: lazyPage(() => import('./vendors-page'), 'VendorsPage'),
+  budgets: lazyPage(() => import('./budgets-panel'), 'BudgetsPage'),
 };
 
 export function v2Routes(shellRoute: AnyRoute): AnyRoute[] {
@@ -43,6 +44,7 @@ export function v2Routes(shellRoute: AnyRoute): AnyRoute[] {
     route('/holidays', V2_PAGES.holidays),
     route('/expense-categories', V2_PAGES.categories),
     route('/vendors', V2_PAGES.vendors),
+    route('/budgets', V2_PAGES.budgets),
   ];
 }
 

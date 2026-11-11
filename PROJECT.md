@@ -269,6 +269,13 @@ keyset-paged on `(at, id)`.
   above, and the maximum is rounded down to the fils; it is the suggested renewal rent. Outside
   Dubai, or with no reference, no cap is computed, staff are told to check the emirate's rules,
   and the current rent is suggested.
+- **Building budgets** (v3, `budgets.ts`, table `budgets`). An admin sets a yearly amount per
+  building, per expense category and optionally in total (no category); it is compared with the
+  posted expenses of that year (the building's full totals, not owner shares), year to date with
+  the budget prorated by days, and with actual plus the fixed costs the active recurring rules
+  still bring after today. A line at or above 80 % and at or above 100 % shows on the staff Today
+  panel and sends the building's current owners one push per line, threshold and year (only the
+  highest reached), counted on owner-visible expenses only, as is the budget card in the app.
 
 ## Design tokens and brand
 

@@ -123,6 +123,8 @@ describe('GET /api/staff/today', () => {
       contractsEnding: { count: 1, from: '2026-10-07', to: '2026-11-06' },
       // The seeded fire inspection waits for the Al Noor owner.
       ownerApprovals: { workOrders: 1, expenses: 0, rejected: 0, silentLast7Days: 0 },
+      // The seeded Al Noor lift repairs line is past 80 % of its budget.
+      budgets: { year: 2026, near: 1, over: 0 },
     });
     const e = await expected();
     expect(t).toMatchObject({

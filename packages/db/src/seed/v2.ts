@@ -55,6 +55,7 @@ export interface SeedV2Summary {
   allocations: number;
   workOrders: number;
   calendarEvents: number;
+  budgets: number;
   attachments: number;
 }
 
@@ -833,6 +834,46 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
   for (let k = 0; k < allocationRows.length; k += 200)
     await db.insert(s.expenseAllocations).values(allocationRows.slice(k, k + 200));
 
+  // Budgets for this year on Al Noor and Al Khan. Amounts are worked out from the costs above so
+  // the demo reads the same whatever day it is seeded: the Al Noor lift repairs line sits at
+  // about 87 % (the alert on the Today panel and in the app), salaries stay under 80 % even once
+  // December is paid, and each building's total sits around 60 %.
+  const budgetYear = Number(today.slice(0, 4));
+  const spentThisYear = (buildingId: string, categoryId?: string) =>
+    expenseRows
+      .filter(
+        (x) =>
+          x.status === 'posted' &&
+          x.buildingId === buildingId &&
+          (categoryId === undefined || x.categoryId === categoryId) &&
+          x.invoiceDate.startsWith(`${String(budgetYear)}-`),
+      )
+      .reduce((acc, x) => acc + x.totalFils, 0);
+  const roundUp = (fils: number, stepAed: number) =>
+    Math.max(AED(stepAed), Math.ceil(fils / AED(stepAed)) * AED(stepAed));
+  const salariesFor = (buildingId: string) => {
+    const r = rules.find((x) => x.buildingId === buildingId && x.categoryId === cat(salaries).id);
+    return r ? roundUp((r.amountFils + r.vatFils) * 12 * 1.25, 1_000) : AED(100_000);
+  };
+  const budgetRows: (typeof s.budgets.$inferInsert)[] = [];
+  const budget = (buildingId: string, categoryId: string | null, amountFils: number) =>
+    budgetRows.push({
+      id: uuidv7(),
+      buildingId,
+      year: budgetYear,
+      categoryId,
+      amountFils,
+      createdBy: adminId,
+    });
+  const liftsSpent = spentThisYear(noor.id, cat('Lifts (repairs)').id);
+  if (liftsSpent > 0)
+    budget(noor.id, cat('Lifts (repairs)').id, roundUp((liftsSpent * 100) / 87, 100));
+  budget(noor.id, cat(salaries).id, salariesFor(noor.id));
+  budget(noor.id, null, roundUp(spentThisYear(noor.id) * 1.6, 10_000));
+  budget(khan.id, cat(salaries).id, salariesFor(khan.id));
+  budget(khan.id, null, roundUp(spentThisYear(khan.id) * 1.6, 10_000));
+  await db.insert(s.budgets).values(budgetRows);
+
   // Work orders --------------------------------------------------------------------------------------
   const wo = (
     fields: Omit<typeof s.workOrders.$inferInsert, 'id' | 'createdBy'> & { reportedOn: PlainDate },
@@ -1129,6 +1170,7 @@ export async function seedV2(db: SeedDb, ctx: SeedV2Context): Promise<SeedV2Summ
     allocations: allocationRows.length,
     workOrders: workOrderRows.length,
     calendarEvents: eventRows.length,
+    budgets: budgetRows.length,
     attachments: attachmentRows.length,
   };
 }

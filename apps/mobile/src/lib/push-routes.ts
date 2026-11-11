@@ -23,8 +23,10 @@ export function routeForNotification(data: PushData | null | undefined): PushHre
     case 'cheque_due_soon':
     case 'cheque_bounced':
       return id ? { pathname: '/cheque/[id]', params: { id } } : '/(tabs)/cheques';
+    // Contract endings and budget alerts both open the Properties tab.
     case 'contract_ending_60':
     case 'contract_ending_30':
+    case 'budget_threshold':
       return '/(tabs)/properties';
     case 'hearing_soon':
       return id ? { pathname: '/dispute/[id]', params: { id } } : '/(tabs)/disputes';

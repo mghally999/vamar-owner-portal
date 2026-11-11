@@ -118,6 +118,26 @@ describe('TodayPanel', () => {
     expect(target(arTile)).toEqual({ path: '/expenses', search: { approval: 'awaiting' } });
   });
 
+  it('counts budget lines past 80 %, red once one is used up, linking to the year on /budgets', async () => {
+    await renderApp('/', { routes: routes() });
+    const panel = await screen.findByRole('region', { name: 'Today' });
+    const near = await within(panel).findByRole('link', { name: /Budget lines past 80%/ });
+    expect(within(near).getByText('1').className).not.toContain('text-danger');
+    expect(within(near).queryByText(/used up/)).toBeNull();
+    expect(target(near)).toEqual({ path: '/budgets', search: { year: '2026' } });
+    cleanup();
+    await renderApp('/', {
+      lang: 'ar',
+      routes: routes({
+        'GET /api/staff/today': staffToday({ budgets: { year: 2026, near: 1, over: 2 } }),
+      }),
+    });
+    const ar = await screen.findByRole('region', { name: 'اليوم' });
+    const arTile = await within(ar).findByRole('link', { name: /بنود ميزانية تجاوزت 80%/ });
+    expect(within(arTile).getByText('3').className).toContain('text-danger');
+    expect(within(arTile).getByText('منها 2 نفدت')).toBeTruthy();
+  });
+
   it('says so when nothing needs action, and offers a retry when the request fails', async () => {
     let fail = true;
     const { api, user } = await renderApp('/', {

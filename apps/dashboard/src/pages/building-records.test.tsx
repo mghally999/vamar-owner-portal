@@ -192,6 +192,8 @@ describe('BuildingDetailPage records', () => {
       routes: {
         'GET /api/staff/buildings/bld-1': buildingDetail(),
         'GET /api/staff/buildings/:id/timeline': apiError(500, 'internal'),
+        // The budget section has its own Retry when its request fails; it answers here.
+        'GET /api/staff/budgets': { year: 2026, today: '2026-10-07', buildings: [] },
       },
     });
     await second.user.click(await screen.findByRole('tab', { name: 'History' }));

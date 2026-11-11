@@ -3,7 +3,9 @@
  * with its audit row, and roles are enforced per route (see ./staff/common.ts).
  */
 import { Hono } from 'hono';
+import { createMiddleware } from 'hono/factory';
 import type { AppEnv } from '../env.js';
+import { queueBudgetAlerts } from '../services/budget-alerts.js';
 import { overviewRoutes } from './staff/overview.js';
 import { ownersRoutes } from './staff/owners.js';
 import { propertiesRoutes } from './staff/properties.js';
@@ -21,8 +23,22 @@ import { recordsRoutes } from './staff/records.js';
 import { reportsRoutes } from './staff/reports.js';
 import { settingsRoutes } from './staff/settings.js';
 import { searchRoutes } from './staff/search.js';
+import { budgetsRoutes } from './staff/budgets.js';
+
+/**
+ * After a staff expense write that went through (post, void with a correction, the bulk actions,
+ * showing a hidden expense), the budgets are checked for the 80 % and 100 % pushes in the
+ * background. Kept here rather than in each expense route so every way of posting is covered;
+ * a write that moves no budget costs a few reads, and the dedupe keys stop any second push.
+ */
+const budgetAlertsAfterExpenseWrites = createMiddleware<AppEnv>(async (c, next) => {
+  await next();
+  if (c.req.method === 'POST' && c.res.status < 300)
+    c.executionCtx.waitUntil(queueBudgetAlerts(c.env));
+});
 
 export const staffRoutes = new Hono<AppEnv>()
+  .use('/expenses/*', budgetAlertsAfterExpenseWrites)
   .route('/', overviewRoutes)
   .route('/', ownersRoutes)
   .route('/', propertiesRoutes)
@@ -39,4 +55,5 @@ export const staffRoutes = new Hono<AppEnv>()
   .route('/', recordsRoutes)
   .route('/', reportsRoutes)
   .route('/', settingsRoutes)
-  .route('/', searchRoutes);
+  .route('/', searchRoutes)
+  .route('/', budgetsRoutes);

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useParams } from '@tanstack/react-router';
 import { Plus, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { sharePct, todayInDubai, UNIT_TYPES, validateShares } from '@vamar/shared';
@@ -40,6 +40,11 @@ import {
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { DatePicker } from '@/ui/date-picker';
+
+// The budget section is its own chunk, shared with the /budgets page, so this page stays small.
+const BuildingBudgetSection = lazy(async () => ({
+  default: (await import('@/v2/budgets-panel')).BuildingBudgetSection,
+}));
 
 const UNIT_TYPE_LABEL: Record<(typeof UNIT_TYPES)[number], { ar: string; en: string }> = {
   apartment: { ar: 'شقة', en: 'Apartment' },
@@ -131,6 +136,12 @@ export function BuildingDetailPage() {
           </Card>
         )}
       </section>
+
+      {buildingId ? (
+        <Suspense fallback={<Skeleton className="h-32 w-full" />}>
+          <BuildingBudgetSection buildingId={buildingId} />
+        </Suspense>
+      ) : null}
 
       <div role="tablist" className="flex gap-1 border-b border-line">
         {(['units', 'history'] as const).map((id) => (

@@ -3,6 +3,7 @@ import { Link } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
 import { occupancyPct, sharePct } from '@vamar/shared';
+import { useOwnerBudgets } from '@/lib/budget-queries';
 import { useI18n } from '@/lib/i18n';
 import { useBuildings, useUnits } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -18,6 +19,7 @@ import {
   Skeleton,
   Text,
 } from '@/ui';
+import { BuildingBudget } from '@/ui/budget-card';
 
 type RowItem =
   | { kind: 'building'; building: BuildingItem }
@@ -25,14 +27,16 @@ type RowItem =
   | { kind: 'truncated' };
 
 /**
- * Properties tab: buildings with occupancy, then units with tenant, end date and rent. One flat
- * virtualised list so a large portfolio scrolls as smoothly as a small one.
+ * Properties tab: buildings with occupancy and this year's budget, then units with tenant, end
+ * date and rent. One flat virtualised list so a large portfolio scrolls as smoothly as a small one.
  */
 export default function PropertiesScreen() {
   const t = useTheme();
   const { t: tr, pick } = useI18n();
   const buildings = useBuildings();
   const units = useUnits();
+  // Optional: a building without a budget, or a failed request, shows the card without it.
+  const budgets = useOwnerBudgets();
 
   const rows = useMemo<RowItem[]>(() => {
     const out: RowItem[] = [];
@@ -81,8 +85,9 @@ export default function PropertiesScreen() {
             : 'truncated'
       }
       getItemType={(item) => item.kind}
+      extraData={budgets.data}
       contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32 }}
-      onRefresh={() => void Promise.all([buildings.refetch(), units.refetch()])}
+      onRefresh={() => void Promise.all([buildings.refetch(), units.refetch(), budgets.refetch()])}
       refreshing={buildings.isRefetching}
       renderItem={({ item }) => {
         if (item.kind === 'truncated') {
@@ -94,6 +99,7 @@ export default function PropertiesScreen() {
         }
         if (item.kind === 'building') {
           const b = item.building;
+          const budget = budgets.data?.buildings.find((x) => x.buildingId === b.id);
           return (
             <Card
               style={{
@@ -121,6 +127,9 @@ export default function PropertiesScreen() {
                 </Text>
               </Row>
               <ProgressBar pct={occupancyPct(b.occupiedCount, b.unitCount)} />
+              {budget && budgets.data ? (
+                <BuildingBudget budget={budget} year={budgets.data.year} />
+              ) : null}
               {units.isPending ? <Skeleton height={44} /> : null}
             </Card>
           );
