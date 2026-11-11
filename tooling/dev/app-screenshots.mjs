@@ -1,4 +1,4 @@
-// Owner app screenshots for demo/screenshots/v3/app, from the web build of the same screens
+// Owner app screenshots for demo/screenshots/<round>/app, from the web build of the same screens
 // (apps/dashboard/dist/app, `pnpm build:web`) served by the local API dev server, on an iPhone 13
 // screen, in both themes and both languages.
 //
@@ -61,6 +61,27 @@ const workOrder = await one(
    where u.owner_id = $1 and w.visible_to_owner order by (w.status = 'done') desc, w.reported_on desc limit 1`,
   [owner.id],
 );
+// v3: a repair waiting for this owner's answer (else any of theirs) and their newest thread.
+const approval = await one(
+  `select id from repair_approvals where owner_id = $1 order by (status = 'pending') desc, created_at desc limit 1`,
+  [owner.id],
+);
+const thread = await one(
+  `select id from message_threads where owner_id = $1 order by created_at desc limit 1`,
+  [owner.id],
+);
+// The month before this one, as the monthly summary push links it (Home shows the statement card).
+const lastMonth = await one(
+  `select to_char(date_trunc('month', now() at time zone 'Asia/Dubai') - interval '1 month', 'YYYY-MM-DD') as "from",
+          to_char(date_trunc('month', now() at time zone 'Asia/Dubai') - interval '1 day', 'YYYY-MM-DD') as "to"`,
+);
+
+// Devices left by earlier runs would pile up in Settings' signed-in devices list.
+await db.query(
+  `delete from sessions where device_id in (select device_id from devices where owner_id = $1 and model = 'screenshots')`,
+  [owner.id],
+);
+await db.query(`delete from devices where owner_id = $1 and model = 'screenshots'`, [owner.id]);
 
 /** A fresh device and refresh token for one browser context. */
 async function signIn() {
@@ -93,6 +114,14 @@ const SCREENS = [
   ['work-orders', '/app/work-orders'],
   ...(workOrder ? [['work-order', `/app/work-order/${workOrder.id}`]] : []),
   ['home-year', '/app/?preset=this_year'],
+  // v3
+  ...(approval ? [['approval', `/app/approval/${approval.id}`]] : []),
+  ['approvals', '/app/approvals'],
+  ['messages', '/app/messages'],
+  ...(thread ? [['message-thread', `/app/message/${thread.id}`]] : []),
+  ['message-new', '/app/message/new'],
+  ['settings-year', '/app/settings', /^(Yearly statement \(PDF\)|كشف الحساب السنوي PDF)$/],
+  ['home-statement', `/app/?from=${lastMonth.from}&to=${lastMonth.to}&statement=1`],
 ];
 
 const browser = await chromium.launch(
@@ -130,7 +159,7 @@ try {
         },
       );
       const page = await context.newPage();
-      for (const [name, path] of SCREENS) {
+      for (const [name, path, scrollTo] of SCREENS) {
         // The app polls in the background, so the network never goes idle: wait for the session
         // refresh every page load starts with, then give the screen time to fetch and render.
         const refreshed = page.waitForResponse(
@@ -153,6 +182,16 @@ try {
           );
           await page.goto(`${base}${path}`);
           await page.waitForTimeout(6000);
+        }
+        // Screens whose subject sits below the fold: bring it to the top of the picture. (The
+        // Properties tab needs none: the budget card is at the top of its first building.)
+        if (scrollTo) {
+          const target =
+            typeof scrollTo === 'string' ? page.locator(scrollTo) : page.getByText(scrollTo);
+          await target.first().evaluate((el) => {
+            el.scrollIntoView({ block: 'start' });
+          });
+          await page.waitForTimeout(500);
         }
         const file = resolve(out, `${name}-${theme}-${lang}.png`);
         await page.screenshot({ path: file });
