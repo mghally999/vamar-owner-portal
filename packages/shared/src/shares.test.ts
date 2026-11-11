@@ -62,6 +62,22 @@ describe('splitByShares', () => {
     ]);
   });
 
+  it('gives the same result whatever order equal shares are listed in', () => {
+    const forward = [
+      { ownerId: 'a1', shareBp: 2_500 },
+      { ownerId: 'b2', shareBp: 2_500 },
+      { ownerId: 'c3', shareBp: 2_500 },
+      { ownerId: 'd4', shareBp: 2_500 },
+    ];
+    const byOwner = (parts: { ownerId: string; amountFils: number }[]) =>
+      Object.fromEntries(parts.map((p) => [p.ownerId, p.amountFils]));
+    const a = byOwner(splitByShares(103, forward));
+    const b = byOwner(splitByShares(103, [...forward].reverse()));
+    expect(a).toEqual(b);
+    // floors 25 each, leftover 3 to the first three ids
+    expect(a).toEqual({ a1: 26, b2: 26, c3: 26, d4: 25 });
+  });
+
   it('breaks ties by owner id ascending, deterministically', () => {
     const shares = [
       { ownerId: 'zed', shareBp: 3_333 },

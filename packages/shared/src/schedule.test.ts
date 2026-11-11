@@ -173,6 +173,17 @@ describe('validateChequeGrid', () => {
     expect(v.differenceFils).toBe(500_000);
   });
 
+  it('treats a zero amount, a missing cheque number or a missing bank as not filled', () => {
+    const v = validateChequeGrid(
+      [row(1, 0), row(2, 100, null), { ...row(3, 100), bankName: null }, row(4, 100)],
+      300,
+    );
+    expect(v.missingSeqs).toEqual([1, 2, 3]);
+    expect(v.totalFils).toBe(300);
+    expect(v.duplicateChequeNos).toEqual([]);
+    expect(v.complete).toBe(false);
+  });
+
   it('flags duplicate cheque numbers and blank banks', () => {
     const v = validateChequeGrid(
       [row(1, 100, '7'), row(2, 100, '7'), { ...row(3, 100), bankName: ' ' }],

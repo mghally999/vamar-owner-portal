@@ -153,6 +153,50 @@ function cand(over: Partial<ComparableCandidate>): ComparableCandidate {
 }
 
 describe('marketReference', () => {
+  it('counts one contract per unit: the latest start, and on the same day the later id', () => {
+    const r = marketReference(
+      subject,
+      [
+        cand({
+          unitId: 'u-a',
+          contractId: 'c-a1',
+          startDate: '2026-04-01',
+          annualRentFils: 6_000_000,
+        }),
+        cand({
+          unitId: 'u-a',
+          contractId: 'c-a2',
+          startDate: '2026-04-01',
+          annualRentFils: 9_000_000,
+        }),
+        cand({
+          unitId: 'u-a',
+          contractId: 'c-a0',
+          startDate: '2026-02-01',
+          annualRentFils: 1_000_000,
+        }),
+        cand({
+          unitId: 'u-b',
+          contractId: 'c-b1',
+          startDate: '2026-04-01',
+          annualRentFils: 8_000_000,
+        }),
+        cand({
+          unitId: 'u-c',
+          contractId: 'c-c1',
+          startDate: '2026-04-01',
+          annualRentFils: 7_000_000,
+        }),
+      ],
+      TODAY,
+    );
+    expect(r.status).toBe('ok');
+    if (r.status !== 'ok') return;
+    // u-a counts once, with its later contract of the same day; equal dates list by id.
+    expect(r.comparables.map((c) => c.contractId)).toEqual(['c-a2', 'c-b1', 'c-c1']);
+    expect(r.medianFilsPerSqft).toBe(8000);
+  });
+
   it('uses the same building when it has three comparables, with median and range', () => {
     const r = marketReference(
       subject,
