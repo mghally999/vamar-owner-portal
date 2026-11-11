@@ -7,7 +7,7 @@ import { routeForNotification, type PushData, type PushHref } from './push-route
 export function routeWithApprovals(data: PushData | null | undefined): PushHref {
   if (data?.type === 'repair_approval_needed') {
     const id = typeof data.entityId === 'string' ? data.entityId : '';
-    return id ? { pathname: '/approval/[id]', params: { id } } : '/approvals';
+    return id ? { pathname: '/repair-approval/[id]', params: { id } } : '/repair-approvals';
   }
   return routeForNotification(data);
 }

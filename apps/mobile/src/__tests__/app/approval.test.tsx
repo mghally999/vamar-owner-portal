@@ -1,6 +1,6 @@
 import { fireEvent, screen } from '@testing-library/react-native';
-import ApprovalScreen from '../../../app/approval/[id]';
-import ApprovalsScreen from '../../../app/approvals';
+import ApprovalScreen from '../../../app/repair-approval/[id]';
+import ApprovalsScreen from '../../../app/repair-approvals';
 import WorkOrderDetailScreen from '../../../app/work-order/[id]';
 import WorkOrdersScreen from '../../../app/work-orders';
 import type { ApprovalDetail } from '@/lib/approval-types';
@@ -209,7 +209,7 @@ describe('Ways in', () => {
     expect(screen.getByText('Repaint corridor')).toBeTruthy();
     await fireEvent.press(screen.getByText('Repaint corridor'));
     expect(router.push).toHaveBeenCalledWith({
-      pathname: '/approval/[id]',
+      pathname: '/repair-approval/[id]',
       params: { id: 'ap-2' },
     });
   });
@@ -233,12 +233,12 @@ describe('Ways in', () => {
     await renderApp(<WorkOrderDetailScreen />);
     await fireEvent.press(await screen.findByText('Your approval is needed'));
     expect(router.push).toHaveBeenCalledWith({
-      pathname: '/approval/[id]',
+      pathname: '/repair-approval/[id]',
       params: { id: 'ap-1' },
     });
 
     await renderApp(<WorkOrdersScreen />);
     await fireEvent.press(await screen.findByText('Awaiting your approval (1)'));
-    expect(router.push).toHaveBeenLastCalledWith('/approvals');
+    expect(router.push).toHaveBeenLastCalledWith('/repair-approvals');
   });
 });

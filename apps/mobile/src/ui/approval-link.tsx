@@ -18,7 +18,7 @@ export function PendingApprovalsBanner() {
   const open = (q.data ?? []).filter((a) => a.canAnswer);
   if (open.length === 0) return null;
   return (
-    <Link href="/approvals" asChild>
+    <Link href="/repair-approvals" asChild>
       <Pressable accessibilityRole="button" style={{ marginTop: 12 }}>
         <Card style={{ padding: 16, gap: 4, borderColor: t.colors.warning }}>
           <Text weight="semibold" tnum>
@@ -41,7 +41,7 @@ export function WorkOrderApprovalCard({ workOrderId }: { workOrderId: string }) 
   const mine = (q.data ?? []).find((a) => a.canAnswer);
   if (!mine) return null;
   return (
-    <Link href={{ pathname: '/approval/[id]', params: { id: mine.id } }} asChild>
+    <Link href={{ pathname: '/repair-approval/[id]', params: { id: mine.id } }} asChild>
       <Pressable accessibilityRole="button">
         <Card style={{ padding: 16, gap: 6, borderColor: t.colors.warning }}>
           <Text weight="semibold">{ta('approval_card_title')}</Text>

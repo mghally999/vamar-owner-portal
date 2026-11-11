@@ -34,7 +34,7 @@ export default function ApprovalsScreen() {
   return (
     <ScrollView contentContainerStyle={layout.screen}>
       {q.data.map((a) => (
-        <Link key={a.id} href={{ pathname: '/approval/[id]', params: { id: a.id } }} asChild>
+        <Link key={a.id} href={{ pathname: '/repair-approval/[id]', params: { id: a.id } }} asChild>
           <Pressable accessibilityRole="button">
             <Card style={{ padding: 16, gap: 6 }}>
               <Row style={{ justifyContent: 'space-between', gap: 8 }}>

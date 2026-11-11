@@ -156,11 +156,11 @@ function Root() {
           <Stack.Screen name="work-orders" options={stackHeader(tr('workOrders_title'))} />
           <Stack.Screen name="work-order/[id]" options={stackHeader(tr('workOrder_detail'))} />
           <Stack.Screen
-            name="approvals"
+            name="repair-approvals"
             options={stackHeader(approvalText(lang, 'approvals_title'))}
           />
           <Stack.Screen
-            name="approval/[id]"
+            name="repair-approval/[id]"
             options={stackHeader(approvalText(lang, 'approval_detail'))}
           />
           <Stack.Screen

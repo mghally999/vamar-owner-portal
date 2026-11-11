@@ -115,8 +115,8 @@ const SCREENS = [
   ...(workOrder ? [['work-order', `/app/work-order/${workOrder.id}`]] : []),
   ['home-year', '/app/?preset=this_year'],
   // v3
-  ...(approval ? [['approval', `/app/approval/${approval.id}`]] : []),
-  ['approvals', '/app/approvals'],
+  ...(approval ? [['approval', `/app/repair-approval/${approval.id}`]] : []),
+  ['approvals', '/app/repair-approvals'],
   ['messages', '/app/messages'],
   ...(thread ? [['message-thread', `/app/message/${thread.id}`]] : []),
   ['message-new', '/app/message/new'],
