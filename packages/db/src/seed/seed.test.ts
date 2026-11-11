@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import * as schema from '../schema/index.js';
 import { formatDate, type PlainDate } from '@vamar/shared';
+import { REFERENCE_TABLES, referenceInserts, restoreReferenceData } from '../reference-data.js';
 import { firstWorkingDay, seed, type SeedSummary } from './index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +30,39 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await client.close();
+});
+
+describe('reference data', () => {
+  it('comes back from the migration after every table is emptied, as the reset scripts do', async () => {
+    expect(referenceInserts()).toHaveLength(REFERENCE_TABLES.length);
+    const count = async (t: string) =>
+      (await db.execute<{ n: number }>(sql.raw(`select count(*)::int as n from "${t}"`))).rows[0]
+        ?.n;
+    const before = await Promise.all(REFERENCE_TABLES.map(count));
+    expect(before.every((n) => (n ?? 0) > 0)).toBe(true);
+    // A scratch copy of the three tables: emptying them here, restoring, then comparing counts.
+    await db
+      .transaction(async (tx) => {
+        await tx.execute(
+          sql.raw(`TRUNCATE ${REFERENCE_TABLES.map((t) => `"${t}"`).join(', ')} CASCADE`),
+        );
+        await restoreReferenceData(tx);
+        const after = await Promise.all(
+          REFERENCE_TABLES.map(
+            async (t) =>
+              (await tx.execute<{ n: number }>(sql.raw(`select count(*)::int as n from "${t}"`)))
+                .rows[0]?.n,
+          ),
+        );
+        expect(after).toEqual(before);
+        // Running it twice changes nothing (the inserts skip existing rows).
+        await restoreReferenceData(tx);
+        tx.rollback();
+      })
+      .catch((e: unknown) => {
+        if (!(e instanceof Error) || !/rollback/i.test(e.message)) throw e;
+      });
+  });
 });
 
 describe('migrations', () => {

@@ -6,12 +6,14 @@
 //   ... pnpm golive:blank --confirm
 //       deletes it
 //
+// Expense categories, public holidays and the default settings (migration 0007) are put back.
 // The admin is created as an invitation: the first Google sign-in with that (verified) email binds
 // the account, and two-step login is required from the first session. Files in R2 (dispute
 // attachments, cheque images, statements) are not touched; GOLIVE.md has the bucket command.
 import './load-env.js';
 import { sql } from 'drizzle-orm';
 import { createNodeDb } from '../src/node.js';
+import { restoreReferenceData } from '../src/reference-data.js';
 import { uuidv7 } from '../src/schema/_common.js';
 
 const url = process.env['DATABASE_URL'];
@@ -58,6 +60,8 @@ try {
       await tx.execute(
         sql.raw(`TRUNCATE ${tables.map((t) => `"${t}"`).join(', ')} RESTART IDENTITY CASCADE`),
       );
+      // Expense categories, public holidays and settings are defaults, not demo data.
+      await restoreReferenceData(tx);
       await tx.execute(sql`
         insert into staff_users (id, firebase_uid, email, name, role, totp_required)
         values (${uuidv7()}, ${`invite:${uuidv7()}`}, ${email}, ${name}, 'admin', true)`);
