@@ -143,6 +143,14 @@ export const expenses = pgTable(
       .where(sql`${t.unitId} IS NOT NULL`),
     /** Staff list: newest invoice first within a status (the drafts queue, posted lists). */
     index('expenses_status_date_idx').on(t.status, t.invoiceDate.desc(), t.id.desc()),
+    /**
+     * Staff report totals: every posted expense of the period (and the comparison period) summed
+     * by month, kind and category. Carrying the summed columns lets that be an index-only scan of
+     * a narrow index instead of reading the whole wide row of each expense.
+     */
+    index('expenses_posted_report_cover_idx')
+      .on(t.invoiceDate, t.kind, t.categoryId, t.totalFils, t.vatFils)
+      .where(sql`${t.status} = 'posted'`),
     index('expenses_category_date_idx').on(t.categoryId, t.invoiceDate),
     /** Duplicate-invoice warning: same vendor, same invoice number. */
     index('expenses_vendor_invoice_idx')

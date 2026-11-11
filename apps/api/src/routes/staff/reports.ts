@@ -1,7 +1,12 @@
 /** Staff API: the report summary behind every dashboard report (mounted by ../staff.ts). */
 import { zValidator } from '../../util/validator.js';
 import { Hono } from 'hono';
-import { reportQuerySchema, resolvePeriodQuery } from '@vamar/shared';
+import {
+  DEFAULT_WEEK_START,
+  presetNeedsWeekStart,
+  reportQuerySchema,
+  resolvePeriodQuery,
+} from '@vamar/shared';
 import { readDb } from '../../db.js';
 import type { AppEnv } from '../../env.js';
 import { reportSummary } from '../../services/reports.js';
@@ -17,8 +22,11 @@ export const reportsRoutes = new Hono<AppEnv>().get(
     const db = readDb(c);
     const q = c.req.valid('query');
     const t = today(c.env);
-    const settings = await getSettings(db);
-    const { preset, period } = resolvePeriodQuery(q, t, { weekStart: settings.weekStart });
+    // Settings only matter for the week presets; the other reports stay a single statement.
+    const weekStart = presetNeedsWeekStart(q.preset)
+      ? (await getSettings(db)).weekStart
+      : DEFAULT_WEEK_START;
+    const { preset, period } = resolvePeriodQuery(q, t, { weekStart });
     const summary = await reportSummary(db, period, q, q.compare, t);
     return c.json({ preset, ...summary });
   },

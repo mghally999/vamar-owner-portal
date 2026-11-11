@@ -1,0 +1,1 @@
+CREATE INDEX "expenses_posted_report_cover_idx" ON "expenses" USING btree ("invoice_date","kind","category_id","total_fils","vat_fils") WHERE "expenses"."status" = 'posted';

@@ -1,7 +1,7 @@
 /**
  * Staff reports for a period: rent (expected, collected, outstanding, at risk), expenses by kind
  * and category, occupancy over time, the comparison period and up to 24 monthly buckets, all
- * in one query round trip (four statements run together). Aggregation happens in SQL.
+ * in one SQL statement (one round trip, one HTTPS request on Neon). Aggregation happens in SQL.
  */
 import { sql, type SQL } from 'drizzle-orm';
 import {
@@ -12,7 +12,8 @@ import {
   type Period,
   type PlainDate,
 } from '@vamar/shared';
-import { rowsOf, type Dbx } from '../db.js';
+import type { Dbx } from '../db.js';
+import { jsonColumn } from './owner-summary.js';
 
 export interface ReportFilters {
   buildingId?: string | undefined;
@@ -106,6 +107,12 @@ interface OccRow {
   occupied: number | string;
   total: number | string;
 }
+interface Figures {
+  rent: RentRow[];
+  expenses: ExpenseRow[];
+  categories: CategoryRow[];
+  occupancy: OccRow[];
+}
 
 function emptyRent(): RentTotals {
   return {
@@ -154,7 +161,10 @@ export async function reportSummary(
   const prev = compare ? previousPeriod(period) : null;
   const minFrom = prev ? prev.from : period.from;
   const maxTo = period.to;
-  const partCase = sql`case when d between ${period.from} and ${period.to} then 'cur' else 'prev' end`;
+  const months = monthBuckets(period);
+  // Every row is dated within [minFrom, period.to], so "on or after the period start" is the
+  // current period and the rest is the comparison period.
+  const isCur = (d: SQL) => sql`${d} >= ${period.from}::date`;
 
   const chequeWhere: SQL[] = [];
   if (filters.buildingId) chequeWhere.push(sql`u.building_id = ${filters.buildingId}`);
@@ -167,18 +177,25 @@ export async function reportSummary(
   const andAll = (parts: SQL[]) =>
     parts.length ? sql` and ${sql.join(parts, sql` and `)}` : sql``;
 
-  // Rent: the owner's share when an owner is given, otherwise the gross cheque.
-  const rentQ = db.execute(sql`
-    with mine as (
-      select q.due_date as d, q.status,
-             ${
-               filters.ownerId
-                 ? sql`(q.amount_fils * uo.share_bp / 10000)::bigint`
-                 : sql`q.amount_fils`
-             } as fils
+  // Rent: the owner's share when an owner is given, otherwise the gross cheque. Summed per due
+  // date and status first (one sum per cheque instead of three filtered ones) and named by month
+  // after: to_char on every cheque row cost more than the sums.
+  const fils = filters.ownerId
+    ? sql`(q.amount_fils * uo.share_bp / 10000)::bigint`
+    : sql`q.amount_fils`;
+  // Without a unit, building or owner filter the contract is only needed to leave out drafts,
+  // which an anti-join against the few draft contracts does more cheaply than joining them all.
+  const needsContract = Boolean(filters.buildingId ?? filters.unitId ?? filters.ownerId);
+  const rentCtes = sql`
+    rent_d as (
+      select q.due_date as d, q.status, sum(${fils}) as fils, count(*) as n
       from cheques q
-      join contracts c on c.id = q.contract_id and c.status <> 'draft'
-      join units u on u.id = c.unit_id
+      ${
+        needsContract
+          ? sql`join contracts c on c.id = q.contract_id and c.status <> 'draft'`
+          : sql``
+      }
+      ${filters.buildingId ? sql`join units u on u.id = c.unit_id` : sql``}
       ${
         filters.ownerId
           ? sql`join unit_ownerships uo on uo.unit_id = c.unit_id and uo.owner_id = ${filters.ownerId}
@@ -187,64 +204,108 @@ export async function reportSummary(
       }
       where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
         and q.due_date between ${minFrom} and ${maxTo}${andAll(chequeWhere)}
-    )
-    select ${partCase} as part, to_char(d, 'YYYY-MM') as month,
-           coalesce(sum(fils), 0)::bigint as expected,
-           coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
-           coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
-           count(*)::int as n, count(*) filter (where status = 'bounced')::int as bounced
-    from mine group by 1, 2`);
+        ${
+          needsContract
+            ? sql``
+            : sql`and not exists (select 1 from contracts c
+                    where c.id = q.contract_id and c.status = 'draft')`
+        }
+      group by 1, 2
+    ),
+    rent as (
+      select case when ${isCur(sql`d`)} then 'cur' else 'prev' end as part,
+             to_char(d, 'YYYY-MM') as month,
+             coalesce(sum(fils), 0)::bigint as expected,
+             coalesce(sum(fils) filter (where status = 'cleared'), 0)::bigint as collected,
+             coalesce(sum(fils) filter (where status = 'bounced'), 0)::bigint as at_risk,
+             sum(n)::int as n, coalesce(sum(n) filter (where status = 'bounced'), 0)::int as bounced
+      from rent_d group by 1, 2
+    )`;
 
-  // Expenses, posted only. With an owner or a unit filter the figures are shares, so they come from
-  // the allocations (indexed by owner and date, unit and date). Without one, every allocation of an
-  // expense adds back up to the expense (largest remainder), so the expense rows themselves give
-  // the same totals: a scan of the expenses by status and invoice date instead of joining over a
-  // million allocation rows (which ran Postgres out of shared memory on the load dataset).
+  // Expenses, posted only, read once for both the monthly figures and the categories.
+  // With an owner or a unit filter the figures are shares, so they come from the allocations
+  // (indexed by owner and date, unit and date). Without one, every allocation of an expense adds
+  // back up to the expense (largest remainder), so the expense rows themselves give the same
+  // totals: a scan of the expenses instead of joining over a million allocation rows (which ran
+  // Postgres out of shared memory on the load dataset).
   const byShare = Boolean(filters.ownerId ?? filters.unitId);
-  const expenseQ = byShare
-    ? db.execute(sql`
-    with mine as (
-      select a.on_date as d, x.kind, a.amount_fils as fils, x.id as xid,
+  // With a building, category or kind filter the matching expenses are few, and a join lets the
+  // planner start from them. Without one, one primary-key lookup per allocation row: as a join the
+  // planner reads every posted expense to match an owner's few thousand allocations (179 ms
+  // against 72 ms for the largest owner; id is unique, so LIMIT 1 changes nothing but the plan).
+  const allocationExpense =
+    filters.buildingId || filters.categoryId || filters.kind
+      ? sql`join expenses x on x.id = a.expense_id and x.status = 'posted'
+          ${filters.ownerId ? sql`and x.visible_to_owner` : sql``}`
+      : sql`cross join lateral (
+          select e.id, e.kind, e.category_id, e.building_id, e.vat_fils, e.total_fils
+          from expenses e
+          where e.id = a.expense_id and e.status = 'posted'
+            ${filters.ownerId ? sql`and e.visible_to_owner` : sql``}
+          limit 1
+        ) x`;
+  const expenseCtes = byShare
+    ? sql`
+    spent_src as (
+      select a.on_date as d, x.kind, x.category_id, a.amount_fils as fils, x.id as xid,
              (a.amount_fils::numeric * x.vat_fils / nullif(x.total_fils, 0)) as vat
       from expense_allocations a
-      join expenses x on x.id = a.expense_id and x.status = 'posted'
+      ${allocationExpense}
       where a.on_date between ${minFrom} and ${maxTo}
-        ${filters.ownerId ? sql`and a.owner_id = ${filters.ownerId} and x.visible_to_owner` : sql``}
+        ${filters.ownerId ? sql`and a.owner_id = ${filters.ownerId}` : sql``}
         ${andAll(expenseWhere)}
-    )
-    select ${partCase} as part, to_char(d, 'YYYY-MM') as month, kind,
-           coalesce(sum(fils), 0)::bigint as total, coalesce(round(sum(vat)), 0)::bigint as vat,
-           count(distinct xid)::int as n
-    from mine group by 1, 2, 3`)
-    : db.execute(sql`
-    select ${sql`case when x.invoice_date between ${period.from} and ${period.to} then 'cur' else 'prev' end`} as part,
-           to_char(x.invoice_date, 'YYYY-MM') as month, x.kind,
-           coalesce(sum(x.total_fils), 0)::bigint as total, coalesce(sum(x.vat_fils), 0)::bigint as vat,
-           count(*)::int as n
-    from expenses x
-    where x.status = 'posted' and x.invoice_date between ${minFrom} and ${maxTo}${andAll(expenseWhere)}
-    group by 1, 2, 3`);
+    ),
+    -- Each expense once per period part, month, kind and category: summing these rows gives the
+    -- same totals, and counting them the same counts as count(distinct) per month.
+    spent_x as (
+      select ${isCur(sql`d`)} as cur, date_trunc('month', d::timestamp) as mo, kind, category_id,
+             xid, sum(fils) as fils, sum(vat) as vat
+      from spent_src group by 1, 2, 3, 4, 5
+    ),
+    spent as (
+      select case when cur then 'cur' else 'prev' end as part, to_char(mo, 'YYYY-MM') as month,
+             kind, coalesce(sum(fils), 0)::bigint as total,
+             coalesce(round(sum(vat)), 0)::bigint as vat, count(*)::int as n
+      from spent_x group by cur, mo, kind
+    ),
+    cats as (
+      select s.category_id, k.name_ar, k.name_en, k.kind,
+             coalesce(sum(s.fils), 0)::bigint as total, count(distinct s.xid)::int as n
+      from spent_x s
+      join expense_categories k on k.id = s.category_id
+      where s.cur
+      group by 1, 2, 3, 4 order by 1
+    )`
+    : sql`
+    -- Only the current period is split by month and category; the comparison period only ever
+    -- gives totals by kind, so its rows get a null month and category. This keeps the groups few
+    -- (the planner otherwise expects tens of thousands and sorts every row to disk).
+    spent_g as (
+      select case when ${isCur(sql`x.invoice_date`)}
+                  then date_trunc('month', x.invoice_date::timestamp) end as mo,
+             x.kind,
+             case when ${isCur(sql`x.invoice_date`)} then x.category_id end as category_id,
+             sum(x.total_fils) as total, sum(x.vat_fils) as vat, count(*) as n
+      from expenses x
+      where x.status = 'posted' and x.invoice_date between ${minFrom} and ${maxTo}${andAll(expenseWhere)}
+      group by 1, 2, 3
+    ),
+    spent as (
+      select case when mo is null then 'prev' else 'cur' end as part,
+             coalesce(to_char(mo, 'YYYY-MM'), '') as month, kind,
+             sum(total)::bigint as total, sum(vat)::bigint as vat, sum(n)::int as n
+      from spent_g group by mo, kind
+    ),
+    cats as (
+      select g.category_id, k.name_ar, k.name_en, k.kind,
+             sum(g.total)::bigint as total, sum(g.n)::int as n
+      from spent_g g
+      join expense_categories k on k.id = g.category_id
+      group by 1, 2, 3, 4 order by 1
+    )`;
 
-  const categoryQ = byShare
-    ? db.execute(sql`
-    select x.category_id, k.name_ar, k.name_en, k.kind,
-           coalesce(sum(a.amount_fils), 0)::bigint as total, count(distinct x.id)::int as n
-    from expense_allocations a
-    join expenses x on x.id = a.expense_id and x.status = 'posted'
-    join expense_categories k on k.id = x.category_id
-    where a.on_date between ${period.from} and ${period.to}
-      ${filters.ownerId ? sql`and a.owner_id = ${filters.ownerId} and x.visible_to_owner` : sql``}
-      ${andAll(expenseWhere)}
-    group by 1, 2, 3, 4 order by total desc`)
-    : db.execute(sql`
-    select x.category_id, k.name_ar, k.name_en, k.kind,
-           coalesce(sum(x.total_fils), 0)::bigint as total, count(*)::int as n
-    from expenses x
-    join expense_categories k on k.id = x.category_id
-    where x.status = 'posted' and x.invoice_date between ${period.from} and ${period.to}${andAll(expenseWhere)}
-    group by 1, 2, 3, 4 order by total desc`);
-
-  // Occupancy at each month end of the period, over the units in scope.
+  // Occupancy at the end of each bucket month (its last day within the period), measured on
+  // today for months not over yet, over the units in scope.
   const unitScope: SQL[] = [sql`u.active`];
   if (filters.buildingId) unitScope.push(sql`u.building_id = ${filters.buildingId}`);
   if (filters.unitId) unitScope.push(sql`u.id = ${filters.unitId}`);
@@ -252,38 +313,52 @@ export async function reportSummary(
     unitScope.push(
       sql`exists (select 1 from unit_ownerships uo where uo.unit_id = u.id and uo.owner_id = ${filters.ownerId} and uo.to_date is null)`,
     );
-  const occQ = db.execute(sql`
-    with months as (
-      -- One row per calendar month the period touches (a period starting on the 20th still gets
-      -- its last month); each is measured on its last day, clipped to the period's end.
-      select least((gs + interval '1 month - 1 day')::date, ${period.to}::date) as month_end
-      from generate_series(date_trunc('month', ${period.from}::date), ${period.to}::date, interval '1 month') gs
+  const onDay = (d: PlainDate): PlainDate => (d < todayDate ? d : todayDate);
+  const firstDay = onDay(months[0]?.to ?? period.to);
+  const lastDay = onDay(months.at(-1)?.to ?? period.to);
+  const occCtes = sql`
+    months as (
+      select * from (values ${sql.join(
+        months.map((b) => sql`(${b.key}::text, ${onDay(b.to)}::date)`),
+        sql`, `,
+      )}) as m(month, on_day)
     ),
     scope as (select u.id from units u where ${sql.join(unitScope, sql` and `)}),
-    total as (select count(*)::int as n from scope)
-    -- Each month joins the contracts that ran on its end day (one pass over contracts per month)
-    -- instead of probing every unit for every month; a unit with two such contracts counts once.
-    select to_char(m.month_end, 'YYYY-MM') as month,
-           count(distinct c.unit_id)::int as occupied,
-           (select n from total) as total
-    from months m
-    left join contracts c
-      on c.status in ('active', 'expired', 'renewed', 'terminated')
-     and c.start_date <= least(m.month_end, ${todayDate}::date) and c.end_date >= least(m.month_end, ${todayDate}::date)
-     and (c.status = 'active' or c.end_date < ${todayDate}::date)
-     and c.unit_id in (select id from scope)
-    group by 1`);
+    -- The contracts running on some measured day, read once (as a plain subquery the planner
+    -- re-read the contracts and the scope for every month); a unit with two of them counts once.
+    live as materialized (
+      select c.unit_id, c.start_date, c.end_date from contracts c
+      where c.status in ('active', 'expired', 'renewed', 'terminated')
+        and (c.status = 'active' or c.end_date < ${todayDate}::date)
+        and c.start_date <= ${lastDay}::date and c.end_date >= ${firstDay}::date
+        and c.unit_id in (select id from scope)
+    ),
+    occ as (
+      select m.month,
+             (select count(distinct l.unit_id) from live l
+               where l.start_date <= m.on_day and l.end_date >= m.on_day)::int as occupied,
+             (select count(*) from scope)::int as total
+      from months m
+    )`;
 
-  const [rentRaw, expenseRaw, categoryRaw, occRaw] = await Promise.all([
-    rentQ,
-    expenseQ,
-    categoryQ,
-    occQ,
-  ]);
-  const rentRows = rowsOf<RentRow>(rentRaw);
-  const expenseRows = rowsOf<ExpenseRow>(expenseRaw);
-  const categoryRows = rowsOf<CategoryRow>(categoryRaw);
-  const occRows = rowsOf<OccRow>(occRaw);
+  const figures = jsonColumn(
+    await db.execute(sql`
+    with ${rentCtes}, ${expenseCtes}, ${occCtes}
+    select json_build_object(
+      'rent', coalesce((select json_agg(r) from rent r), '[]'::json),
+      'expenses', coalesce((select json_agg(e) from spent e), '[]'::json),
+      -- Largest first. The rows reach this sort in category order, so equal totals always come
+      -- out in the same order.
+      'categories', coalesce(
+        (select json_agg(c) from (select * from cats order by total desc) c), '[]'::json),
+      'occupancy', coalesce((select json_agg(o) from occ o), '[]'::json)
+    ) as figures`),
+    'figures',
+  ) as Figures;
+  const rentRows = figures.rent;
+  const expenseRows = figures.expenses;
+  const categoryRows = figures.categories;
+  const occRows = figures.occupancy;
 
   const rent = emptyRent();
   const expenses = emptyExpenses();
