@@ -2,7 +2,13 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
-import type { ContractStatus } from '@vamar/shared';
+import {
+  isRenewalDue,
+  renewalDueInDays,
+  todayInDubai,
+  type ContractStatus,
+  type PlainDate,
+} from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -22,6 +28,7 @@ import {
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
+import { RenewalDueChip } from '@/ui/renewal-suggestion';
 
 const STATUSES: ContractStatus[] = ['draft', 'active', 'expired', 'terminated', 'renewed'];
 
@@ -51,6 +58,7 @@ export function ContractsPage() {
     withoutRenewal: withoutRenewal ? '1' : undefined,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
+  const today = todayInDubai();
 
   return (
     <Page>
@@ -162,6 +170,12 @@ export function ContractsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <DateText date={c.endDate} />
+                    {isRenewalDue(c.status, c.endDate as PlainDate, today) ? (
+                      <RenewalDueChip
+                        className="ms-2"
+                        days={renewalDueInDays(c.endDate as PlainDate, today)}
+                      />
+                    ) : null}
                   </td>
                   <td className="px-4 py-3 text-end">
                     <Money fils={c.annualRentFils} />

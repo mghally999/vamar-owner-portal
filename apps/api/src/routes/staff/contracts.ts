@@ -8,6 +8,7 @@ import {
   contractStatusSchema,
   createContractSchema,
   paginationQuerySchema,
+  renewContractSchema,
   updateContractSchema,
   uuidSchema,
 } from '@vamar/shared';
@@ -24,6 +25,7 @@ import {
   terminateContract,
   updateContract,
 } from '../../services/contracts.js';
+import { getRenewalSuggestion } from '../../services/renewals.js';
 import { today } from '../../util/today.js';
 import { editor, idParam, viewer } from './common.js';
 
@@ -56,6 +58,9 @@ export const contractsRoutes = new Hono<AppEnv>()
   )
   .get('/contracts/:id', viewer, idParam, async (c) =>
     c.json(await getContractDetail(readDb(c), c.req.valid('param').id)),
+  )
+  .get('/contracts/:id/renewal-suggestion', viewer, idParam, async (c) =>
+    c.json(await getRenewalSuggestion(readDb(c), c.req.valid('param').id, today(c.env))),
   )
   .patch('/contracts/:id', editor, idParam, zValidator('json', updateContractSchema), async (c) =>
     c.json(
@@ -103,11 +108,22 @@ export const contractsRoutes = new Hono<AppEnv>()
         ),
       ),
   )
-  .post('/contracts/:id/renew', editor, idParam, async (c) =>
-    c.json(
-      await withTx(c, (tx) =>
-        renewContract(tx, actorFromContext(c, staffOf(c)), c.req.valid('param').id),
+  // The body is optional: no body keeps the old rent, as the one-click renew always did.
+  .post(
+    '/contracts/:id/renew',
+    editor,
+    idParam,
+    zValidator('json', renewContractSchema),
+    async (c) =>
+      c.json(
+        await withTx(c, (tx) =>
+          renewContract(
+            tx,
+            actorFromContext(c, staffOf(c)),
+            c.req.valid('param').id,
+            c.req.valid('json').annualRentFils,
+          ),
+        ),
+        201,
       ),
-      201,
-    ),
   );

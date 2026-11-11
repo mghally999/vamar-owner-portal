@@ -250,6 +250,25 @@ keyset-paged on `(at, id)`.
   digits and is empty where the runtime lacks the calendar.
 - **Dates** stay `YYYY-MM-DD` strings end to end; nothing creates a JS `Date` at UTC midnight for a
   business date. Tests cover 1 Jan, 31 Dec, 29 Feb, month ends and the RTL labels.
+- **Owner approval of large repairs** (v3, `approvals.ts`, table `repair_approvals`). A work order
+  whose estimate, or a variable expense draft whose total, is at or above
+  `repair_approval_threshold_fils` (default AED 5,000) asks every owner with a share (the unit's,
+  or the building's for a building-wide job; owners on the day asked, or on the invoice date for
+  an expense) with a push; the job cannot go to in progress or done, and the expense cannot be
+  posted, while any answer is pending or rejected, unless an admin overrides with a written reason.
+  Answers left `repair_approval_silence_days` days (default 3, 0 = off) become "approved by
+  silence" in the daily cron; every request, answer, silence and override is an audit row.
+- **Renewal market reference** (v3, `renewals.ts`). Rent per sq ft a year of other units of the
+  same type and bedrooms whose latest non-draft contract started in the last 12 months, looking in
+  the same building, then the same area, then the same emirate (read from the end of
+  `buildings.area`), stopping at the first with at least 3; the median (half up) times the unit's
+  size is the reference, always shown as "based on Vamar's recent contracts" with its comparables,
+  and fewer than 3 means "not enough data".
+- **Dubai rent cap** (Decree No. 43 of 2013): with the current rent g below the reference, the
+  increase allowed is 0 % for g ≤ 10 %, 5 % up to 20 %, 10 % up to 30 %, 15 % up to 40 % and 20 %
+  above, and the maximum is rounded down to the fils; it is the suggested renewal rent. Outside
+  Dubai, or with no reference, no cap is computed, staff are told to check the emirate's rules,
+  and the current rent is suggested.
 
 ## Design tokens and brand
 
@@ -422,6 +441,12 @@ themes. `pnpm --filter @vamar/tokens build` writes `dist/tokens.css` for Tailwin
 - **Typed dates** accept `dd/mm/yyyy` and `YYYY-MM-DD` (pasted from spreadsheets).
 - **Weekend and holiday warnings** on cheque due dates, replacement cheques, hearings and manual
   events are warnings, never blocks; a holiday wins over a weekend in the wording.
+- **Repair approvals (v3, 11 Nov 2026, to confirm with the client).** "Done" is held back like "in
+  progress", so marking a job done cannot skip the owners. A higher estimate than the one approved
+  asks again (the old answers stay in the audit log); a lower one does not. Hidden jobs (not visible
+  to owners), fixed costs and drafts made by the recurring job or the import are never asked, and
+  an expense paying for a job the owners were already asked about uses that job's answers. There is
+  no staff push channel, so "staff are told" means the Today panel and the detail pages.
 
 ## Operations
 

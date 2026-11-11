@@ -29,6 +29,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { RenewalSuggestionCard } from '@/ui/renewal-suggestion';
 import { ResponsiveTable } from '@/ui/responsive-table';
 
 export function ContractDetailPage() {
@@ -170,6 +171,10 @@ export function ContractDetailPage() {
       />
       {notice ? <Toast kind="success">{notice}</Toast> : null}
       {error ? <Toast kind="error">{error}</Toast> : null}
+
+      {c?.status === 'active' ? (
+        <RenewalSuggestionCard contractId={c.id} canEdit={auth.hasRole('editor')} />
+      ) : null}
 
       <section>
         <SectionTitle>{t('contract_grid_title')}</SectionTitle>

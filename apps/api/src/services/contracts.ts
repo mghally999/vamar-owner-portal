@@ -365,9 +365,15 @@ export async function terminateContract(db: Dbx, actor: AuditActor, id: string, 
 /**
  * One-click renewal: a new draft starting the day after the old one ends, same unit, tenant,
  * rent and cheque count, schedule regenerated with empty amounts. Old contract stays active
- * until the new one is activated (then it becomes `renewed`).
+ * until the new one is activated (then it becomes `renewed`). `annualRentFils` is the rent staff
+ * agreed on the renewal screen (the suggestion pre-fills it); without it the old rent is kept.
  */
-export async function renewContract(db: Dbx, actor: AuditActor, id: string) {
+export async function renewContract(
+  db: Dbx,
+  actor: AuditActor,
+  id: string,
+  annualRentFils?: number,
+) {
   const old = await db.query.contracts.findFirst({ where: eq(contracts.id, id) });
   if (!old) throw notFound('Contract');
   if (old.status !== 'active' && old.status !== 'expired')
@@ -384,7 +390,7 @@ export async function renewContract(db: Dbx, actor: AuditActor, id: string) {
     tenantId: old.tenantId,
     startDate,
     endDate,
-    annualRentFils: old.annualRentFils,
+    annualRentFils: annualRentFils ?? old.annualRentFils,
     chequeCount: old.chequeCount,
     ejariNo: null,
     notes: '',
@@ -398,7 +404,11 @@ export async function renewContract(db: Dbx, actor: AuditActor, id: string) {
     action: 'contract.renew',
     entityType: 'contract',
     entityId: id,
-    after: { newContractId: created.id },
+    after: {
+      newContractId: created.id,
+      annualRentFils: created.annualRentFils,
+      previousRentFils: old.annualRentFils,
+    },
   });
   return { ...created, ...linked };
 }
