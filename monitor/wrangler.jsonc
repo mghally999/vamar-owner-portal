@@ -1,0 +1,40 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // Uptime monitor for the owner portal (README.md). Separate from the portal's Worker so a broken
+  // portal deploy cannot take the monitor down with it.
+  "name": "vamar-uptime",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-01",
+  // fetch() to *.workers.dev goes out through Cloudflare's public front door, like a visitor's
+  // request, instead of being routed inside the account.
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": true,
+  "observability": { "enabled": true },
+  // Every 5 minutes. The account allows five crons; the portal uses one.
+  "triggers": { "crons": ["*/5 * * * *"] },
+  // Last run's status (one read and one write per run, well inside the free plan's 1,000 writes a
+  // day). No id: `wrangler deploy` creates the namespace on the first deploy and reuses it after.
+  "kv_namespaces": [{ "binding": "STATE" }],
+  "vars": {
+    "GITHUB_REPO": "mghally999/vamar-owner-portal",
+    // Optional, for example "@login": written into new outage issues.
+    "UPTIME_MENTION": "",
+    // /healthz every run; /readyz (wakes the Neon compute) every readyEveryMinutes. Neon Free has
+    // 100 compute-unit hours a month per project and suspends after 5 idle minutes: /readyz every
+    // 5 minutes would keep both computes awake around the clock and use the month up in ~8 days.
+    "TARGETS": [
+      {
+        "name": "production",
+        "base": "https://vamar-owner-portal.vamar-api.workers.dev",
+        "readyEveryMinutes": 30,
+      },
+      {
+        "name": "staging",
+        "base": "https://vamar-owner-portal-staging.vamar-api.workers.dev",
+        "readyEveryMinutes": 120,
+      },
+    ],
+  },
+  // Secrets (`npx wrangler secret put <NAME>` in this folder, README.md): GITHUB_APP_ID and
+  // GITHUB_APP_PRIVATE_KEY (recommended), or GITHUB_TOKEN.
+}
