@@ -42,7 +42,7 @@
     "globals": "^17.13.0",
     "pg": "^8.23.1",
     "prettier": "^3.9.9",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "turbo": "^2.11.7",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.71.1"
