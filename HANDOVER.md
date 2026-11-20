@@ -84,7 +84,7 @@ dd/mm/yyyy, yyyy-mm-dd or dd-MMM-yyyy. Mappings live in the `bank_csv_mappings` 
 | Owner web app (iPhone)  | https://vamar-owner-portal.vamar-api.workers.dev/app/             | Add to Home Screen from Safari           |
 | App download (one link) | https://vamar-owner-portal.vamar-api.workers.dev/download         | QR code: `demo/download-qr.png`          |
 | Staging                 | https://vamar-owner-portal-staging.vamar-api.workers.dev          | Demo data lives here after go-live       |
-| Health                  | `/healthz` (the Worker answers), `/readyz` (the database answers) | Checked every 10 min by `uptime.yml`     |
+| Health                  | `/healthz` (the Worker answers), `/readyz` (the database answers) | Checked every 5 min by `monitor/`        |
 | Repository              | https://github.com/mghally999/vamar-owner-portal                  | CI on every push, see below              |
 
 Accounts that own pieces of the system: Cloudflare (Workers, R2), Neon (database), Firebase
@@ -147,14 +147,22 @@ the toolchain; the CI job "Docker image" proves it on every push.
 
 - **Logs**: `npx wrangler tail` (production) shows one JSON line per API request with a request
   id; the same id is in the `x-request-id` header and in any error the user reports.
-- **Uptime**: the "Uptime" workflow (`.github/workflows/uptime.yml`) calls `/readyz` on
-  production and staging every 10 minutes with the built-in GitHub token. Three failed tries open
-  an issue labelled `outage` (status code, body excerpt, time); repository watchers get an e-mail.
-  While it stays down the issue gets a comment when the status changes and at most hourly
-  otherwise; on recovery the run comments and closes it. A red run means the monitor itself could
-  not read or write issues, not that the site is down. GitHub may start scheduled runs a few
-  minutes late. On a private repository each run counts as about one Actions minute (about 4,300 a
-  month); if that is more than the plan includes, change the cron to `*/20`.
+- **Uptime**: the `vamar-uptime` Cloudflare Worker (`monitor/`, its README has the deploy steps)
+  checks production and staging every 5 minutes. It calls `/healthz` every time and `/readyz`
+  every 30 minutes for production and every 2 hours for staging: each `/readyz` wakes the Neon
+  compute, and the free plan's compute hours would not last a month at 5 minutes. A target that
+  fails twice in a row, 20 s apart, gets an issue labelled `outage` (status, endpoint, body
+  excerpt, time); repository watchers get an e-mail. While it stays down the issue gets a comment
+  when the status changes and at most hourly otherwise; on recovery it is commented and closed.
+  The Worker writes issues as a GitHub App (BLOCKED.md item 3); its own health is at
+  `https://vamar-uptime.vamar-api.workers.dev/readyz` and the last run at `/status`. The "Uptime"
+  workflow (`.github/workflows/uptime.yml`) is the backup. GitHub starts it only 3 to 5 times a
+  day, so each run watches for 9 minutes, once a minute. With the repository variable
+  `UPTIME_WORKER_URL` set, it first checks the Worker's `/readyz`. If the Worker is unhealthy, it
+  opens an issue for the Worker and watches the targets itself. If the Worker is healthy, it leaves
+  the targets to the Worker. Both monitors use the same issue titles. A red workflow run means the
+  monitor could not read or write issues, not that the site is down. The repository is public, so
+  Actions minutes are free.
 - **Errors**: set the `SENTRY_DSN` Worker secret (BLOCKED.md item 3) and every server error goes
   to Sentry with personal data scrubbed; until then errors are in the logs only. Error tracking
   still needs the Sentry account.
@@ -184,8 +192,8 @@ machine only) and on a local scratch database during the independent check of 24
 ## Still open
 
 - **BLOCKED.md**: six items that need a click or an account from the project owner (backup key,
-  Firebase authorised domain for iPhone sign-in, Sentry account (uptime is done), keystore download,
-  Cloudflare deploy token). Each lists the exact clicks.
+  Firebase authorised domain for iPhone sign-in, GitHub App for the uptime Worker, Sentry account,
+  keystore download, Cloudflare deploy token). Each lists the exact clicks.
 - **FUTURE.md**: improvements deliberately left out of this round, each with the reason and size.
 - **Client decisions** still to take: who the first admin is; whether owners may export their
   data and when a deletion request is carried out; whether to publish to the App Store and

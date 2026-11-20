@@ -28,18 +28,24 @@ Object Read & Write, only that bucket), saved as the GitHub secrets `R2_ACCESS_K
 
 ## 3. Accounts for Phase C (one sign-in each, then the setup is scripted)
 
-Monitoring: uptime: done with GitHub Actions; error tracking (Sentry) still needs an account.
+Monitoring: uptime needs one GitHub App created by the owner (below); error tracking (Sentry) still
+needs an account.
 
 - **Sentry**: create a free account at sentry.io, one organisation `vamar`, then run
   `npx sentry-wizard` is **not** needed; give the DSNs (one for the API, one for the dashboard, one
   for the app) by pasting them into `.local/sentry.env` as `SENTRY_DSN_API=`, `SENTRY_DSN_DASHBOARD=`,
   `SENTRY_DSN_MOBILE=`.
-- **Uptime (done, no account)**: `.github/workflows/uptime.yml` calls `/readyz` on production
-  and staging every 10 minutes; a target that fails three tries in a row gets an issue labelled
-  `outage` (GitHub e-mails repository watchers), and the issue is commented on and closed when it
-  answers again. It starts once the workflow is on `main`. To be sure the e-mail reaches you: on
-  the repository page choose **Watch > All Activity** (or **Custom > Issues**), or set the Actions
-  variable `UPTIME_MENTION` to your GitHub login with a leading at-sign.
+- **Uptime: one GitHub App (about 3 minutes, no new account)**. The `vamar-uptime` Cloudflare
+  Worker (`monitor/`) checks production and staging every 5 minutes and opens an issue labelled
+  `outage` when one stops answering. GitHub e-mails repository watchers about it. To write issues it
+  needs a GitHub App on the repository owner's account. An App is not a personal token, it does not
+  expire, and its issues reach the owner by e-mail, which issues opened with the owner's own token
+  would not. Exact clicks: `monitor/README.md`, "Deploy", step 3. Then give the App ID and the
+  downloaded `.pem` to whoever deploys (step 4 there, two `wrangler secret put` commands). Until
+  then the Worker checks but cannot alert, and the `Uptime` GitHub workflow is the only alert.
+  GitHub runs that workflow only 3 to 5 times a day; each run watches for 9 minutes. To be sure the
+  e-mail reaches you: on the repository page choose **Watch > All Activity** (or **Custom >
+  Issues**).
 
 ## 4. Docker Desktop (resolved)
 
