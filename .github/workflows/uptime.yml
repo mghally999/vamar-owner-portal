@@ -1,20 +1,38 @@
 name: Uptime
 
-# Every 10 minutes: GET /readyz on production and staging. 200 with "ok":true means the Worker
-# runs and the database answers (apps/api/src/app.ts). A target that fails three tries in a row
-# gets a GitHub issue labelled `outage`, and GitHub e-mails repository watchers about new issues:
-# that e-mail is the alert. While the target stays down, the issue gets a comment when the answer
-# changes and at most once an hour otherwise, so a night-long outage is not 50 e-mails. When the
-# target answers again, the run comments with the recovery time and closes the issue.
+# Checks production and staging; a target that fails three tries in a row gets a GitHub issue
+# labelled `outage`, and GitHub e-mails repository watchers about new issues: that e-mail is the
+# alert. While the target stays down, the issue gets a comment when the answer changes and at most
+# once an hour otherwise. When the target answers again, the run comments and closes the issue.
+#
+# How often this really runs: the schedule asks for every 10 minutes, but GitHub starts scheduled
+# runs of this repository only 3 to 5 times a day (`gh run list --workflow Uptime`), at random
+# times. So each run keeps watching for WINDOW minutes, checking once a minute: about 30 to 45
+# minutes of coverage a day, not continuous. An outage can still go unnoticed for hours with this
+# workflow alone. The primary monitor is the vamar-uptime Cloudflare Worker (monitor/README.md),
+# which checks every 5 minutes; this workflow is its backup and its watcher:
+#
+# - With the repository variable UPTIME_WORKER_URL set (for example
+#   https://vamar-uptime.vamar-api.workers.dev), each run first checks the Worker's own /readyz,
+#   which answers 200 only while its cron runs and can write issues. If it is healthy the run stops
+#   there and leaves production and staging to the Worker (both use the same issue titles, so they
+#   never open two issues for one outage). If it is not, the run opens an issue for the Worker and
+#   watches production and staging itself for the whole window.
+# - Without the variable, every run watches production and staging for the whole window.
+#
+# The first pass of a window calls /readyz (the database answers); the passes after it call
+# /healthz (the Worker answers, no database), unless the target is down. Every /readyz wakes the
+# Neon compute for 5 minutes, and the free plan's compute hours would not last a month if this
+# called /readyz every minute.
 #
 # Only the built-in GITHUB_TOKEN and the gh CLI of the runner are used: no account, no secret.
 # Optional repository variable UPTIME_MENTION (Settings > Secrets and variables > Actions >
 # Variables), for example a GitHub login with a leading at-sign: it is written into new outage
 # issues so that person is notified even if they do not watch the repository.
 #
-# GitHub starts scheduled runs only from the default branch, can start them some minutes late when
-# it is busy, and switches them off after 60 days without a commit in a public repository
-# (Actions > Uptime > Enable workflow turns them back on).
+# GitHub starts scheduled runs only from the default branch and switches them off after 60 days
+# without a commit in a public repository (Actions > Uptime > Enable workflow turns them back on).
+# Actions minutes are free for public repositories.
 
 on:
   schedule:
@@ -33,20 +51,23 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Three tries of at most 15 s each with 20 s between them, per target: about 3 minutes at worst.
-    timeout-minutes: 5
+    # A 9-minute window, plus a last pass of at most about 3 minutes when both targets are down.
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       MENTION: ${{ vars.UPTIME_MENTION }}
+      WORKER_URL: ${{ vars.UPTIME_WORKER_URL }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      WINDOW: 9
     steps:
-      - name: Check /readyz, open or update or close outage issues
+      - name: Check the targets for the window, open or update or close outage issues
         shell: bash
         run: |
           # No -e: a failed check or API call on one target must not skip the other target.
           set -uo pipefail
           broken=0
+          declare -A down=() clean=()
 
           stamp() { echo "$(date -u '+%Y-%m-%d %H:%M UTC') ($(TZ=Asia/Dubai date '+%H:%M Dubai'))"; }
 
@@ -55,33 +76,48 @@ jobs:
               --jq ".[] | select(.title == \"$1\") | .number" | head -n 1
           }
 
-          check() {
-            local name="$1" url="$2/readyz" code excerpt title num
+          check() { # name, origin, path
+            local name="$1" url="$2$3" code excerpt title num up=0
             title="Outage: $name does not answer /readyz"
             for attempt in 1 2 3; do
               rm -f body.txt curl.err
               code="$(curl -sS -o body.txt -w '%{http_code}' --max-time 15 \
                 -H 'cache-control: no-cache' "$url" 2>curl.err)"
               [ -n "$code" ] || code=000
-              if [ "$code" = 200 ] && grep -q '"ok":true' body.txt 2>/dev/null; then break; fi
+              if [ "$code" = 200 ] && grep -q '"ok":true' body.txt 2>/dev/null; then up=1; break; fi
               [ "$attempt" = 3 ] || sleep 20
             done
+
+            # Up, and an earlier pass of this run found no open issue: nothing to ask GitHub.
+            if [ "$up" = 1 ] && [ "${clean[$name]:-0}" = 1 ]; then
+              echo "$(date -u +%H:%M:%S) $name: up ($code, $3)"
+              return
+            fi
 
             if ! num="$(open_issue "$title")"; then
               echo "::error::could not list outage issues for $name"
               broken=1
+              down[$name]=$((1 - up))
               return
             fi
 
-            if [ "$code" = 200 ] && grep -q '"ok":true' body.txt 2>/dev/null; then
-              echo "$name: up ($code)"
+            if [ "$up" = 1 ]; then
+              echo "$(date -u +%H:%M:%S) $name: up ($code, $3)"
+              down[$name]=0
               if [ -n "$num" ]; then
-                gh issue close "$num" --comment "Recovered: **$name** answers \`GET $url\` with 200 again at $(stamp). [Run]($RUN_URL)" \
-                  || broken=1
+                if gh issue close "$num" --comment "Recovered: **$name** answers \`GET $url\` with 200 again at $(stamp). [Run]($RUN_URL)"; then
+                  clean[$name]=1
+                else
+                  broken=1
+                fi
+              else
+                clean[$name]=1
               fi
               return
             fi
 
+            down[$name]=1
+            clean[$name]=0
             # The body is printed inside a code block: backticks and control characters removed.
             excerpt="$( { cat body.txt 2>/dev/null; cat curl.err 2>/dev/null; } \
               | LC_ALL=C tr -cd '[:print:]\n' | tr -d '`' | head -c 300)"
@@ -100,7 +136,7 @@ jobs:
               return
             fi
 
-            # Last status written by this workflow on the issue (its body or a comment), and when.
+            # Last status written by a monitor on the issue (its body or a comment), and when.
             local last last_at last_code age
             last="$(gh issue view "$num" --json createdAt,body,comments --jq '
               ([{createdAt, body}] + [.comments[] | {createdAt, body}])
@@ -118,8 +154,32 @@ jobs:
             fi
           }
 
-          check production https://vamar-owner-portal.vamar-api.workers.dev
-          check staging https://vamar-owner-portal-staging.vamar-api.workers.dev
+          if [ -n "${WORKER_URL:-}" ]; then
+            check "uptime worker" "${WORKER_URL%/}" /readyz
+            if [ "${down[uptime worker]:-1}" = 0 ]; then
+              echo "The vamar-uptime Worker is healthy and checks production and staging every 5 minutes."
+              exit "$broken"
+            fi
+            echo "::warning::The vamar-uptime Worker is not healthy: this run watches the targets itself."
+          fi
+
+          targets=(
+            "production https://vamar-owner-portal.vamar-api.workers.dev"
+            "staging https://vamar-owner-portal-staging.vamar-api.workers.dev"
+          )
+          deadline=$(( $(date +%s) + WINDOW * 60 ))
+          for (( pass = 0; pass < WINDOW; pass++ )); do
+            started=$(date +%s)
+            for target in "${targets[@]}"; do
+              name="${target%% *}"
+              if [ "$pass" = 0 ] || [ "${down[$name]:-0}" = 1 ]; then path=/readyz; else path=/healthz; fi
+              check "$name" "${target#* }" "$path"
+            done
+            next=$(( started + 60 ))
+            if [ "$next" -ge "$deadline" ]; then break; fi
+            wait_s=$(( next - $(date +%s) ))
+            if [ "$wait_s" -gt 0 ]; then sleep "$wait_s"; fi
+          done
 
           # A target being down is reported through the issue; a red run means the monitor itself
           # could not read or write issues.
