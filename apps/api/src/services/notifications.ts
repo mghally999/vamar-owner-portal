@@ -254,19 +254,28 @@ async function sendClaims(env: Bindings, db: Dbx, claims: Claim[]): Promise<Deli
     token: string;
     msg: ExpoMessage;
   }
-  const outcome = new Map<string, { ok: number; error: string | null }>();
+  // Maps, not finds: the 1st of the month sends one summary per owner (O(n), not O(n²)).
+  const ownerById = new Map(owners.map((o) => [o.id, o]));
+  const devicesByOwner = new Map<string, typeof targets>();
+  for (const d of targets) {
+    const list = devicesByOwner.get(d.ownerId);
+    if (list) list.push(d);
+    else devicesByOwner.set(d.ownerId, [d]);
+  }
+  const outcome = new Map<string, { ok: number; error: string | null; devices: number }>();
   const items: Item[] = [];
   for (const c of claims) {
-    const owner = owners.find((o) => o.id === c.ownerId);
-    outcome.set(c.id, { ok: 0, error: null });
+    const owner = ownerById.get(c.ownerId);
+    const o = { ok: 0, error: null as string | null, devices: 0 };
+    outcome.set(c.id, o);
     if (!owner || owner.status === 'disabled') {
-      outcome.set(c.id, { ok: 0, error: 'error:owner_disabled' });
+      o.error = 'error:owner_disabled';
       continue;
     }
     const copy = notificationCopy(c.payload.params, owner.preferredLang);
-    for (const d of targets) {
-      if (d.ownerId !== c.ownerId || d.deviceId === c.payload.excludeDeviceId || !d.pushToken)
-        continue;
+    for (const d of devicesByOwner.get(c.ownerId) ?? []) {
+      if (d.deviceId === c.payload.excludeDeviceId || !d.pushToken) continue;
+      o.devices += 1;
       items.push({
         claim: c,
         deviceRowId: d.id,
@@ -325,12 +334,11 @@ async function sendClaims(env: Bindings, db: Dbx, claims: Claim[]): Promise<Deli
 
   const now = Date.now();
   const results = claims.map((c) => {
-    const o = outcome.get(c.id) ?? { ok: 0, error: null };
-    const hasDevice = items.some((i) => i.claim.id === c.id);
+    const o = outcome.get(c.id) ?? { ok: 0, error: null, devices: 0 };
     let result: string;
     if (o.ok > 0) result = 'ok';
     else if (o.error) result = o.error;
-    else result = hasDevice ? 'error:unknown' : 'no_device';
+    else result = o.devices > 0 ? 'error:unknown' : 'no_device';
     const failed = result.startsWith('failed:');
     const backoff = PUSH_RETRY.backoffMs[c.attempts - 1];
     const retryAt =
@@ -345,7 +353,17 @@ async function sendClaims(env: Bindings, db: Dbx, claims: Claim[]): Promise<Deli
 
   await Promise.all([
     recordResults(db, results),
-    tickets.length ? db.insert(pushTickets).values(tickets).onConflictDoNothing() : null,
+    tickets.length
+      ? db.execute(sql`
+          insert into ${pushTickets} (id, notification_id, device_id, push_token)
+          select * from unnest(
+            ${sql.param(tickets.map((t) => t.id))}::text[],
+            ${sql.param(tickets.map((t) => t.notificationId))}::uuid[],
+            ${sql.param(tickets.map((t) => t.deviceId))}::uuid[],
+            ${sql.param(tickets.map((t) => t.pushToken))}::text[]
+          )
+          on conflict do nothing`)
+      : null,
     clearTokens(db, unregistered),
   ]);
   if (report.failed > 0) log('warn', 'push.transport_failed', { failed: report.failed });
@@ -361,29 +379,30 @@ async function recordResults(
   results: { id: string; result: string; retryAt: string | null }[],
 ): Promise<void> {
   if (results.length === 0) return;
-  const values = sql.join(
-    results.map((r) => sql`(${r.id}::uuid, ${r.result}::text, ${r.retryAt}::timestamptz)`),
-    sql`, `,
-  );
+  // Three array parameters rather than a VALUES row per notification: the query builder's cost
+  // grows with every fragment, and the 1st of the month records one row per owner.
   await db.execute(sql`
     update ${notificationLog} as n
     set result = v.result,
         next_attempt_at = v.retry_at,
         payload = case when v.result like 'failed:%' then n.payload else null end
-    from (values ${values}) as v(id, result, retry_at)
+    from unnest(
+      ${sql.param(results.map((r) => r.id))}::uuid[],
+      ${sql.param(results.map((r) => r.result))}::text[],
+      ${sql.param(results.map((r) => r.retryAt))}::timestamptz[]
+    ) as v(id, result, retry_at)
     where n.id = v.id`);
 }
 
 /** DeviceNotRegistered: clear each token, unless the device has registered a new one since. */
 async function clearTokens(db: Dbx, list: { deviceRowId: string; token: string }[]): Promise<void> {
   if (list.length === 0) return;
-  const values = sql.join(
-    list.map((d) => sql`(${d.deviceRowId}::uuid, ${d.token}::text)`),
-    sql`, `,
-  );
   await db.execute(sql`
     update ${devices} as d set push_token = null
-    from (values ${values}) as v(id, token)
+    from unnest(
+      ${sql.param(list.map((x) => x.deviceRowId))}::uuid[],
+      ${sql.param(list.map((x) => x.token))}::text[]
+    ) as v(id, token)
     where d.id = v.id and d.push_token = v.token`);
 }
 
