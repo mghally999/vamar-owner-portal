@@ -29,6 +29,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 
@@ -283,18 +284,7 @@ export function ChequesPage() {
               </tbody>
             </ResponsiveTable>
           </div>
-          {q.hasNextPage ? (
-            <div className="border-t border-line p-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={q.isFetchingNextPage}
-                onClick={() => void q.fetchNextPage()}
-              >
-                {t('loadMore')}
-              </Button>
-            </div>
-          ) : null}
+          <LoadMore query={q} />
         </Card>
       )}
 

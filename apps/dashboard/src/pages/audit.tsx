@@ -4,16 +4,9 @@ import { useUrlFilters } from '@/lib/url-filters';
 import { useI18n } from '@/lib/i18n';
 import { useAudit, useStaff } from '@/lib/queries';
 import { DatePicker } from '@/ui/date-picker';
-import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorState,
-  PageHeader,
-  Select,
-  SkeletonRows,
-} from '@/ui/primitives';
+import { Card, EmptyState, ErrorState, PageHeader, Select, SkeletonRows } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 
 /**
@@ -204,18 +197,7 @@ export function AuditPage() {
               ))}
             </tbody>
           </ResponsiveTable>
-          {q.hasNextPage ? (
-            <div className="border-t border-line p-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={q.isFetchingNextPage}
-                onClick={() => void q.fetchNextPage()}
-              >
-                {t('loadMore')}
-              </Button>
-            </div>
-          ) : null}
+          <LoadMore query={q} />
         </Card>
       )}
     </Page>

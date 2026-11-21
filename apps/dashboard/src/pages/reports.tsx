@@ -36,6 +36,7 @@ import {
   Toast,
   cx,
 } from '@/ui/primitives';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
 import { StatCard } from '@/ui/stat-card';
@@ -403,18 +404,7 @@ export function ReportsPage() {
                   </tbody>
                 </ResponsiveTable>
               )}
-              {outstanding.hasNextPage ? (
-                <div className="border-t border-line p-3">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    loading={outstanding.isFetchingNextPage}
-                    onClick={() => void outstanding.fetchNextPage()}
-                  >
-                    {t('loadMore')}
-                  </Button>
-                </div>
-              ) : null}
+              <LoadMore query={outstanding} />
             </Card>
           ) : (
             <MonthTable d={d} report={report} />

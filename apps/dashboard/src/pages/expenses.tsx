@@ -37,6 +37,7 @@ import {
   cx,
 } from '@/ui/primitives';
 import { ExpenseBulkBar, ExpenseBulkDialog, actionsFor } from '@/ui/expense-bulk';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 import { Page } from '@/ui/shell';
@@ -465,18 +466,7 @@ export function ExpensesPage() {
               </tbody>
             </ResponsiveTable>
           </div>
-          {q.hasNextPage ? (
-            <div className="border-t border-line p-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={q.isFetchingNextPage}
-                onClick={() => void q.fetchNextPage()}
-              >
-                {t('loadMore')}
-              </Button>
-            </div>
-          ) : null}
+          <LoadMore query={q} />
         </Card>
       )}
 

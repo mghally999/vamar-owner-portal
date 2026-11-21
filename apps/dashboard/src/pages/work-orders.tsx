@@ -27,6 +27,7 @@ import {
   SkeletonRows,
   cx,
 } from '@/ui/primitives';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { Page } from '@/ui/shell';
@@ -268,18 +269,7 @@ export function WorkOrdersPage() {
               ))}
             </tbody>
           </ResponsiveTable>
-          {q.hasNextPage ? (
-            <div className="border-t border-line p-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={q.isFetchingNextPage}
-                onClick={() => void q.fetchNextPage()}
-              >
-                {t('loadMore')}
-              </Button>
-            </div>
-          ) : null}
+          <LoadMore query={q} />
         </Card>
       )}
     </Page>

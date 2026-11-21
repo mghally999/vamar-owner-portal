@@ -26,6 +26,7 @@ import {
   Toast,
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
+import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
 
 /** Kept in the URL so a reload or Back from an owner brings the same list back. */
@@ -148,18 +149,7 @@ export function OwnersPage() {
               ))}
             </tbody>
           </ResponsiveTable>
-          {q.hasNextPage ? (
-            <div className="border-t border-line p-3">
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={q.isFetchingNextPage}
-                onClick={() => void q.fetchNextPage()}
-              >
-                {t('loadMore')}
-              </Button>
-            </div>
-          ) : null}
+          <LoadMore query={q} />
         </Card>
       )}
 
