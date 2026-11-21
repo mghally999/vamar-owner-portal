@@ -3,7 +3,7 @@
  * invoice that paid for it (link an existing expense or record a new one).
  */
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_STATUSES,
@@ -87,8 +87,29 @@ export function WorkOrderDetailPage() {
     [building.data],
   );
 
-  useEffect(() => {
-    if (!w) return;
+  // The form copies the saved fields only when they change on the server. A refetch for any
+  // other reason (an uploaded photo, a linked invoice) used to overwrite edits not yet saved.
+  const saved = w
+    ? JSON.stringify([
+        w.id,
+        w.buildingId,
+        w.unitId,
+        w.titleAr,
+        w.titleEn,
+        w.description,
+        w.priority,
+        w.status,
+        w.reportedOn,
+        w.scheduledFor,
+        w.vendorId,
+        w.visibleToOwner,
+        w.estimateFils,
+      ])
+    : '';
+  const [syncedFrom, setSyncedFrom] = useState('');
+  if (w && saved !== syncedFrom) {
+    // Adjusting state while rendering (React's pattern for state derived from props).
+    setSyncedFrom(saved);
     setBuildingId(w.buildingId);
     setUnitId(w.unitId ?? '');
     setTitleAr(w.titleAr);
@@ -101,7 +122,7 @@ export function WorkOrderDetailPage() {
     setVendorId(w.vendorId ?? '');
     setVisibleToOwner(w.visibleToOwner);
     setEstimate(w.estimateFils === null ? '' : String(w.estimateFils / 100));
-  }, [w]);
+  }
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const editor = auth.hasRole('editor');

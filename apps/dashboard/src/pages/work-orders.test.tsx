@@ -64,6 +64,8 @@ describe('WorkOrdersPage', () => {
     expect(within(row).getByText('In progress')).toBeTruthy();
     expect(within(row).getByText('Al Noor Tower · 801')).toBeTruthy();
     expect(screen.getByText('AED 13,020')).toBeTruthy();
+    // The 860 px table scrolls inside its card between 768 and 1024 px instead of being cut off.
+    expect(row.closest('table')?.parentElement?.className).toContain('overflow-x-auto');
     await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'done');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'urgent');
@@ -205,6 +207,40 @@ describe('WorkOrderDetailPage', () => {
       });
     });
     expect(screen.getByRole('button', { name: 'Record the invoice' })).toBeTruthy();
+  });
+
+  it('keeps unsaved edits when a photo upload reloads the order', async () => {
+    let uploaded = false;
+    const { api, user } = await renderApp('/work-orders/wo-1', {
+      role: 'editor',
+      routes: routes({
+        // After the upload the order comes back with the new photo: a changed record.
+        'GET /api/staff/work-orders/:id': () =>
+          workOrderDetail({
+            attachments: uploaded ? [attachment({ id: 'ph-2', fileName: 'after.jpg' })] : [],
+          }),
+        'POST /api/staff/attachments': () => {
+          uploaded = true;
+          return attachment({ id: 'ph-2', fileName: 'after.jpg' });
+        },
+      }),
+    });
+    expect(await screen.findByRole('heading', { name: 'AC not cooling' })).toBeTruthy();
+    const title = screen.getByRole('textbox', { name: /^Title \(English\)/ });
+    await user.clear(title);
+    await user.type(title, 'AC not cooling, unit 801');
+    const loads = api.to('GET', '/api/staff/work-orders/wo-1').length;
+    await user.upload(
+      screen.getByLabelText('Add photo'),
+      new File([new Uint8Array([0xff, 0xd8, 0xff])], 'after.jpg', { type: 'image/jpeg' }),
+    );
+    // The upload refreshes the order from the server...
+    await vi.waitFor(() => {
+      expect(api.to('GET', '/api/staff/work-orders/wo-1').length).toBeGreaterThan(loads);
+    });
+    expect(await screen.findByRole('link', { name: 'after.jpg' })).toBeTruthy();
+    // ...and the title typed but not saved is still there.
+    expect(title).toHaveProperty('value', 'AC not cooling, unit 801');
   });
 
   it('is read-only for viewers and for a cancelled order, and shows the error state', async () => {

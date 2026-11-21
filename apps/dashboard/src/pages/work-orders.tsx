@@ -217,7 +217,7 @@ export function WorkOrdersPage() {
       ) : view === 'board' ? (
         <Board rows={rows} />
       ) : (
-        <Card className="overflow-hidden">
+        <Card className="overflow-x-auto">
           <ResponsiveTable className="w-full min-w-[860px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
