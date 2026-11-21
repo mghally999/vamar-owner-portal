@@ -5,7 +5,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { schema } from '@vamar/db';
 import { staffExchangeSchema, totpCodeSchema } from '@vamar/shared';
 import { verifyFirebaseIdToken } from '../auth/firebase.js';
-import { isDeployed, maySkipTotp } from '../config.js';
+import { isProduction, maySkipTotp } from '../config.js';
 import { requireStaff, staffOf } from '../auth/middleware.js';
 import { clientIp, enforceRateLimit, RATE_LIMITS } from '../auth/ratelimit.js';
 import {
@@ -26,7 +26,7 @@ import {
   verifyTotpCode,
 } from '../auth/totp.js';
 import { readDb, withTx } from '../db.js';
-import type { AppEnv, StaffPrincipal } from '../env.js';
+import type { AppEnv, Bindings, StaffPrincipal } from '../env.js';
 import { ApiError, unauthorized } from '../errors.js';
 import { audit, actorFromContext } from '../services/audit.js';
 import { sha256 } from '../util/crypto.js';
@@ -86,6 +86,19 @@ function setRefreshCookie(c: Parameters<typeof setCookie>[0], token: string, exp
   });
 }
 
+/**
+ * Whether a staff row's uid is a placeholder that the first verified sign-in may replace with the
+ * Firebase account's uid. `invite:` uids (staff invited from the dashboard) everywhere. Seeded
+ * `seed-` uids everywhere but production: the local emulator, and staging, whose demo rows keep
+ * the seed's uids (QA finding S-1); production never binds one. The caller still requires the
+ * e-mail to be verified by Firebase, otherwise anyone who could create a Firebase account with the
+ * address would become this staff member.
+ */
+export function bindsOnFirstSignIn(env: Pick<Bindings, 'APP_ENV'>, firebaseUid: string): boolean {
+  if (firebaseUid.startsWith('invite:')) return true;
+  return firebaseUid.startsWith('seed-') && !isProduction(env);
+}
+
 export const authStaffRoutes = new Hono<AppEnv>()
   /**
    * Step 1: Firebase email/password ID token -> short pre-MFA access token (mfa: false).
@@ -106,14 +119,9 @@ export const authStaffRoutes = new Hono<AppEnv>()
         throw new ApiError(403, 'forbidden', 'This email is not a Vamar staff account');
       }
       if (user.firebaseUid !== identity.uid) {
-        // First login after an invite binds the Firebase account to the staff row. The e-mail must
-        // be verified by Firebase first, otherwise anyone who can create a Firebase account with
-        // this address would become this staff member. Seeded placeholder uids bind only outside
-        // production (local emulator).
-        const pending =
-          user.firebaseUid.startsWith('invite:') ||
-          (!isDeployed(c.env) && user.firebaseUid.startsWith('seed-'));
-        if (pending) {
+        // First login after an invite binds the Firebase account to the staff row (see
+        // bindsOnFirstSignIn); the e-mail must be verified by Firebase first.
+        if (bindsOnFirstSignIn(c.env, user.firebaseUid)) {
           if (!identity.emailVerified) {
             log('warn', 'auth.staff_email_unverified', { staffId: user.id, ip });
             throw new ApiError(

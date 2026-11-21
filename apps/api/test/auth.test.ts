@@ -379,3 +379,14 @@ describe('staff authenticator enrolment asked for twice', () => {
     expect(fresh.body.secret).not.toBe(a.body.secret);
   });
 });
+
+describe('staff uid binding (QA S-1)', () => {
+  it('seed uids bind on first verified sign-in outside production only; invites everywhere', async () => {
+    const { bindsOnFirstSignIn } = await import('../src/routes/auth-staff.js');
+    expect(bindsOnFirstSignIn({ APP_ENV: 'staging' }, 'seed-staff-admin')).toBe(true);
+    expect(bindsOnFirstSignIn({ APP_ENV: 'development' }, 'seed-staff-admin')).toBe(true);
+    expect(bindsOnFirstSignIn({ APP_ENV: 'production' }, 'seed-staff-admin')).toBe(false);
+    expect(bindsOnFirstSignIn({ APP_ENV: 'production' }, 'invite:abc')).toBe(true);
+    expect(bindsOnFirstSignIn({ APP_ENV: 'staging' }, 'Xy12realFirebaseUid')).toBe(false);
+  });
+});
