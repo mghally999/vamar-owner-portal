@@ -7,12 +7,13 @@ import { sql, type SQL } from 'drizzle-orm';
 import {
   changePct,
   monthBuckets,
+  netFils as netOf,
   previousPeriod,
   type ExpenseKind,
   type Period,
   type PlainDate,
 } from '@vamar/shared';
-import type { Dbx } from '../db.js';
+import { EXPECTED_STATUS_LIST, type Dbx } from '../db.js';
 import { jsonColumn } from './owner-summary.js';
 
 export interface ReportFilters {
@@ -202,7 +203,7 @@ export async function reportSummary(
                 and uo.from_date <= q.due_date and (uo.to_date is null or uo.to_date > q.due_date)`
           : sql``
       }
-      where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
+      where q.amount_fils is not null and q.status in ${EXPECTED_STATUS_LIST}
         and q.due_date between ${minFrom} and ${maxTo}${andAll(chequeWhere)}
         ${
           needsContract
@@ -404,9 +405,9 @@ export async function reportSummary(
           : Math.round((100 * lastBucket.occupiedUnits) / lastBucket.totalUnits),
     };
   }
-  for (const b of buckets.values()) b.netFils = b.collectedFils - b.totalFils;
-  const netFils = rent.collectedFils - expenses.totalFils;
-  const prevNet = prevRent.collectedFils - prevExpenses.totalFils;
+  for (const b of buckets.values()) b.netFils = netOf(b.collectedFils, b);
+  const netFils = netOf(rent.collectedFils, expenses);
+  const prevNet = netOf(prevRent.collectedFils, prevExpenses);
   return {
     period,
     comparison: prev,

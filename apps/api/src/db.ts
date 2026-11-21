@@ -17,6 +17,7 @@ import { drizzle as drizzleNeon } from 'drizzle-orm/neon-serverless';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import type { AnyPgColumn, PgDatabase, PgQueryResultHKT, PgTransaction } from 'drizzle-orm/pg-core';
 import { schema } from '@vamar/db';
+import { EXPECTED_CHEQUE_STATUSES } from '@vamar/shared';
 import pg from 'pg';
 import type { Context } from 'hono';
 import type { AppEnv, Bindings } from './env.js';
@@ -146,3 +147,15 @@ export function unitNoOrder(col: AnyPgColumn): SQL[] {
     sql`${col}`,
   ];
 }
+
+/**
+ * `in (...)` list of the cheque statuses that count as expected rent (shared
+ * EXPECTED_CHEQUE_STATUSES: replaced and cancelled never count), written as literals so the big
+ * report statements keep the plan they were tuned with. Constant enum values only, never input.
+ */
+export const EXPECTED_STATUS_LIST: SQL = sql.raw(
+  `(${EXPECTED_CHEQUE_STATUSES.map((s) => {
+    if (!/^[a-z_]+$/.test(s)) throw new Error(`unexpected cheque status ${s}`);
+    return `'${s}'`;
+  }).join(', ')})`,
+);

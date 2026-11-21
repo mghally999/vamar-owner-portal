@@ -10,8 +10,10 @@ import {
   addDays,
   isFuturePeriod,
   monthBuckets,
+  netFils,
   ownerShareOfExpense,
   previousPeriod,
+  projectedNetFils,
   recurringDueDates,
   resolvePeriodQuery,
   type AllocationMethod,
@@ -22,7 +24,7 @@ import {
   type PlainDate,
   type WeekStart,
 } from '@vamar/shared';
-import { rowsOf, type Dbx } from '../db.js';
+import { EXPECTED_STATUS_LIST, rowsOf, type Dbx } from '../db.js';
 import {
   buildAllocationUnits,
   type AllocationOwnershipRow,
@@ -280,7 +282,7 @@ export async function ownerSummary(
       ${q.buildingId ? sql`join units u on u.id = c.unit_id` : sql``}
       join unit_ownerships uo on uo.unit_id = c.unit_id and uo.owner_id = ${ownerId}
            and uo.from_date <= q.due_date and (uo.to_date is null or uo.to_date > q.due_date)
-      where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
+      where q.amount_fils is not null and q.status in ${EXPECTED_STATUS_LIST}
         and q.due_date between ${minFrom} and ${period.to}${andAll(chequeWhere)}
     ),
     -- Grouped by month start and named after: to_char once per month, not once per row.
@@ -475,7 +477,7 @@ export async function ownerSummary(
     }
   }
 
-  for (const b of buckets.values()) b.netFils = b.collectedFils - b.totalFils;
+  for (const b of buckets.values()) b.netFils = netFils(b.collectedFils, b);
   const counts = rowsOf<{
     open_work_orders: number | string;
     open_disputes: number | string;
@@ -492,13 +494,16 @@ export async function ownerSummary(
     isFuture: isFuturePeriod(period, todayDate),
     rent,
     expenses,
-    netFils: rent.collectedFils - expenses.totalFils,
-    projectedNetFils: rent.expectedFils - expenses.fixedFils - expenses.projectedFixedFils,
+    netFils: netFils(rent.collectedFils, expenses),
+    projectedNetFils: projectedNetFils(
+      rent.expectedFils,
+      expenses.fixedFils + expenses.projectedFixedFils,
+    ),
     previous: prev
       ? {
           rent: prevRent,
           expenses: prevExpenses,
-          netFils: prevRent.collectedFils - prevExpenses.totalFils,
+          netFils: netFils(prevRent.collectedFils, prevExpenses),
         }
       : null,
     buckets: [...buckets.values()],
@@ -542,7 +547,7 @@ export async function ownerStatementYears(
       from mine uo
       join contracts c on c.unit_id = uo.unit_id and c.status <> 'draft'
       join cheques q on q.contract_id = c.id
-      where q.amount_fils is not null and q.status not in ('replaced', 'cancelled')
+      where q.amount_fils is not null and q.status in ${EXPECTED_STATUS_LIST}
         and q.due_date >= uo.from_date and (uo.to_date is null or uo.to_date > q.due_date)
         and q.due_date <= ${todayDate}
     ),

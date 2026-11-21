@@ -3,9 +3,9 @@
  * 29 February, recurring drafts covering the shared period, one-pass unit holders with the
  * current-owner fallback, and the void route's body checked by the shared schema.
  */
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
-import { coveredPeriod, ownersOnDate, type PlainDate } from '@vamar/shared';
+import { coveredPeriod, netFils, ownersOnDate, summariseRent, type PlainDate } from '@vamar/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { holdersByUnit } from '../src/services/allocation-owners.js';
 import { createRecurringDrafts, expenseWarnings } from '../src/services/expenses.js';
@@ -98,5 +98,39 @@ describe('void route', () => {
       body: JSON.stringify({}),
     });
     expect(r.status).toBe(422);
+  });
+});
+
+describe('rent totals', () => {
+  it('the staff report equals summariseRent and netFils over the raw cheques', async () => {
+    const viewer = await w.staffToken('viewer@vamar.test');
+    const r = await w.json<{
+      period: { from: string; to: string };
+      rent: {
+        expectedFils: number;
+        collectedFils: number;
+        outstandingFils: number;
+        atRiskFils: number;
+        chequeCount: number;
+        bouncedCount: number;
+      };
+      expenses: { fixedFils: number; variableFils: number };
+      netFils: number;
+    }>('/api/staff/reports/summary?preset=this_year', { token: viewer });
+    expect(r.status).toBe(200);
+    const { from, to } = r.body.period;
+    const rows = await w.db
+      .select({ status: schema.cheques.status, amountFils: schema.cheques.amountFils })
+      .from(schema.cheques)
+      .innerJoin(schema.contracts, eq(schema.contracts.id, schema.cheques.contractId))
+      .where(
+        sql`${schema.contracts.status} <> 'draft' and ${schema.cheques.amountFils} is not null and ${schema.cheques.dueDate} between ${from} and ${to}`,
+      );
+    const expected = summariseRent(
+      rows.map((x) => ({ status: x.status, amountFils: x.amountFils ?? 0 })),
+    );
+    expect(r.body.rent).toMatchObject(expected);
+    expect(expected.chequeCount).toBeGreaterThan(0);
+    expect(r.body.netFils).toBe(netFils(r.body.rent.collectedFils, r.body.expenses));
   });
 });

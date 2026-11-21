@@ -13,7 +13,7 @@ import type {
   HolidayInput,
   PlainDate,
 } from '@vamar/shared';
-import { orSql, type Dbx } from '../db.js';
+import { EXPECTED_STATUS_LIST, orSql, type Dbx } from '../db.js';
 import { notFound } from '../errors.js';
 import type { Patch } from '../util/types.js';
 import { audit, type AuditActor } from './audit.js';
@@ -120,7 +120,7 @@ export async function calendarItems(
             gte(cheques.dueDate, range.from),
             lte(cheques.dueDate, range.to),
             sql`${contracts.status} <> 'draft'`,
-            sql`${cheques.status} not in ('replaced', 'cancelled')`,
+            sql`${cheques.status} in ${EXPECTED_STATUS_LIST}`,
             ...unitFilter(contracts.unitId),
             ...buildingFilter(),
           ),
