@@ -1,7 +1,30 @@
 import { describe, expect, it } from 'vitest';
+import { NOTIFICATION_TYPES } from '@vamar/shared/rules';
 import { refreshKeysFor, routeForNotification } from './push-routes';
 
 describe('routeForNotification', () => {
+  it('opens a screen of its own for every kind the API sends, not the home tab', () => {
+    // monthly_summary opens Home on purpose, with the month and its statement.
+    for (const type of NOTIFICATION_TYPES) {
+      const href = routeForNotification({
+        type,
+        entityId: 'e1',
+        from: '2026-10-01',
+        to: '2026-10-31',
+      });
+      if (type === 'monthly_summary') expect(href).toMatchObject({ params: { statement: '1' } });
+      else expect(href, type).not.toBe('/(tabs)');
+    }
+  });
+
+  it('opens the repair approval the push is about', () => {
+    expect(routeForNotification({ type: 'repair_approval_needed', entityId: 'a1' })).toEqual({
+      pathname: '/repair-approval/[id]',
+      params: { id: 'a1' },
+    });
+    expect(routeForNotification({ type: 'repair_approval_needed' })).toBe('/repair-approvals');
+  });
+
   it('opens the screen behind each kind of notification', () => {
     expect(routeForNotification({ type: 'cheque_due_soon', entityId: 'q1' })).toEqual({
       pathname: '/cheque/[id]',

@@ -49,6 +49,9 @@ export function routeForNotification(data: PushData | null | undefined): PushHre
     // The push carries the answer's id; the thread screen opens the thread it belongs to.
     case 'message_reply':
       return id ? { pathname: '/message/[id]', params: { id } } : '/messages';
+    // The push carries the approval's id: the owner approves or declines on that screen.
+    case 'repair_approval_needed':
+      return id ? { pathname: '/repair-approval/[id]', params: { id } } : '/repair-approvals';
     default:
       return '/(tabs)';
   }
