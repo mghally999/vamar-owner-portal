@@ -12,12 +12,13 @@ import {
   createUnitSchema,
   importChequeRowSchema,
   importContractRowSchema,
+  importExpenseRowSchema,
   importShareRowSchema,
   parseAmountInput,
-  PAYMENT_METHODS,
   UNIT_TYPES,
   unitIdentifiersSchema,
   unitKey,
+  type PaymentMethod,
 } from '@vamar/shared';
 import { chunk } from './batch';
 
@@ -165,11 +166,6 @@ export const FIELDS: Record<Target, FieldSpec[]> = {
   ],
 };
 
-const twoDecimals = (v: number) => Math.abs(v * 100 - Math.round(v * 100)) < 1e-6;
-const dateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, {
-  message: 'Expected a calendar date YYYY-MM-DD · تاريخ بصيغة YYYY-MM-DD',
-});
-
 const unitClientSchema = createUnitSchema
   .omit({ buildingId: true })
   .extend({ building: z.string().trim().min(1), type: z.enum(UNIT_TYPES).default('apartment') })
@@ -177,31 +173,12 @@ const unitClientSchema = createUnitSchema
 
 const buildingClientSchema = createBuildingSchema.extend(buildingIdentifiersSchema.shape);
 
-/** The Expenses sheet as the API expects it (.local/notes/import.md): amounts in AED, names not ids. */
-export const importExpenseRowSchema = z.object({
-  building: z.string().trim().min(1),
-  unitNo: z.coerce.string().trim().min(1).max(30).optional(),
-  category: z.string().trim().min(1),
-  vendor: z.string().trim().min(1).optional(),
-  reasonAr: z.string().trim().min(1).max(500),
-  reasonEn: z.string().trim().min(1).max(500),
-  invoiceNo: z.coerce.string().trim().max(60).optional(),
-  invoiceDate: dateText,
-  amountAed: z.number().positive().max(100_000_000).refine(twoDecimals, {
-    message: 'At most two decimals (fils) · منزلتان عشريتان كحد أقصى',
-  }),
-  vatAed: z
-    .number()
-    .min(0)
-    .max(100_000_000)
-    .refine(twoDecimals, {
-      message: 'At most two decimals (fils) · منزلتان عشريتان كحد أقصى',
-    })
-    .optional(),
-  paidOn: dateText.optional(),
-  paymentMethod: z.enum(PAYMENT_METHODS).optional(),
-  visibleToOwner: z.boolean().optional(),
-});
+/**
+ * The Expenses sheet uses the API's own schema. A copy here had drifted: its date check was a
+ * pattern only, so 2026-02-30 passed in the browser and failed on the server, and it had no
+ * vendor length limit.
+ */
+export { importExpenseRowSchema };
 
 export const SCHEMAS: Record<Target, z.ZodType> = {
   owners: createOwnerSchema,
@@ -261,7 +238,7 @@ const LANGUAGES: Record<string, 'ar' | 'en'> = {
 const YES = new Set(['true', 'yes', 'y', '1', 'نعم']);
 const NO = new Set(['false', 'no', 'n', '0', 'لا']);
 
-const PAYMENT_WORDS: Record<string, (typeof PAYMENT_METHODS)[number]> = {
+const PAYMENT_WORDS: Record<string, PaymentMethod> = {
   cash: 'cash',
   نقدا: 'cash',
   نقداً: 'cash',

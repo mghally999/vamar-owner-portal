@@ -54,6 +54,13 @@ describe('expenses sheet', () => {
     expect(importExpenseRowSchema.safeParse({ ...data, paymentMethod: 'gold' }).success).toBe(
       false,
     );
+    // The browser checks exactly what the API checks (the old copy let these through).
+    expect(importExpenseRowSchema.safeParse({ ...data, invoiceDate: '2026-02-30' }).success).toBe(
+      false,
+    );
+    expect(importExpenseRowSchema.safeParse({ ...data, vendor: 'x'.repeat(201) }).success).toBe(
+      false,
+    );
   });
   it('units and buildings accept the identifier columns', () => {
     expect(
