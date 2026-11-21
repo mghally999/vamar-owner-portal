@@ -110,7 +110,8 @@ describe('Verification code', () => {
 
   it('names the number the code went to', async () => {
     await open();
-    expect(screen.getByText('We sent a 6-digit code to +971501234567.')).toBeTruthy();
+    // The number sits in a left-to-right isolate so its "+" stays in front in Arabic too.
+    expect(screen.getByText('We sent a 6-digit code to ⁦+971501234567⁩.')).toBeTruthy();
   });
 
   it('accepts digits only, up to six, and verifies as soon as six are in', async () => {

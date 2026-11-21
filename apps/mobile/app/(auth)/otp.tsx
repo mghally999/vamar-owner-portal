@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountDisabledError, NotRegisteredError, useAuth } from '@/lib/auth';
+import { ltr } from '@/lib/bidi';
 import { useI18n } from '@/lib/i18n';
 import { goBackOr } from '@/lib/navigation';
 import { fonts, useTheme } from '@/lib/theme';
@@ -55,7 +56,7 @@ export default function OtpScreen() {
           {tr('otp_title')}
         </Text>
         <Text variant="secondary" color="soft">
-          {tr('otp_subtitle', { phone })}
+          {tr('otp_subtitle', { phone: ltr(phone) })}
         </Text>
       </View>
       <TextInput
