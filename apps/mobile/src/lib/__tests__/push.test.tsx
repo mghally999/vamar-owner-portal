@@ -82,10 +82,17 @@ describe('push registration', () => {
     await expect(registerForPush()).resolves.toBe('registered');
   });
 
-  it('reports a simulator as unsupported and does nothing else', async () => {
+  it('reports an iOS simulator as unsupported and does nothing else', async () => {
     device.isDevice = false;
     await expect(registerForPush()).resolves.toBe('unsupported');
     expect(notifications.getPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('registers on an Android emulator, which gets a push token like a phone', async () => {
+    jest.replaceProperty(Platform, 'OS', 'android');
+    device.isDevice = false;
+    await expect(registerForPush()).resolves.toBe('registered');
+    expect(sent('POST /api/owner/push-token')).toHaveLength(1);
   });
 
   it('does not register while the owner has notifications off', async () => {

@@ -48,7 +48,9 @@ async function remember(state: PushState): Promise<PushState> {
  * is not met with the prompt on every launch (the Settings switch asks again).
  */
 export async function registerForPush(options: { ask?: boolean } = {}): Promise<PushState> {
-  if (!Device.isDevice) return remember('unsupported');
+  // An iOS simulator gets no push token. An Android emulator with Google Play services does,
+  // like a phone, so it registers (and push delivery can be tested on it).
+  if (!Device.isDevice && Platform.OS !== 'android') return remember('unsupported');
   if (!(await notificationsEnabled())) return remember('off');
   if (Platform.OS === 'android') {
     await Notifications.setNotificationChannelAsync('default', {
