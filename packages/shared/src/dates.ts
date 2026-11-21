@@ -32,8 +32,15 @@ export interface DateParts {
 }
 
 export function toParts(date: PlainDate): DateParts {
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  return { year: y, month: m, day: d };
+  // Index arithmetic instead of split('-').map(Number): every date sum (addDays, diffDays) runs
+  // through here, and the split was the larger part of their cost.
+  const a = date.indexOf('-', 1);
+  const b = date.indexOf('-', a + 1);
+  return {
+    year: Number(date.slice(0, a)),
+    month: Number(date.slice(a + 1, b)),
+    day: Number(date.slice(b + 1)),
+  };
 }
 
 const pad = (n: number, w: number) => String(n).padStart(w, '0');
@@ -188,6 +195,24 @@ export function formatDate(date: PlainDate, lang: Lang): string {
   const { year, month, day } = toParts(date);
   const name = lang === 'ar' ? MONTHS_AR[month - 1] : MONTHS_EN[month - 1];
   return `${day} ${name} ${year}`;
+}
+
+/** Dubai's offset from UTC; the UAE has kept no daylight saving since 1970. */
+const DUBAI_OFFSET_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * The clock time of an instant in Dubai, `HH:MM` (24 h, Western digits), whatever the device's
+ * time zone. Plain arithmetic: no Intl formatter to build, so it is cheap in long lists.
+ */
+export function dubaiTime(at: Date | string): string {
+  const d = new Date(new Date(at).getTime() + DUBAI_OFFSET_MS);
+  return `${pad(d.getUTCHours(), 2)}:${pad(d.getUTCMinutes(), 2)}`;
+}
+
+/** Date and clock time of an instant in Dubai: `7 Oct 2026 14:05` / `7 أكتوبر 2026 14:05`. */
+export function formatDateTime(at: Date | string, lang: Lang, separator = ' '): string {
+  const d = new Date(at);
+  return `${formatDate(todayInDubai(d), lang)}${separator}${dubaiTime(d)}`;
 }
 
 /** Month heading for switchers: `أكتوبر 2026` / `October 2026`. */

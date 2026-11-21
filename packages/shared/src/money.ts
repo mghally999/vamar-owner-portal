@@ -76,6 +76,20 @@ export function formatAmount(fils: number, lang: Lang): string {
   return lang === 'ar' ? `${n} درهم` : `AED ${n}`;
 }
 
+/**
+ * Fils as the text of an amount input, ready for `parseAmountInput`: `12500.5` AED is
+ * `12500.50`, whole dirhams have no decimals, no grouping; null or undefined is empty.
+ */
+export function filsToInputText(fils: number | null | undefined): string {
+  if (fils === null || fils === undefined) return '';
+  assertFils(fils);
+  const sign = fils < 0 ? '-' : '';
+  const abs = Math.abs(fils);
+  const whole = Math.floor(abs / FILS_PER_AED);
+  const rest = abs % FILS_PER_AED;
+  return rest === 0 ? `${sign}${whole}` : `${sign}${whole}.${String(rest).padStart(2, '0')}`;
+}
+
 /** Sum that refuses non-integers and treats null/undefined (draft amounts) as 0. */
 export function sumFils(values: Iterable<number | null | undefined>): number {
   let total = 0;

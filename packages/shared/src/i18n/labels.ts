@@ -5,7 +5,7 @@
 import type { Lang } from '../dates.js';
 import type { ChequeStatus } from '../cheques.js';
 import type { ContractStatus } from '../occupancy.js';
-import type { DisputeStatus, DisputeType, UnitType } from '../schemas/enums.js';
+import type { DisputeStatus, DisputeType, OwnerStatus, UnitType } from '../schemas/enums.js';
 import type {
   AllocationMethod,
   ExpenseKind,
@@ -65,6 +65,12 @@ export const DISPUTE_STATUS_LABEL: Labels<DisputeStatus> = {
   closed: { ar: 'مغلقة', en: 'Closed' },
 };
 
+export const OWNER_STATUS_LABEL: Labels<OwnerStatus> = {
+  invited: { ar: 'مدعو', en: 'Invited' },
+  active: { ar: 'نشط', en: 'Active' },
+  disabled: { ar: 'معطّل', en: 'Disabled' },
+};
+
 export const VACANT_LABEL: Record<Lang, { since: (date: string) => string; never: string }> = {
   ar: { since: (date) => `شاغرة منذ ${date}`, never: 'لم تُؤجَّر بعد' },
   en: { since: (date) => `Vacant since ${date}`, never: 'Never rented' },
@@ -72,6 +78,21 @@ export const VACANT_LABEL: Record<Lang, { since: (date: string) => string; never
 
 export function label<K extends string>(table: Labels<K>, key: K, lang: Lang): string {
   return table[key][lang];
+}
+
+/**
+ * Fill `{name}` placeholders: `interpolate('{n} cheques due', { n: 3 })` is `3 cheques due`.
+ * A placeholder without a value is left as written, so a missing variable shows in review.
+ */
+export function interpolate(
+  template: string,
+  vars?: Readonly<Record<string, string | number>>,
+): string {
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => {
+    const v = vars[name];
+    return v === undefined ? whole : String(v);
+  });
 }
 
 // v2: expenses, work orders, property status and the calendar -----------------------------------

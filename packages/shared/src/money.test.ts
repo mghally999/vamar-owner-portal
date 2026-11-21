@@ -1,7 +1,9 @@
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
   aedToFils,
   assertFils,
+  filsToInputText,
   formatAmount,
   formatNumber,
   parseAmountInput,
@@ -73,5 +75,27 @@ describe('sumFils', () => {
     expect(sumFils([100, null, 250, undefined])).toBe(350);
     expect(sumFils([])).toBe(0);
     expect(() => sumFils([1.5])).toThrow(RangeError);
+  });
+});
+
+describe('filsToInputText', () => {
+  it('writes fils as an amount field expects them', () => {
+    expect(filsToInputText(1_250_000)).toBe('12500');
+    expect(filsToInputText(1_250_050)).toBe('12500.50');
+    expect(filsToInputText(1_250_005)).toBe('12500.05');
+    expect(filsToInputText(5)).toBe('0.05');
+    expect(filsToInputText(0)).toBe('0');
+    expect(filsToInputText(-150)).toBe('-1.50');
+    expect(filsToInputText(null)).toBe('');
+    expect(filsToInputText(undefined)).toBe('');
+    expect(() => filsToInputText(1.5)).toThrow(RangeError);
+  });
+
+  it('reads back as the same fils through parseAmountInput (property)', () => {
+    fc.assert(
+      fc.property(fc.integer({ min: 0, max: 10_000_000_000_000 }), (fils) => {
+        expect(parseAmountInput(filsToInputText(fils))).toBe(fils);
+      }),
+    );
   });
 });

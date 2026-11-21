@@ -10,8 +10,9 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/**/*.test.ts', 'src/index.ts', 'src/schemas/index.ts'],
-      // Floors measured on 22 Oct 2026; raised as tests are added, never lowered.
-      thresholds: { lines: 96, functions: 94, statements: 96, branches: 94 },
+      // Floors raised on 21 Nov 2026 (measured 99.4 / 99.3 / 99.2 / 95.6); raised as tests are
+      // added, never lowered.
+      thresholds: { lines: 99, functions: 98, statements: 99, branches: 95 },
     },
   },
 });

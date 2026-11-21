@@ -6,8 +6,10 @@ import {
   compareDates,
   daysInMonth,
   diffDays,
+  dubaiTime,
   firstDayOfMonth,
   formatDate,
+  formatDateTime,
   formatMonth,
   fromEpochDays,
   isBetweenInclusive,
@@ -17,7 +19,9 @@ import {
   monthKey,
   monthRange,
   toEpochDays,
+  toParts,
   todayInDubai,
+  type PlainDate,
 } from './dates.js';
 
 describe('isPlainDate', () => {
@@ -109,5 +113,43 @@ describe('formatting', () => {
     expect(formatDate('2026-01-05', 'en')).toBe('5 Jan 2026');
     expect(formatMonth('2026-10-15', 'ar')).toBe('أكتوبر 2026');
     expect(formatMonth('2026-10-15', 'en')).toBe('October 2026');
+  });
+});
+
+describe('Dubai clock time', () => {
+  it('is UTC plus four hours, across midnight too', () => {
+    expect(dubaiTime(new Date('2026-10-07T10:05:00Z'))).toBe('14:05');
+    expect(dubaiTime('2026-10-07T21:30:59Z')).toBe('01:30');
+    expect(dubaiTime('2026-10-07T00:00:00+04:00')).toBe('00:00');
+  });
+
+  it('gives the Dubai date with the time, in both languages', () => {
+    expect(formatDateTime('2026-10-07T21:30:00Z', 'en')).toBe('8 Oct 2026 01:30');
+    expect(formatDateTime(new Date('2026-10-07T10:05:00Z'), 'en', ' · ')).toBe(
+      '7 Oct 2026 · 14:05',
+    );
+    expect(formatDateTime('2026-10-07T10:05:00Z', 'ar')).toBe(
+      `${formatDate('2026-10-07' as PlainDate, 'ar')} 14:05`,
+    );
+  });
+
+  it('agrees with the Intl time zone database for every hour of a year', () => {
+    const intl = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Dubai',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    for (let h = 0; h < 365 * 24; h += 7) {
+      const at = new Date(Date.UTC(2026, 0, 1) + h * 3_600_000 + 17 * 60_000);
+      expect(dubaiTime(at)).toBe(intl.format(at));
+    }
+  });
+});
+
+describe('toParts', () => {
+  it('splits a date into numbers', () => {
+    expect(toParts('2026-02-09' as PlainDate)).toEqual({ year: 2026, month: 2, day: 9 });
+    expect(toParts('0999-12-31' as PlainDate)).toEqual({ year: 999, month: 12, day: 31 });
   });
 });
