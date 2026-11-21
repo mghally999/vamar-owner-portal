@@ -5,7 +5,6 @@
  */
 import { z } from 'zod';
 import { FILS_PER_AED } from '../money.js';
-import { TOTAL_SHARE_BP } from '../shares.js';
 import {
   chequeCountSchema,
   ownerPhoneSchema,
@@ -36,10 +35,6 @@ export const sharePctSchema = z
   .positive()
   .max(100)
   .refine(twoDecimals, { message: 'At most two decimals · منزلتان عشريتان كحد أقصى' });
-
-export function sharePctToBp(pct: number): number {
-  return Math.round((pct * TOTAL_SHARE_BP) / 100);
-}
 
 /** Rows of one unit belong together; the key ignores case and spacing differences. */
 export function unitKey(building: string, unitNo: string | number): string {

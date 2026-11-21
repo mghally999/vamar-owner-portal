@@ -1,7 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import {
-  bankCsvMappingSchema,
   chequeNoKey,
   chequeNumbersInText,
   detectHeaderRow,
@@ -9,7 +8,6 @@ import {
   matchStatement,
   MAX_BULK_CHEQUES,
   normaliseDigits,
-  parseBankCsvMappings,
   parseDirection,
   parseStatement,
   parseStatementAmount,
@@ -21,6 +19,7 @@ import {
   type CandidateCheque,
   type StatementLine,
 } from './bank-statement.js';
+import { bankCsvMappingSchema, parseBankCsvMappings } from './schemas/bank-statement.js';
 import { addDays, fromEpochDays, toEpochDays, type PlainDate } from './dates.js';
 
 const toArabicIndic = (s: string) =>

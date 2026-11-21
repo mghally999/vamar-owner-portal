@@ -1,20 +1,4 @@
-export * from './dates.js';
-export * from './money.js';
-export * from './schedule.js';
-export * from './cheques.js';
-export * from './bank-statement.js';
-export * from './shares.js';
-export * from './occupancy.js';
-export * from './alerts.js';
-export * from './periods.js';
-export * from './expenses.js';
-export * from './rent.js';
-export * from './calendar.js';
-export * from './settings.js';
-export * from './approvals.js';
-export * from './renewals.js';
-export * from './budgets.js';
-export * from './owner-messages.js';
-export * from './i18n/notifications.js';
-export * from './i18n/labels.js';
+// The whole package: the rules (./rules.ts, no zod) and the zod schemas. Bundles that do not
+// validate input import `@vamar/shared/rules` or a single module instead (package.json `exports`).
+export * from './rules.js';
 export * from './schemas/index.js';

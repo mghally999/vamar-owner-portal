@@ -7,7 +7,6 @@ import {
   isRenewalDue,
   marketReference,
   medianInt,
-  renewContractSchema,
   renewalCap,
   renewalDueInDays,
   rentPerSqftFils,
@@ -15,6 +14,7 @@ import {
   type ComparableCandidate,
   type RenewalSubject,
 } from './renewals.js';
+import { renewContractSchema } from './schemas/renewals.js';
 
 describe('dubaiRentCap (Decree No. 43 of 2013)', () => {
   const REF = 100_000;

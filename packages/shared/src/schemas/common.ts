@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isPlainDate, type PlainDate } from '../dates.js';
+import { phoneInCountries, UAE_MOBILE_MESSAGE } from '../phone.js';
 import { MAX_CHEQUE_COUNT, MIN_CHEQUE_COUNT } from '../schedule.js';
 import { TOTAL_SHARE_BP } from '../shares.js';
 
@@ -20,45 +21,6 @@ export const filsNonNegativeSchema = z.number().int().nonnegative();
 export const phoneE164Schema = z
   .string()
   .regex(/^\+[1-9]\d{6,14}$/, { message: 'Phone must be in E.164 format, e.g. +971501234567' });
-
-/** International calling codes of the countries an owner's sign-in phone may belong to. */
-export const PHONE_COUNTRY_PREFIX: Readonly<Record<string, string>> = {
-  AE: '+971',
-  SA: '+966',
-  QA: '+974',
-  KW: '+965',
-  BH: '+973',
-  OM: '+968',
-  EG: '+20',
-  GB: '+44',
-  US: '+1',
-  IN: '+91',
-  PK: '+92',
-};
-
-/** Mobile number shapes we check; a listed country without one only needs its prefix. */
-const MOBILE_SHAPE: Readonly<Record<string, RegExp>> = { AE: /^\+9715\d{8}$/ };
-
-/** `"AE, SA"` (the ALLOWED_PHONE_COUNTRIES variable) to `['AE', 'SA']`. */
-export function parseCountryList(list: string): string[] {
-  return list
-    .split(',')
-    .map((s) => s.trim().toUpperCase())
-    .filter(Boolean);
-}
-
-/** Whether an E.164 phone is a mobile number of one of the countries (`*` allows any). */
-export function phoneInCountries(phone: string, countries: readonly string[]): boolean {
-  if (countries.includes('*')) return true;
-  return countries.some((cc) => {
-    const prefix = PHONE_COUNTRY_PREFIX[cc];
-    if (!prefix || !phone.startsWith(prefix)) return false;
-    return MOBILE_SHAPE[cc]?.test(phone) ?? true;
-  });
-}
-
-export const UAE_MOBILE_MESSAGE =
-  'Must be a UAE mobile number, e.g. +971501234567 · يجب أن يكون رقم جوال إماراتياً، مثل ‎+971501234567';
 
 /**
  * An owner's phone is their sign-in identity, so it must be a mobile number of a country owners may

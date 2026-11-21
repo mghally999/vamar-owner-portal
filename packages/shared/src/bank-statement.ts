@@ -8,12 +8,11 @@
  * digits, thousands separators, CR/DR markers, brackets for negatives, three date layouts. Money
  * is converted with string arithmetic into integer fils, never through floating point.
  */
-import { z } from 'zod';
 import {
   daysInMonth,
-  diffDays,
   fromParts,
   isPlainDate,
+  toEpochDays,
   todayInDubai,
   type PlainDate,
 } from './dates.js';
@@ -195,40 +194,24 @@ export function isBounceDescription(text: string | null | undefined): boolean {
 
 // Column mapping -----------------------------------------------------------------------------
 
-const column = z.string().trim().min(1).max(120);
-
 /**
  * How one bank's CSV maps to statement fields, by header text. With `debitColumn` the bank uses
  * separate debit and credit columns and `amountColumn` is the credit one; with `signColumn` one
  * amount column is paired with a CR/DR indicator; with neither, negative amounts are debits.
+ * Validated by `bankCsvMappingSchema` (schemas/bank-statement.ts).
  */
-export const bankCsvMappingSchema = z.object({
-  bank: z.string().trim().min(1).max(80),
-  dateColumn: column,
-  amountColumn: column,
-  chequeNoColumn: column.nullable().default(null),
-  descriptionColumn: column.nullable().default(null),
-  signColumn: column.nullable().default(null),
-  debitColumn: column.nullable().default(null),
-});
-export type BankCsvMapping = z.infer<typeof bankCsvMappingSchema>;
+export interface BankCsvMapping {
+  bank: string;
+  dateColumn: string;
+  amountColumn: string;
+  chequeNoColumn: string | null;
+  descriptionColumn: string | null;
+  signColumn: string | null;
+  debitColumn: string | null;
+}
 
 export const BANK_CSV_MAPPINGS_KEY = 'bank_csv_mappings';
 export const MAX_BANK_CSV_MAPPINGS = 50;
-
-export const bankCsvMappingsSchema = z
-  .array(bankCsvMappingSchema)
-  .max(MAX_BANK_CSV_MAPPINGS)
-  .refine(
-    (list) => new Set(list.map((m) => m.bank.toLowerCase())).size === list.length,
-    'Each bank name may be used once',
-  );
-
-/** Saved mappings as stored; a malformed row reads as "no mappings" rather than breaking the page. */
-export function parseBankCsvMappings(value: unknown): BankCsvMapping[] {
-  const parsed = bankCsvMappingsSchema.safeParse(value);
-  return parsed.success ? parsed.data : [];
-}
 
 /** Add or replace a bank's mapping (bank names compare without case). */
 export function upsertBankCsvMapping(
@@ -382,10 +365,24 @@ export interface MatchResult {
   unmatched: { line: StatementLine; reason: UnmatchedReason }[];
 }
 
-function dayGap(line: StatementLine, c: CandidateCheque): number {
-  const gaps = [Math.abs(diffDays(line.date, c.dueDate))];
-  if (c.depositedOn) gaps.push(Math.abs(diffDays(line.date, c.depositedOn)));
-  return Math.min(...gaps);
+/** Days between the line and the nearer of the cheque's due and deposit dates. */
+function dayGap(line: StatementLine, c: CandidateCheque, days: (d: PlainDate) => number): number {
+  const at = days(line.date);
+  const due = Math.abs(days(c.dueDate) - at);
+  return c.depositedOn ? Math.min(due, Math.abs(days(c.depositedOn) - at)) : due;
+}
+
+/** `toEpochDays` remembered per date: a statement compares the same few hundred dates often. */
+function epochDaysMemo(): (d: PlainDate) => number {
+  const seen = new Map<string, number>();
+  return (d) => {
+    let n = seen.get(d);
+    if (n === undefined) {
+      n = toEpochDays(d);
+      seen.set(d, n);
+    }
+    return n;
+  };
 }
 
 /**
@@ -405,12 +402,21 @@ export function matchStatement(
   lines: readonly StatementLine[],
   cheques: readonly CandidateCheque[],
 ): MatchResult {
-  const usable = cheques.filter((c) => c.amountFils !== null);
+  const days = epochDaysMemo();
+  // Cheques indexed by number and by amount, so each line looks at its own few candidates
+  // instead of every open cheque (2,000 lines against 6,000 cheques: 207 ms before, a few after).
   const byKey = new Map<string, CandidateCheque[]>();
-  for (const c of usable) {
+  const byAmount = new Map<number, CandidateCheque[]>();
+  const push = <K>(map: Map<K, CandidateCheque[]>, key: K, c: CandidateCheque) => {
+    const list = map.get(key);
+    if (list) list.push(c);
+    else map.set(key, [c]);
+  };
+  for (const c of cheques) {
+    if (c.amountFils === null) continue;
+    push(byAmount, c.amountFils, c);
     const key = chequeNoKey(c.chequeNo);
-    if (!key) continue;
-    byKey.set(key, [...(byKey.get(key) ?? []), c]);
+    if (key) push(byKey, key, c);
   }
 
   interface Pending {
@@ -440,8 +446,8 @@ export function matchStatement(
       unmatched.push({ line, reason: 'no_match' });
       continue;
     }
-    const weak = usable.filter(
-      (c) => c.amountFils === line.amountFils && dayGap(line, c) <= WEAK_MATCH_DAYS,
+    const weak = (byAmount.get(line.amountFils) ?? []).filter(
+      (c) => dayGap(line, c, days) <= WEAK_MATCH_DAYS,
     );
     if (weak.length) pending.push({ line, strength: 'weak', candidates: weak });
     else unmatched.push({ line, reason: 'no_match' });
@@ -455,7 +461,7 @@ export function matchStatement(
   for (const p of pending) {
     const open = p.candidates
       .filter((c) => !claimed.has(c.id))
-      .map((c) => ({ c, gap: dayGap(p.line, c) }))
+      .map((c) => ({ c, gap: dayGap(p.line, c, days) }))
       .sort(
         (a, b) =>
           a.gap - b.gap ||
@@ -498,12 +504,18 @@ export function planStatementApply(
   selected: readonly { chequeId: string; action: MatchAction; date: PlainDate }[],
   statusOf: (chequeId: string) => CandidateCheque['status'] | undefined,
 ): BulkStep[] {
-  const groups = new Map<string, BulkStep>();
+  const groups = new Map<string, BulkStep & { seen: Set<string> }>();
   const add = (status: BulkStep['status'], date: PlainDate, id: string) => {
     const key = `${status}|${date}`;
-    const step = groups.get(key) ?? { status, date, ids: [] };
-    if (!step.ids.includes(id)) step.ids.push(id);
-    groups.set(key, step);
+    let step = groups.get(key);
+    if (!step) {
+      step = { status, date, ids: [], seen: new Set() };
+      groups.set(key, step);
+    }
+    if (!step.seen.has(id)) {
+      step.seen.add(id);
+      step.ids.push(id);
+    }
   };
   for (const s of selected) {
     if (statusOf(s.chequeId) === 'upcoming') add('deposited', s.date, s.chequeId);
@@ -515,7 +527,7 @@ export function planStatementApply(
     (a, b) => order[a.status] - order[b.status] || (a.date < b.date ? -1 : a.date > b.date ? 1 : 0),
   )) {
     for (let i = 0; i < g.ids.length; i += MAX_BULK_CHEQUES)
-      steps.push({ ...g, ids: g.ids.slice(i, i + MAX_BULK_CHEQUES) });
+      steps.push({ status: g.status, date: g.date, ids: g.ids.slice(i, i + MAX_BULK_CHEQUES) });
   }
   return steps;
 }

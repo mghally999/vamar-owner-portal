@@ -50,6 +50,11 @@ export function sharePct(shareBp: number): number {
   return Math.round(shareBp / 10) / 10;
 }
 
+/** A share in percent as typed (60, 33.33) to basis points (6000, 3333). */
+export function sharePctToBp(pct: number): number {
+  return Math.round((pct * TOTAL_SHARE_BP) / 100);
+}
+
 /** One owner's floor share of an amount: `amount * bp / 10000` in integer math. */
 export function ownerShareAmount(amountFils: number, shareBp: number): number {
   assertFils(amountFils);

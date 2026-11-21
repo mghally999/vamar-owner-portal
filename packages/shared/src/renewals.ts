@@ -6,9 +6,7 @@
  * The reference is Vamar's own data, never an official index: the RERA rental index is not
  * available to us, so staff see the comparables behind every figure and decide.
  */
-import { z } from 'zod';
 import { addMonthsClamped, compareDates, diffDays, type PlainDate } from './dates.js';
-import { filsSchema } from './schemas/common.js';
 
 /** Contracts ending within this many days get a renewal suggestion in lists and reminders. */
 export const RENEWAL_WINDOW_DAYS = 90;
@@ -309,7 +307,3 @@ export function isRenewalDue(status: string, endDate: PlainDate, today: PlainDat
   const n = renewalDueInDays(endDate, today);
   return n >= 0 && n <= RENEWAL_WINDOW_DAYS;
 }
-
-/** Optional body of POST /contracts/:id/renew: the new annual rent, else the old one is kept. */
-export const renewContractSchema = z.object({ annualRentFils: filsSchema.optional() });
-export type RenewContractInput = z.infer<typeof renewContractSchema>;

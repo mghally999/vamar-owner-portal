@@ -9,12 +9,10 @@ import {
   importShareRowSchema,
   yesNoCellSchema,
   ownerPhoneSchema,
-  parseCountryList,
-  phoneInCountries,
-  sharePctToBp,
   unitKey,
-  UAE_MOBILE_MESSAGE,
 } from './index.js';
+import { parseCountryList, phoneInCountries, UAE_MOBILE_MESSAGE } from '../phone.js';
+import { sharePctToBp } from '../shares.js';
 
 const owner = (phoneE164: string, preferredLang?: string) =>
   createOwnerSchema.safeParse({

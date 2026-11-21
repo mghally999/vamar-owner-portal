@@ -6,3 +6,5 @@ export * from './import.js';
 export * from './v2.js';
 export * from './budgets.js';
 export * from './messages.js';
+export * from './bank-statement.js';
+export * from './renewals.js';
