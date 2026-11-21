@@ -37,6 +37,13 @@
   padding: 1px 4px;
   cursor: pointer;
 }
+/* Long titles in a day cell end in an ellipsis instead of being cut mid-word; a click opens the
+   item with its full title in the side panel. */
+.vamar-calendar .fc .fc-event-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .vamar-calendar .fc .fc-event:focus-visible {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;

@@ -199,6 +199,17 @@ html[dir='rtl'] {
   table.card-table td:not([data-label])::before {
     content: none;
   }
+  /* On a phone the row link and the row checkbox are tap targets of at least 24 px (WCAG 2.2
+     target size); the text alone made the link 22 px tall. */
+  table.card-table td a {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+  }
+  table.card-table td input[type='checkbox'] {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 /* react-day-picker (ui/date-picker.tsx): theme tokens, Western digits, weekend and holiday marks. */

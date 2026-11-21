@@ -108,6 +108,7 @@ export function StaffPage() {
                       <label className="mt-1 flex items-center gap-2 text-[13px]">
                         <input
                           type="checkbox"
+                          className="size-5 accent-primary"
                           checked={s.totpRequired}
                           disabled={self || s.role === 'admin'}
                           title={

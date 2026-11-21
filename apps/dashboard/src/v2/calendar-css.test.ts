@@ -22,4 +22,10 @@ describe('calendar.css', () => {
     expect(body).toMatch(/overflow:\s*hidden/);
     expect(body).not.toMatch(/-\d{4,}px/);
   });
+
+  it('ends long event titles with an ellipsis instead of cutting them', () => {
+    const body = rule('.vamar-calendar .fc .fc-event-title');
+    expect(body).toMatch(/text-overflow:\s*ellipsis/);
+    expect(body).toMatch(/white-space:\s*nowrap/);
+  });
 });

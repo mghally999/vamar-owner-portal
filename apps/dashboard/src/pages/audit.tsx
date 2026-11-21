@@ -147,7 +147,7 @@ export function AuditPage() {
                         type="button"
                         aria-expanded={open === r.id}
                         aria-controls={open === r.id ? `audit-${r.id}` : undefined}
-                        className="min-h-6 text-start hover:underline"
+                        className="min-h-[24px] text-start hover:underline"
                         onClick={(e) => {
                           e.stopPropagation();
                           setOpen(open === r.id ? null : r.id);

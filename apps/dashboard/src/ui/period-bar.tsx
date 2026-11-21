@@ -78,7 +78,7 @@ export function PeriodBar({
         <label className="inline-flex h-9 cursor-pointer items-center gap-2 text-[13px] text-ink-soft">
           <input
             type="checkbox"
-            className="size-4 accent-primary"
+            className="size-5 accent-primary"
             checked={state.compare}
             onChange={(e) => {
               state.setCompare(e.target.checked);
