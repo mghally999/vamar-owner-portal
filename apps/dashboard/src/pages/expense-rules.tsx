@@ -7,7 +7,7 @@ import { useMemo, useState } from 'react';
 import {
   ALLOCATION_METHODS,
   RECURRING_FREQUENCIES,
-  formatNumber,
+  filsToInputText,
   nextDueDate,
   parseAmountInput,
   todayInDubai,
@@ -44,8 +44,8 @@ import {
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
 
-const aed = (fils: number | null | undefined) =>
-  fils === null || fils === undefined ? '' : formatNumber(fils, 'en').replace(/,/g, '');
+/** Fils as amount-input text (the shared rule; no grouping, two decimals when needed). */
+const aed = filsToInputText;
 
 export function ExpenseRulesPage() {
   const { t, pick, lang } = useI18n();

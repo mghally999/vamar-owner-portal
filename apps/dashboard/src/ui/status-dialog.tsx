@@ -6,6 +6,7 @@
 import { useState } from 'react';
 import {
   CHEQUE_TRANSITIONS,
+  filsToInputText,
   isTerminalChequeStatus,
   parseAmountInput,
   type ChequeStatus,
@@ -64,7 +65,7 @@ export function StatusDialog({
   const [reason, setReason] = useState('');
   const [rep, setRep] = useState({
     dueDate: cheque.dueDate as PlainDate,
-    amount: cheque.amountFils ? String(cheque.amountFils / 100) : '',
+    amount: cheque.amountFils ? filsToInputText(cheque.amountFils) : '',
     chequeNo: '',
     bankName: cheque.bankName ?? '',
   });

@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ALLOCATION_METHODS,
   PAYMENT_METHODS,
-  formatNumber,
+  filsToInputText,
   parseAmountInput,
   todayInDubai,
   vatFor,
@@ -57,8 +57,8 @@ export interface ExpenseFormValues {
   workOrderId?: string | null;
 }
 
-const aedText = (fils: number | null | undefined) =>
-  fils === null || fils === undefined ? '' : formatNumber(fils, 'en').replace(/,/g, '');
+/** Fils as amount-input text (the shared rule; no grouping, two decimals when needed). */
+const aedText = filsToInputText;
 
 export function ExpenseForm({
   initial,
