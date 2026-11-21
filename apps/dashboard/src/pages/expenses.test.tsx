@@ -72,9 +72,11 @@ describe('ExpensesPage', () => {
   });
 
   it('filters by tab, building, unit, category, kind, status, vendor and text', async () => {
-    const { api, user } = await renderApp('/expenses?status=draft', { routes: routes() });
+    const { api, router, user } = await renderApp('/expenses?status=draft', { routes: routes() });
     await screen.findByText('Guard salaries October');
     expect(api.last('GET', '/api/staff/expenses').query['status']).toBe('draft');
+    // No building picked yet: its units are not asked for (this used to request /buildings/).
+    expect(api.calls.filter((c) => c.path === '/api/staff/buildings/')).toEqual([]);
     await user.click(screen.getByRole('tab', { name: 'All' }));
     await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await user.selectOptions(await screen.findByRole('combobox', { name: 'Unit' }), 'unit-801');
@@ -94,6 +96,17 @@ describe('ExpensesPage', () => {
         search: 'lift',
       });
     });
+    // Every filter is in the URL, so a reload or Back from an expense shows the same list.
+    expect(router.state.location.search).toMatchObject({
+      buildingId: 'bld-1',
+      unitId: 'unit-801',
+      categoryId: 'cat-lift',
+      kind: 'variable',
+      filterStatus: 'posted',
+      vendorId: 'ven-lifts',
+      search: 'lift',
+    });
+    expect(router.state.location.search).not.toHaveProperty('status');
     await user.click(screen.getByRole('radio', { name: 'This year' }));
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/expenses').query['preset']).toBe('this_year');

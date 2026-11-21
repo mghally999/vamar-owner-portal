@@ -1,13 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
-import { useOwners } from '@/lib/queries';
+import { useOwner, useOwners } from '@/lib/queries';
 import { Input, cx } from '@/ui/primitives';
 
 /**
  * Owner filter that searches the server instead of listing the first fifty owners. Typing asks the
  * API after a short pause; choosing a result reports the owner id. Clearing the box clears the
- * filter.
+ * filter. An owner chosen before (a filter in the URL after a reload) is shown by name.
  */
 export function OwnerPicker({
   value,
@@ -19,17 +19,21 @@ export function OwnerPicker({
   className?: string;
 }) {
   const { t, pick } = useI18n();
-  const [text, setText] = useState('');
+  // null until staff type: the box then shows the name of the owner in `value`.
+  const [typed, setTyped] = useState<string | null>(null);
+  const linked = useOwner(value, typed === null);
+  const text =
+    typed ?? (linked.data?.id === value ? pick(linked.data.nameAr, linked.data.nameEn) : '');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
-  const search = useDebounced(text.trim(), 300);
+  const search = useDebounced((typed ?? '').trim(), 300);
   const q = useOwners({ search: search || undefined });
   const options = (q.data?.pages.flatMap((p) => p.items) ?? []).slice(0, 20);
   const listId = useId();
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!value) setText('');
+    if (!value) setTyped(null);
   }, [value]);
 
   useEffect(() => {
@@ -44,7 +48,7 @@ export function OwnerPicker({
 
   const choose = (o: (typeof options)[number]) => {
     const label = pick(o.nameAr, o.nameEn);
-    setText(label);
+    setTyped(label);
     setOpen(false);
     onChange(o.id, label);
   };
@@ -60,7 +64,7 @@ export function OwnerPicker({
         placeholder={`${t('owner')}: ${t('all')}`}
         value={text}
         onChange={(e) => {
-          setText(e.target.value);
+          setTyped(e.target.value);
           setOpen(true);
           setActive(0);
           if (e.target.value === '' && value) onChange('', '');

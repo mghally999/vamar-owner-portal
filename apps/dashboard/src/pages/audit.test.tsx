@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { auditRow, page, staffRow } from '@/test/fixtures';
@@ -113,6 +113,51 @@ describe('AuditPage', () => {
     await vi.waitFor(() => {
       expect(api.last('GET', '/api/staff/audit').query['entityType']).toBe('repair_approval');
     });
+  });
+
+  it('keeps the filters in the URL, so a reload or a shared link lists the same entries', async () => {
+    const { api, router, user } = await renderApp(
+      '/audit?actorId=stf-2&entityType=cheque&from=2026-10-01',
+      {
+        routes: {
+          'GET /api/staff/staff': { items: [staffRow()] },
+          'GET /api/staff/audit': page(ROWS),
+        },
+      },
+    );
+    await screen.findByText('owner.create');
+    // The first request already carries the filters from the link.
+    expect(api.to('GET', '/api/staff/audit').map((c) => c.query)).toEqual([
+      {
+        actorId: 'stf-2',
+        entityType: 'cheque',
+        from: '2026-10-01',
+        limit: '50',
+      },
+    ]);
+    expect(screen.getByRole('combobox', { name: 'Entity' })).toHaveProperty('value', 'cheque');
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), '');
+    await vi.waitFor(() => {
+      expect(router.state.location.search).toEqual({ actorId: 'stf-2', from: '2026-10-01' });
+    });
+  });
+
+  it('opens an entry from the keyboard', async () => {
+    const { user } = await renderApp('/audit', {
+      routes: {
+        'GET /api/staff/staff': { items: [staffRow()] },
+        'GET /api/staff/audit': page(ROWS),
+      },
+    });
+    const row = (await screen.findByText('owner.create')).closest('tr');
+    if (!row) throw new Error('no row');
+    const toggle = within(row).getByRole('button', { expanded: false });
+    toggle.focus();
+    await user.keyboard('{Enter}');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByText('Before')).toBeTruthy();
+    await user.keyboard(' ');
+    expect(screen.queryByText('Before')).toBeNull();
   });
 
   it('shows the empty and error states', async () => {

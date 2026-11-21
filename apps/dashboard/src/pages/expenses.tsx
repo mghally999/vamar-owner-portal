@@ -4,8 +4,8 @@
  * Rows staff can act on have a checkbox; the bulk bar posts or deletes drafts and shows or hides
  * posted expenses from the owners.
  */
-import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
 import {
   EXPENSE_KINDS,
   EXPENSE_STATUSES,
@@ -15,10 +15,10 @@ import {
 } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useExpenseBulkI18n } from '@/lib/expense-bulk-messages';
-import { useDebounced } from '@/lib/hooks';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriodSearch } from '@/lib/period-search';
+import { useUrlFilters, useUrlSearchText } from '@/lib/url-filters';
 import { useBuilding, useBuildings } from '@/lib/queries';
 import { useCategories, useExpenses, useHolidaySet, useVendors } from '@/lib/queries-v2';
 import { PeriodBar } from '@/ui/period-bar';
@@ -38,6 +38,7 @@ import {
 } from '@/ui/primitives';
 import { ExpenseBulkBar, ExpenseBulkDialog, actionsFor } from '@/ui/expense-bulk';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 import { Page } from '@/ui/shell';
 import {
   ApprovalStateChip,
@@ -74,32 +75,41 @@ export function KindChip({ kind }: { kind: ExpenseKind }) {
   );
 }
 
+/**
+ * The list's filters, kept in the URL. `status` is the tab (`?status=draft` is the drafts queue
+ * the Today panel links to); `filterStatus` is the status select of the "All" tab.
+ */
+const FILTERS = {
+  status: '',
+  buildingId: '',
+  unitId: '',
+  categoryId: '',
+  kind: '',
+  filterStatus: '',
+  vendorId: '',
+  search: '',
+};
+
 export function ExpensesPage() {
   const { t, pick, money, num, date } = useI18n();
   const { tb } = useExpenseBulkI18n();
   const auth = useAuth();
   const navigate = useNavigate();
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
-  const search = useSearch({ strict: false }) as {
-    status?: string;
-    buildingId?: string;
-    kind?: string;
-  };
   const period = usePeriodSearch('this_month');
   const holidays = useHolidaySet();
-  const [tab, setTab] = useState<'all' | 'draft' | 'posted'>(
-    search.status === 'draft' ? 'draft' : search.status === 'posted' ? 'posted' : 'all',
-  );
-  const [buildingId, setBuildingId] = useState(search.buildingId ?? '');
-  const [unitId, setUnitId] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [kind, setKind] = useState<ExpenseKind | ''>(
-    search.kind === 'fixed' || search.kind === 'variable' ? search.kind : '',
-  );
-  const [status, setStatus] = useState<ExpenseStatus | ''>('');
-  const [vendorId, setVendorId] = useState('');
-  const [text, setText] = useState('');
-  const searchText = useDebounced(text.trim(), 300);
+  const [url, setFilters] = useUrlFilters(FILTERS);
+  const tab = url.status === 'draft' || url.status === 'posted' ? url.status : 'all';
+  const { buildingId, unitId, categoryId, vendorId } = url;
+  const kind = (EXPENSE_KINDS as readonly string[]).includes(url.kind)
+    ? (url.kind as ExpenseKind)
+    : '';
+  const status = (EXPENSE_STATUSES as readonly string[]).includes(url.filterStatus)
+    ? (url.filterStatus as ExpenseStatus)
+    : '';
+  const searchText = url.search;
+  const [text, setText] = useUrlSearchText(searchText, (v) => {
+    setFilters({ search: v });
+  });
   const buildings = useBuildings();
   const building = useBuilding(buildingId);
   const categories = useCategories();
@@ -109,6 +119,12 @@ export function ExpensesPage() {
   const [selected, setSelected] = useState<Map<string, { status: ExpenseStatus; label: string }>>(
     new Map(),
   );
+  // A selection belongs to one list: another tab, filter or period starts a new one, so the bulk
+  // bar never acts on expenses that are no longer shown.
+  const listKey = JSON.stringify([url, period.query, awaiting]);
+  useEffect(() => {
+    setSelected(new Map());
+  }, [listKey]);
   const [bulkAction, setBulkAction] = useState<BulkExpenseAction | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -156,10 +172,6 @@ export function ExpensesPage() {
       return n;
     });
   };
-  const mixed = (el: HTMLInputElement | null) => {
-    // Some but not all rows ticked shows the mixed state.
-    if (el) el.indeterminate = someSelected && !allSelected;
-  };
   const actions = actionsFor(
     [...selected.values()].map((v) => v.status),
     canEdit,
@@ -203,9 +215,7 @@ export function ExpensesPage() {
             role="tab"
             aria-selected={tab === k}
             onClick={() => {
-              setTab(k);
-              // A selection from another tab would act on rows no longer in view.
-              setSelected(new Map());
+              setFilters({ status: k === 'all' ? '' : k });
             }}
             className={cx(
               'h-9 rounded-md px-3 text-[14px] font-medium',
@@ -220,8 +230,7 @@ export function ExpensesPage() {
         <Select
           value={buildingId}
           onChange={(e) => {
-            setBuildingId(e.target.value);
-            setUnitId('');
+            setFilters({ buildingId: e.target.value, unitId: '' });
           }}
           className="w-52"
           aria-label={t('building')}
@@ -238,7 +247,7 @@ export function ExpensesPage() {
         <Select
           value={unitId}
           onChange={(e) => {
-            setUnitId(e.target.value);
+            setFilters({ unitId: e.target.value });
           }}
           className="w-36"
           aria-label={t('expense_filter_unit')}
@@ -256,7 +265,7 @@ export function ExpensesPage() {
         <Select
           value={categoryId}
           onChange={(e) => {
-            setCategoryId(e.target.value);
+            setFilters({ categoryId: e.target.value });
           }}
           className="w-56"
           aria-label={t('expense_category')}
@@ -273,7 +282,7 @@ export function ExpensesPage() {
         <Select
           value={kind}
           onChange={(e) => {
-            setKind(e.target.value as ExpenseKind | '');
+            setFilters({ kind: e.target.value });
           }}
           className="w-36"
           aria-label={t('expense_kind')}
@@ -291,7 +300,7 @@ export function ExpensesPage() {
           <Select
             value={status}
             onChange={(e) => {
-              setStatus(e.target.value as ExpenseStatus | '');
+              setFilters({ filterStatus: e.target.value });
             }}
             className="w-36"
             aria-label={t('status')}
@@ -309,7 +318,7 @@ export function ExpensesPage() {
         <Select
           value={vendorId}
           onChange={(e) => {
-            setVendorId(e.target.value);
+            setFilters({ vendorId: e.target.value });
           }}
           className="w-52"
           aria-label={t('expense_vendor')}
@@ -360,16 +369,12 @@ export function ExpensesPage() {
         <Card className="overflow-hidden">
           {canEdit && selectableRows.length > 0 ? (
             // Below 768 px the table header is hidden (rows become cards), so its checkbox is too.
-            <label className="flex min-h-11 items-center gap-3 border-b border-line px-4 text-[15px] md:hidden">
-              <input
-                type="checkbox"
-                className="size-5 accent-primary"
-                checked={allSelected}
-                ref={mixed}
-                onChange={toggleAll}
-              />
-              {tb('expbulk_selectAll')}
-            </label>
+            <MobileSelectAll
+              all={allSelected}
+              some={someSelected}
+              onToggle={toggleAll}
+              label={tb('expbulk_selectAll')}
+            />
           ) : null}
           <div className="max-h-[70vh] overflow-auto">
             <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
@@ -378,13 +383,11 @@ export function ExpensesPage() {
                   {canEdit ? (
                     <th className="w-12 px-3 py-2">
                       {selectableRows.length > 0 ? (
-                        <input
-                          type="checkbox"
-                          className="size-5 accent-primary"
-                          checked={allSelected}
-                          ref={mixed}
-                          onChange={toggleAll}
-                          aria-label={tb('expbulk_selectAll')}
+                        <SelectAllBox
+                          all={allSelected}
+                          some={someSelected}
+                          onToggle={toggleAll}
+                          label={tb('expbulk_selectAll')}
                         />
                       ) : null}
                     </th>

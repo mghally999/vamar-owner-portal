@@ -3,6 +3,7 @@ const en = {
   // brand and nav
   appName: 'Vamar',
   nav_overview: 'Overview',
+  nav_menu: 'Menu',
   nav_owners: 'Owners',
   nav_properties: 'Buildings & units',
   nav_contracts: 'Contracts',
@@ -270,6 +271,7 @@ const en = {
   cheque_selected: '{n} selected',
   cheque_bulk: 'Bulk update',
   cheque_bulk_bar: 'Selected cheques',
+  cheque_selectAll: 'Select all cheques shown',
   cheque_bulk_clear: 'Clear selection',
   cheque_bulk_tooMany: 'Select at most {max} cheques at a time.',
   cheque_bulk_title: '{status}: {n} cheques',
@@ -703,6 +705,7 @@ export type MessageKey = keyof typeof en;
 const ar: Record<MessageKey, string> = {
   appName: 'فامار',
   nav_overview: 'نظرة عامة',
+  nav_menu: 'القائمة',
   nav_owners: 'الملاك',
   nav_properties: 'المباني والوحدات',
   nav_contracts: 'العقود',
@@ -958,6 +961,7 @@ const ar: Record<MessageKey, string> = {
   cheque_selected: 'تم اختيار {n}',
   cheque_bulk: 'تحديث جماعي',
   cheque_bulk_bar: 'الشيكات المختارة',
+  cheque_selectAll: 'اختيار كل الشيكات المعروضة',
   cheque_bulk_clear: 'إلغاء الاختيار',
   cheque_bulk_tooMany: 'اختر {max} شيكاً كحد أقصى في المرة الواحدة.',
   cheque_bulk_title: '{status}: {n} شيكات',

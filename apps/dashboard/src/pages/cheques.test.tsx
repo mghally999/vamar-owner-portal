@@ -4,7 +4,7 @@ import { MAX_BULK_CHEQUES, monthPeriod, previousPeriod, todayInDubai } from '@va
 import axe from 'axe-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
-import { building, chequeRow, owner, page } from '@/test/fixtures';
+import { building, chequeRow, owner, ownerDetail, page } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
 
 vi.mock('@/lib/firebase', () => ({
@@ -287,6 +287,45 @@ describe('ChequesPage', () => {
       within(screen.getByRole('region', { name: 'Selected cheques' })).getByText('1 selected'),
     ).toBeTruthy();
     expect(screen.getByRole('checkbox', { name: '000101' })).toHaveProperty('checked', false);
+  });
+
+  it('keeps the filters in the URL and drops a selection the new filters would hide', async () => {
+    const { api, router, user } = await renderApp('/cheques?buildingId=bld-2&ownerId=own-2', {
+      routes: routes({
+        'GET /api/staff/owners/own-2': ownerDetail({ id: 'own-2', nameEn: 'Fatima Al Zarooni' }),
+      }),
+    });
+    await screen.findByText('Liam Carter');
+    // A reload (or Back from a cheque) starts from the URL: the first request is already filtered.
+    expect(api.to('GET', '/api/staff/cheques').map((c) => c.query['buildingId'])).toEqual([
+      'bld-2',
+    ]);
+    expect(screen.getByRole('combobox', { name: 'Building' })).toHaveProperty('value', 'bld-2');
+    // The owner filter from the URL is shown by name, not as an empty box.
+    await vi.waitFor(() => {
+      expect(screen.getByRole('combobox', { name: 'Owner' })).toHaveProperty(
+        'value',
+        'Fatima Al Zarooni',
+      );
+    });
+    // Below 768 px the header (and its box) is hidden; the same control sits above the cards.
+    await user.click(screen.getByRole('checkbox', { name: 'Select all cheques shown' }));
+    expect(screen.getByRole('checkbox', { name: 'All' })).toHaveProperty('checked', true);
+    expect(screen.getByRole('region', { name: 'Selected cheques' })).toBeTruthy();
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'bounced');
+    await vi.waitFor(() => {
+      expect(router.state.location.search).toMatchObject({
+        buildingId: 'bld-2',
+        ownerId: 'own-2',
+        status: 'bounced',
+      });
+    });
+    expect(screen.queryByRole('region', { name: 'Selected cheques' })).toBeNull();
+    // Back to "all" leaves no empty key behind.
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), '');
+    await vi.waitFor(() => {
+      expect(router.state.location.search).not.toHaveProperty('status');
+    });
   });
 
   it('shows the mixed state, clears the selection, refuses future dates and labels unknown cheques by id', async () => {

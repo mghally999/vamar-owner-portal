@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CHEQUE_STATUSES } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriodSearch } from '@/lib/period-search';
+import { useUrlFilters } from '@/lib/url-filters';
 import { prefetchCheque, useBuildings, useCheques } from '@/lib/queries';
 import { useHolidaySet, useSettings } from '@/lib/queries-v2';
 import { PeriodBar } from '@/ui/period-bar';
@@ -29,20 +30,26 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
+
+/** The list's own filters, kept in the URL (`?status=` also arrives from the Overview's links). */
+const FILTERS = { status: '', buildingId: '', ownerId: '' };
 
 export function ChequesPage() {
   const { t, pick } = useI18n();
   const auth = useAuth();
   const qc = useQueryClient();
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema yet
-  const search = useSearch({ strict: false }) as { status?: string };
   const settings = useSettings();
   const period = usePeriodSearch('this_month', settings.data?.weekStart);
   const holidays = useHolidaySet();
-  const [status, setStatus] = useState<string>(search.status ?? '');
-  const [buildingId, setBuildingId] = useState('');
-  const [ownerId, setOwnerId] = useState('');
+  const [{ status, buildingId, ownerId }, setFilters] = useUrlFilters(FILTERS);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // A selection is made in one list: other filters or another period start a new one, so the bulk
+  // bar never counts or changes cheques that are no longer shown.
+  const listKey = [status, buildingId, ownerId, period.period.from, period.period.to].join('|');
+  useEffect(() => {
+    setSelected(new Set());
+  }, [listKey]);
   const [bulkStatus, setBulkStatus] = useState<BulkStatus | null>(null);
   const [statusFor, setStatusFor] = useState<ChequeRow | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -78,6 +85,16 @@ export function ChequesPage() {
   };
   const allSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const someSelected = rows.some((r) => selected.has(r.id));
+  const toggleAll = () => {
+    setSelected((s) => {
+      const n = new Set(s);
+      for (const r of rows) {
+        if (allSelected) n.delete(r.id);
+        else n.add(r.id);
+      }
+      return n;
+    });
+  };
   const editor = auth.hasRole('editor');
 
   return (
@@ -108,7 +125,7 @@ export function ChequesPage() {
         <Select
           value={status}
           onChange={(e) => {
-            setStatus(e.target.value);
+            setFilters({ status: e.target.value });
           }}
           className="w-40"
           aria-label={t('cheque_filter_status')}
@@ -126,7 +143,7 @@ export function ChequesPage() {
         <Select
           value={buildingId}
           onChange={(e) => {
-            setBuildingId(e.target.value);
+            setFilters({ buildingId: e.target.value });
           }}
           className="w-52"
           aria-label={t('cheque_filter_building')}
@@ -143,7 +160,7 @@ export function ChequesPage() {
         <OwnerPicker
           value={ownerId}
           onChange={(id) => {
-            setOwnerId(id);
+            setFilters({ ownerId: id });
           }}
           className="w-64"
         />
@@ -157,31 +174,25 @@ export function ChequesPage() {
         <EmptyState title={t('cheques_empty')} />
       ) : (
         <Card className="overflow-hidden">
+          {editor ? (
+            <MobileSelectAll
+              all={allSelected}
+              some={someSelected}
+              onToggle={toggleAll}
+              label={t('cheque_selectAll')}
+            />
+          ) : null}
           <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
             <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
                   {auth.hasRole('editor') ? (
                     <th className="w-12 px-3 py-2">
-                      <input
-                        type="checkbox"
-                        className="size-5 accent-primary"
-                        checked={allSelected}
-                        ref={(el) => {
-                          // Some but not all rows ticked shows the mixed state.
-                          if (el) el.indeterminate = someSelected && !allSelected;
-                        }}
-                        onChange={() => {
-                          setSelected((s) => {
-                            const n = new Set(s);
-                            for (const r of rows) {
-                              if (allSelected) n.delete(r.id);
-                              else n.add(r.id);
-                            }
-                            return n;
-                          });
-                        }}
-                        aria-label={t('all')}
+                      <SelectAllBox
+                        all={allSelected}
+                        some={someSelected}
+                        onToggle={toggleAll}
+                        label={t('all')}
                       />
                     </th>
                   ) : null}

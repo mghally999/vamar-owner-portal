@@ -14,7 +14,7 @@ import {
   type PlainDate,
 } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/hooks';
+import { useUrlFilters, useUrlSearchText } from '@/lib/url-filters';
 import { useI18n } from '@/lib/i18n';
 import { prefetchDispute, useBuilding, useBuildings, useCreateDispute } from '@/lib/queries';
 import { Dialog } from '@/ui/dialog';
@@ -42,14 +42,20 @@ import { DatePicker } from '@/ui/date-picker';
 import { useHolidaySet } from '@/lib/queries-v2';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 
+/** Kept in the URL with the hearing window the calendar links with. */
+const FILTERS = { status: '', search: '' };
+
 export function DisputesPage() {
   const { t, pick, lang, date } = useI18n();
   const { t: tv2 } = useV2();
   const auth = useAuth();
   const qc = useQueryClient();
-  const [status, setStatus] = useState<DisputeStatus | ''>('');
-  const [search, setSearch] = useState('');
-  const debounced = useDebounced(search.trim(), 300);
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const status = filters.status as DisputeStatus | '';
+  const debounced = filters.search;
+  const [search, setSearch] = useUrlSearchText(debounced, (v) => {
+    setFilters({ search: v });
+  });
   const [creating, setCreating] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
   const url = useSearch({ strict: false }) as { hearingFrom?: unknown; hearingTo?: unknown };
@@ -83,7 +89,7 @@ export function DisputesPage() {
         <Select
           value={status}
           onChange={(e) => {
-            setStatus(e.target.value as DisputeStatus | '');
+            setFilters({ status: e.target.value });
           }}
           className="w-48"
           aria-label={t('status')}

@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import type { PlainDate } from '@vamar/shared';
+import { Fragment, useState } from 'react';
+import { isPlainDate, type PlainDate } from '@vamar/shared';
+import { useUrlFilters } from '@/lib/url-filters';
 import { useI18n } from '@/lib/i18n';
 import { useAudit, useStaff } from '@/lib/queries';
 import { DatePicker } from '@/ui/date-picker';
@@ -45,13 +46,16 @@ export const ENTITY_TYPES = [
   'attachment',
 ];
 
+/** Kept in the URL so a reload or a shared link shows the same entries. */
+const FILTERS = { actorId: '', entityType: '', from: '', to: '' };
+
 export function AuditPage() {
   const { t, dateTime } = useI18n();
   const staff = useStaff();
-  const [actorId, setActorId] = useState('');
-  const [entityType, setEntityType] = useState('');
-  const [from, setFrom] = useState<PlainDate | null>(null);
-  const [to, setTo] = useState<PlainDate | null>(null);
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const { actorId, entityType } = filters;
+  const from: PlainDate | null = isPlainDate(filters.from) ? filters.from : null;
+  const to: PlainDate | null = isPlainDate(filters.to) ? filters.to : null;
   const [open, setOpen] = useState<string | null>(null);
   const q = useAudit({
     actorId: actorId || undefined,
@@ -68,7 +72,7 @@ export function AuditPage() {
         <Select
           value={actorId}
           onChange={(e) => {
-            setActorId(e.target.value);
+            setFilters({ actorId: e.target.value });
           }}
           className="w-52"
           aria-label={t('audit_actor')}
@@ -85,7 +89,7 @@ export function AuditPage() {
         <Select
           value={entityType}
           onChange={(e) => {
-            setEntityType(e.target.value);
+            setFilters({ entityType: e.target.value });
           }}
           className="w-48"
           aria-label={t('audit_entity')}
@@ -101,12 +105,22 @@ export function AuditPage() {
         </Select>
         <DatePicker
           value={from}
-          onChange={setFrom}
+          onChange={(d) => {
+            setFilters({ from: d ?? '' });
+          }}
           clearable
           className="w-56"
           aria-label={t('from')}
         />
-        <DatePicker value={to} onChange={setTo} clearable className="w-56" aria-label={t('to')} />
+        <DatePicker
+          value={to}
+          onChange={(d) => {
+            setFilters({ to: d ?? '' });
+          }}
+          clearable
+          className="w-56"
+          aria-label={t('to')}
+        />
       </div>
       {q.isPending ? (
         <SkeletonRows cols={4} rows={8} />
@@ -127,15 +141,28 @@ export function AuditPage() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <>
+                <Fragment key={r.id}>
                   <tr
-                    key={r.id}
                     className="row-line cursor-pointer hover:bg-sunken"
                     onClick={() => {
                       setOpen(open === r.id ? null : r.id);
                     }}
                   >
-                    <td className="px-4 py-3 tnum text-ink-soft">{dateTime(r.at)}</td>
+                    <td className="px-4 py-3 tnum text-ink-soft">
+                      {/* The row opens on a click anywhere; the button gives keyboards the same. */}
+                      <button
+                        type="button"
+                        aria-expanded={open === r.id}
+                        aria-controls={open === r.id ? `audit-${r.id}` : undefined}
+                        className="min-h-6 text-start hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpen(open === r.id ? null : r.id);
+                        }}
+                      >
+                        {dateTime(r.at)}
+                      </button>
+                    </td>
                     <td className="px-4 py-3">
                       {r.actorType === 'system' ? t('audit_system') : (r.actorName ?? r.actorType)}
                     </td>
@@ -150,7 +177,7 @@ export function AuditPage() {
                     </td>
                   </tr>
                   {open === r.id ? (
-                    <tr key={`${r.id}-detail`} className="row-line bg-sunken">
+                    <tr id={`audit-${r.id}`} className="row-line bg-sunken">
                       <td colSpan={4} className="px-4 py-3">
                         <div className="grid gap-4 md:grid-cols-2" dir="ltr">
                           <div>
@@ -173,7 +200,7 @@ export function AuditPage() {
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </ResponsiveTable>

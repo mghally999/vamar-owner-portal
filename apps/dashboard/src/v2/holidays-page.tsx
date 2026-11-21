@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { isPlainDate, todayInDubai, type PlainDate } from '@vamar/shared';
+import { useUrlFilters } from '@/lib/url-filters';
 import { useAuth } from '@/lib/auth';
 import { Dialog } from '@/ui/dialog';
 import {
@@ -25,11 +26,19 @@ import type { Holiday } from './types';
 import { DatePicker } from '@/ui/date-picker';
 
 /** Public holidays per year; admins add, edit and remove them (moon-sighting dates are tentative). */
+const FILTERS = { year: '' };
+
 export function HolidaysPage() {
   const { t, pick } = useV2();
   const auth = useAuth();
   const thisYear = Number(todayInDubai().slice(0, 4));
-  const [year, setYear] = useState(thisYear);
+  // The year shown is kept in the URL; this year when none is given.
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const linkedYear = Number(filters.year);
+  const year =
+    Number.isInteger(linkedYear) && linkedYear >= 2000 && linkedYear <= 2100
+      ? linkedYear
+      : thisYear;
   const q = useHolidays(year);
   const del = useDeleteHoliday();
   const [editing, setEditing] = useState<Holiday | 'new' | null>(null);
@@ -59,7 +68,8 @@ export function HolidaysPage() {
         <Select
           value={String(year)}
           onChange={(e) => {
-            setYear(Number(e.target.value));
+            const next = Number(e.target.value);
+            setFilters({ year: next === thisYear ? '' : String(next) });
           }}
           aria-label={t('holidays_year')}
           className="w-40"

@@ -153,6 +153,13 @@ describe('HolidaysPage', () => {
     expect(await screen.findByText('No holidays for this year.')).toBeTruthy();
   });
 
+  it('opens on the year in the URL, so a reload keeps it', async () => {
+    const { api } = await renderV2('/holidays?year=2027', { routes: routes() });
+    expect(await screen.findByText('No holidays for this year.')).toBeTruthy();
+    expect(api.to('GET', '/api/staff/holidays').map((c) => c.query['year'])).toEqual(['2027']);
+    expect(screen.getByRole('combobox', { name: 'Year' })).toHaveProperty('value', '2027');
+  });
+
   it('hides the editing from editors', async () => {
     await renderV2('/holidays', { role: 'editor', routes: routes() });
     expect(await screen.findByText('National Day')).toBeTruthy();

@@ -2,7 +2,7 @@
 import { cleanup, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
-import { building, chequeRow, owner, page } from '@/test/fixtures';
+import { building, chequeRow, owner, ownerDetail, page } from '@/test/fixtures';
 import { bucket, reportSummary, settings, v2Routes } from '@/test/fixtures-v2';
 import { renderApp, pickOption } from '@/test/render';
 
@@ -72,6 +72,27 @@ describe('ReportsPage', () => {
     expect(
       await screen.findByRole('heading', { name: /Owner statement · Ahmed Al Mansouri/ }),
     ).toBeTruthy();
+  });
+
+  it('keeps the report, building and owner in the URL and names the owner after a reload', async () => {
+    const { api, router } = await renderApp(
+      '/reports?report=ownerStatement&ownerId=own-2&buildingId=bld-1',
+      {
+        routes: routes({
+          'GET /api/staff/owners/own-2': ownerDetail({ id: 'own-2', nameEn: 'Fatima Al Zarooni' }),
+        }),
+      },
+    );
+    expect(
+      await screen.findByRole('heading', { name: /Owner statement · Fatima Al Zarooni/ }),
+    ).toBeTruthy();
+    expect(api.last('GET', '/api/staff/reports/summary').query).toMatchObject({
+      ownerId: 'own-2',
+      buildingId: 'bld-1',
+    });
+    // The outstanding cheques are only asked for on their own tab.
+    expect(api.to('GET', '/api/staff/cheques')).toEqual([]);
+    expect(router.state.location.search).toMatchObject({ report: 'ownerStatement' });
   });
 
   it('exports to Excel and to a print view', async () => {

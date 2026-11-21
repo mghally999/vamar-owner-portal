@@ -1,6 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { EXPENSE_KINDS, EXPENSE_KIND_LABEL, type ExpenseKind } from '@vamar/shared';
+import { useUrlFilters } from '@/lib/url-filters';
 import { useAuth } from '@/lib/auth';
 import { Dialog } from '@/ui/dialog';
 import {
@@ -23,10 +24,14 @@ import { useCategories, useSaveCategory } from './queries';
 import type { ExpenseCategory } from './types';
 
 /** Fixed and variable expense categories; admins add, rename, reorder and deactivate them. */
+const FILTERS = { inactive: '' };
+
 export function CategoriesPage() {
   const { t, lang } = useV2();
   const auth = useAuth();
-  const [showInactive, setShowInactive] = useState(false);
+  // Kept in the URL so a reload shows the same list.
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const showInactive = filters.inactive === '1';
   const q = useCategories(showInactive);
   const save = useSaveCategory();
   const [editing, setEditing] = useState<ExpenseCategory | 'new' | null>(null);
@@ -54,7 +59,7 @@ export function CategoriesPage() {
         label={t('categories_showInactive')}
         checked={showInactive}
         onChange={(e) => {
-          setShowInactive(e.target.checked);
+          setFilters({ inactive: e.target.checked ? '1' : '' });
         }}
       />
       {q.isPending ? (

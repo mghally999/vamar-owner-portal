@@ -1,7 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Link, useSearch } from '@tanstack/react-router';
 import { Plus } from 'lucide-react';
-import { useState } from 'react';
 import {
   isRenewalDue,
   renewalDueInDays,
@@ -13,6 +12,7 @@ import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { prefetchContract, useBuildings, useContracts } from '@/lib/queries';
+import { useUrlFilters } from '@/lib/url-filters';
 import {
   Button,
   Card,
@@ -31,6 +31,8 @@ import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { RenewalDueChip } from '@/ui/renewal-suggestion';
 
 const STATUSES: ContractStatus[] = ['draft', 'active', 'expired', 'terminated', 'renewed'];
+/** Kept in the URL; `endingWithinDays` (set by the Today panel's link) also ticks the ending box. */
+const FILTERS = { status: '', buildingId: '', endingWithinDays: '' };
 
 export function ContractsPage() {
   const { t, pick } = useI18n();
@@ -41,11 +43,14 @@ export function ContractsPage() {
     endingWithinDays?: number;
     withoutRenewal?: unknown;
   };
-  const [status, setStatus] = useState<ContractStatus | ''>('');
-  const [buildingId, setBuildingId] = useState('');
-  const [ending, setEnding] = useState(Boolean(search.endingWithinDays));
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const status = (STATUSES as string[]).includes(filters.status)
+    ? (filters.status as ContractStatus)
+    : '';
+  const buildingId = filters.buildingId;
+  const ending = filters.endingWithinDays !== '';
   // The link may ask for another window (the Today panel uses 30 days); 60 is the page's own.
-  const linkedDays = Number(search.endingWithinDays);
+  const linkedDays = Number(filters.endingWithinDays);
   const endingDays =
     Number.isInteger(linkedDays) && linkedDays >= 1 && linkedDays <= 365 ? linkedDays : 60;
   const withoutRenewal = String(search.withoutRenewal) === '1';
@@ -78,7 +83,7 @@ export function ContractsPage() {
         <Select
           value={status}
           onChange={(e) => {
-            setStatus(e.target.value as ContractStatus | '');
+            setFilters({ status: e.target.value });
           }}
           className="w-44"
           aria-label={t('status')}
@@ -93,7 +98,7 @@ export function ContractsPage() {
         <Select
           value={buildingId}
           onChange={(e) => {
-            setBuildingId(e.target.value);
+            setFilters({ buildingId: e.target.value });
           }}
           className="w-56"
           aria-label={t('building')}
@@ -111,7 +116,7 @@ export function ContractsPage() {
             className="size-5 accent-primary"
             checked={ending}
             onChange={(e) => {
-              setEnding(e.target.checked);
+              setFilters({ endingWithinDays: e.target.checked ? String(endingDays) : '' });
             }}
           />
           {t('contracts_endingWithin', { n: endingDays })}

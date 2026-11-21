@@ -72,10 +72,11 @@ export function useOwners(filters: { search?: string | undefined; status?: strin
   });
 }
 
-export function useOwner(id: string) {
+export function useOwner(id: string, enabled = true) {
   return useQuery({
     queryKey: keys.owner(id),
     queryFn: () => request<OwnerDetail>(`/api/staff/owners/${id}`),
+    enabled: enabled && id !== '',
   });
 }
 
@@ -140,6 +141,8 @@ export function useBuilding(id: string) {
   return useQuery({
     queryKey: keys.building(id),
     queryFn: () => request<BuildingDetail>(`/api/staff/buildings/${id}`),
+    // Forms and filters call this before a building is picked; '' asked for /buildings/.
+    enabled: id !== '',
   });
 }
 
@@ -343,8 +346,9 @@ export interface ChequeFilters {
   contractId?: string | undefined;
 }
 
-export function useCheques(filters: ChequeFilters) {
+export function useCheques(filters: ChequeFilters, enabled = true) {
   return useInfiniteQuery({
+    enabled,
     queryKey: keys.cheques(filters as Record<string, string | undefined>),
     queryFn: ({ pageParam }) =>
       request<Page<ChequeRow>>(

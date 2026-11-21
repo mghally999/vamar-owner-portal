@@ -1,6 +1,6 @@
 /** Work orders: a filtered list and a board by status, both linking to the detail page. */
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_STATUSES,
@@ -8,7 +8,7 @@ import {
   type WorkOrderStatus,
 } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/hooks';
+import { useUrlFilters, useUrlSearchText } from '@/lib/url-filters';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useBuildings } from '@/lib/queries';
@@ -72,16 +72,21 @@ export function PriorityChip({ priority }: { priority: WorkOrderPriority }) {
   );
 }
 
+/** Kept in the URL with `overdue` and `approval`, which arrive from the Today panel's links. */
+const FILTERS = { view: 'list', buildingId: '', status: '', priority: '', search: '' };
+
 export function WorkOrdersPage() {
   const { t, pick } = useI18n();
   const auth = useAuth();
   const navigate = useNavigate();
-  const [view, setView] = useState<'list' | 'board'>('list');
-  const [buildingId, setBuildingId] = useState('');
-  const [status, setStatus] = useState<WorkOrderStatus | ''>('');
-  const [priority, setPriority] = useState<WorkOrderPriority | ''>('');
-  const [text, setText] = useState('');
-  const search = useDebounced(text.trim(), 300);
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const view = filters.view === 'board' ? 'board' : 'list';
+  const { buildingId, search } = filters;
+  const status = filters.status as WorkOrderStatus | '';
+  const priority = filters.priority as WorkOrderPriority | '';
+  const [text, setText] = useUrlSearchText(search, (v) => {
+    setFilters({ search: v });
+  });
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- routes carry no search schema
   const url = useSearch({ strict: false }) as { overdue?: unknown };
   const overdue = String(url.overdue) === '1';
@@ -119,7 +124,7 @@ export function WorkOrdersPage() {
               role="tab"
               aria-selected={view === v}
               onClick={() => {
-                setView(v);
+                setFilters({ view: v });
               }}
               className={cx(
                 'h-9 rounded-md px-3 text-[14px] font-medium',
@@ -133,7 +138,7 @@ export function WorkOrdersPage() {
         <Select
           value={buildingId}
           onChange={(e) => {
-            setBuildingId(e.target.value);
+            setFilters({ buildingId: e.target.value });
           }}
           className="w-52"
           aria-label={t('building')}
@@ -151,7 +156,7 @@ export function WorkOrdersPage() {
           <Select
             value={status}
             onChange={(e) => {
-              setStatus(e.target.value as WorkOrderStatus | '');
+              setFilters({ status: e.target.value });
             }}
             className="w-40"
             aria-label={t('status')}
@@ -169,7 +174,7 @@ export function WorkOrdersPage() {
         <Select
           value={priority}
           onChange={(e) => {
-            setPriority(e.target.value as WorkOrderPriority | '');
+            setFilters({ priority: e.target.value });
           }}
           className="w-40"
           aria-label={t('wo_priority')}

@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useAuth } from '@/lib/auth';
-import { useDebounced } from '@/lib/hooks';
+import { useUrlFilters, useUrlSearchText } from '@/lib/url-filters';
 import { Dialog } from '@/ui/dialog';
 import {
   Button,
@@ -23,12 +23,18 @@ import { useSaveVendor, useVendors } from './queries';
 import type { Vendor } from './types';
 
 /** Suppliers of the expenses; a TRN means 5 % VAT is proposed on their invoices. */
+const FILTERS = { search: '', inactive: '' };
+
 export function VendorsPage() {
   const { t } = useV2();
   const auth = useAuth();
-  const [search, setSearch] = useState('');
-  const [showInactive, setShowInactive] = useState(false);
-  const debounced = useDebounced(search.trim(), 300);
+  // Kept in the URL so a reload brings the same list back.
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const debounced = filters.search;
+  const showInactive = filters.inactive === '1';
+  const [search, setSearch] = useUrlSearchText(debounced, (v) => {
+    setFilters({ search: v });
+  });
   const q = useVendors({ search: debounced || undefined, includeInactive: showInactive });
   const [editing, setEditing] = useState<Vendor | 'new' | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -65,7 +71,7 @@ export function VendorsPage() {
           label={t('vendors_showInactive')}
           checked={showInactive}
           onChange={(e) => {
-            setShowInactive(e.target.checked);
+            setFilters({ inactive: e.target.checked ? '1' : '' });
           }}
         />
       </div>

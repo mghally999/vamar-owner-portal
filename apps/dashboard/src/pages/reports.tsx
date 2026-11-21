@@ -15,7 +15,8 @@ import { exportExcel, exportPdf, type ExportSheet } from '@/lib/export';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriodSearch } from '@/lib/period-search';
-import { useBuildings, useCheques } from '@/lib/queries';
+import { useBuildings, useCheques, useOwner } from '@/lib/queries';
+import { useUrlFilters } from '@/lib/url-filters';
 import { useHolidaySet, useReportSummary, useSettings } from '@/lib/queries-v2';
 import type { ReportSummary } from '@/lib/types-v2';
 import { BarChart } from '@/ui/bar-chart';
@@ -48,19 +49,32 @@ const REPORTS = [
   'outstanding',
 ] as const;
 type Report = (typeof REPORTS)[number];
+/** The report, building and owner shown, kept in the URL with the period. */
+const FILTERS = { report: 'buildingPnl', buildingId: '', ownerId: '' };
 
 export function ReportsPage() {
   const { t, pick, lang, dir, money, num, date } = useI18n();
   const settings = useSettings();
   const period = usePeriodSearch('this_month', settings.data?.weekStart);
   const holidays = useHolidaySet();
-  const [report, setReport] = useState<Report>('buildingPnl');
-  const [buildingId, setBuildingId] = useState('');
-  const [ownerId, setOwnerId] = useState('');
-  const [ownerLabel, setOwnerLabel] = useState('');
+  const [filters, setFilters] = useUrlFilters(FILTERS);
+  const report: Report = (REPORTS as readonly string[]).includes(filters.report)
+    ? (filters.report as Report)
+    : 'buildingPnl';
+  const { buildingId, ownerId } = filters;
   const [notice, setNotice] = useState<string | null>(null);
   const buildings = useBuildings();
   const needsOwner = report === 'ownerStatement';
+  // The owner's name for the export title; the picker shares this cached request.
+  // The owner's name for the title: the one just picked, or (after a reload) asked for by id.
+  const [picked, setPicked] = useState({ id: '', label: '' });
+  const owner = useOwner(ownerId, needsOwner && picked.id !== ownerId);
+  const ownerLabel =
+    picked.id === ownerId
+      ? picked.label
+      : owner.data?.id === ownerId
+        ? pick(owner.data.nameAr, owner.data.nameEn)
+        : '';
   const q = useReportSummary(
     {
       ...period.query,
@@ -69,13 +83,17 @@ export function ReportsPage() {
     },
     !needsOwner || ownerId !== '',
   );
-  const outstanding = useCheques({
-    from: period.period.from,
-    to: period.period.to,
-    buildingId: buildingId || undefined,
-    ownerId: needsOwner ? ownerId || undefined : undefined,
-    status: 'upcoming,deposited,bounced',
-  });
+  const outstanding = useCheques(
+    {
+      from: period.period.from,
+      to: period.period.to,
+      buildingId: buildingId || undefined,
+      ownerId: needsOwner ? ownerId || undefined : undefined,
+      status: 'upcoming,deposited,bounced',
+    },
+    // Only the outstanding tab lists them: the other reports no longer fetch them in the background.
+    report === 'outstanding',
+  );
   const d = q.data;
   /** The period the server resolved (authoritative); the browser's own until the answer arrives. */
   const shown: Period = d
@@ -226,7 +244,7 @@ export function ReportsPage() {
             role="tab"
             aria-selected={report === r}
             onClick={() => {
-              setReport(r);
+              setFilters({ report: r });
             }}
             className={cx(
               'h-9 rounded-md px-3 text-[14px] font-medium',
@@ -241,7 +259,7 @@ export function ReportsPage() {
         <Select
           value={buildingId}
           onChange={(e) => {
-            setBuildingId(e.target.value);
+            setFilters({ buildingId: e.target.value });
           }}
           className="w-56"
           aria-label={t('building')}
@@ -257,8 +275,8 @@ export function ReportsPage() {
           <OwnerPicker
             value={ownerId}
             onChange={(id, label) => {
-              setOwnerId(id);
-              setOwnerLabel(label);
+              setPicked({ id, label });
+              setFilters({ ownerId: id });
             }}
             className="w-72"
           />
