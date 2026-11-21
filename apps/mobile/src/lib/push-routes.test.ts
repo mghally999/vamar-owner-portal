@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { NOTIFICATION_TYPES } from '@vamar/shared/rules';
-import { refreshKeysFor, routeForNotification } from './push-routes';
+import { canOpenPushes, refreshKeysFor, routeForNotification } from './push-routes';
 
 describe('routeForNotification', () => {
   it('opens a screen of its own for every kind the API sends, not the home tab', () => {
@@ -23,6 +23,9 @@ describe('routeForNotification', () => {
       params: { id: 'a1' },
     });
     expect(routeForNotification({ type: 'repair_approval_needed' })).toBe('/repair-approvals');
+    expect(routeForNotification({ type: 'repair_approval_needed', entityId: 7 })).toBe(
+      '/repair-approvals',
+    );
   });
 
   it('opens the screen behind each kind of notification', () => {
@@ -116,5 +119,15 @@ describe('refreshKeysFor', () => {
   it('refreshes nothing for an unknown or missing type', () => {
     expect(refreshKeysFor({ type: 'something_new' })).toEqual([]);
     expect(refreshKeysFor(null)).toEqual([]);
+  });
+});
+
+describe('canOpenPushes', () => {
+  it('waits for the signed-in owner and the screens being on show', () => {
+    expect(canOpenPushes('authenticated', true)).toBe(true);
+    // Session restored before the fonts, language or theme: no stack to open a screen on yet.
+    expect(canOpenPushes('authenticated', false)).toBe(false);
+    expect(canOpenPushes('anonymous', true)).toBe(false);
+    expect(canOpenPushes('loading', false)).toBe(false);
   });
 });

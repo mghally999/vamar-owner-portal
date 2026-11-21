@@ -4,6 +4,7 @@
  * month it summarises (`from`, `to`); everything else is derived here so the same table serves
  * the phone and the tests.
  */
+import type { AuthStage } from './auth';
 import { isPlainDate } from './shared';
 
 export type PushHref = string | { pathname: string; params: Record<string, string> };
@@ -92,4 +93,13 @@ export function refreshKeysFor(data: PushData | null | undefined): string[][] {
     default:
       return [];
   }
+}
+
+/**
+ * Whether tapped notifications may open their screen: only once the owner is signed in and the
+ * root layout has booted (fonts, language, theme), since before that no navigator is mounted and
+ * the launch tap would be consumed with nowhere to go.
+ */
+export function canOpenPushes(stage: AuthStage, booted: boolean): boolean {
+  return booted && stage === 'authenticated';
 }

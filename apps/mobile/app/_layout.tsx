@@ -19,7 +19,7 @@ import {
   useClearCacheWhenSignedOut,
 } from '@/lib/query-client';
 import { usePushNavigation, usePushUpdates } from '@/lib/push';
-import type { PushHref } from '@/lib/push-routes';
+import { canOpenPushes, type PushHref } from '@/lib/push-routes';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
 import { OfflineBanner } from '@/ui/offline-banner';
@@ -91,20 +91,6 @@ function Root() {
   const themeChoice = useThemeChoice();
   const update = useUpdateState();
   const router = useRouter();
-  // A tapped notification opens its screen once the owner is signed in.
-  const openFromPush = useCallback(
-    (href: PushHref) => {
-      router.push(href);
-    },
-    [router],
-  );
-  usePushNavigation(openFromPush, auth.stage === 'authenticated');
-  useClearCacheWhenSignedOut(queryClient, auth.stage);
-  // A notification arriving with the app open refreshes the figures it is about.
-  const refreshFromPush = useCallback((keys: string[][]) => {
-    for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
-  }, []);
-  usePushUpdates(refreshFromPush, auth.stage === 'authenticated');
   const [fontsLoaded, fontError] = useFonts({
     'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
     'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
@@ -113,6 +99,21 @@ function Root() {
   });
   const booted =
     (fontsLoaded || fontError !== null) && ready && themeChoice.ready && auth.stage !== 'loading';
+  // A tapped notification opens its screen once the owner is signed in and the stack below is
+  // mounted: before that router.push has nowhere to go and the launch tap would be lost.
+  const openFromPush = useCallback(
+    (href: PushHref) => {
+      router.push(href);
+    },
+    [router],
+  );
+  usePushNavigation(openFromPush, canOpenPushes(auth.stage, booted));
+  useClearCacheWhenSignedOut(queryClient, auth.stage);
+  // A notification arriving with the app open refreshes the figures it is about.
+  const refreshFromPush = useCallback((keys: string[][]) => {
+    for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+  }, []);
+  usePushUpdates(refreshFromPush, auth.stage === 'authenticated');
 
   useEffect(() => {
     if (__DEV__ && !booted) {

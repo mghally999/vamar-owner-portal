@@ -11,8 +11,7 @@ import * as Notifications from 'expo-notifications';
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { request } from './api';
-import { routeWithApprovals } from './approval-push';
-import { refreshKeysFor, type PushHref } from './push-routes';
+import { refreshKeysFor, routeForNotification, type PushHref } from './push-routes';
 import { deviceId, getItem, setItem } from './storage';
 
 export { routeForNotification } from './push-routes';
@@ -127,7 +126,7 @@ export function usePushNavigation(navigate: (href: PushHref) => void, enabled: b
       const key = tapKey(response);
       if (key !== null && key === handledTap) return;
       handledTap = key;
-      navigate(routeWithApprovals(response.notification.request.content.data));
+      navigate(routeForNotification(response.notification.request.content.data));
     };
     const launched = Notifications.getLastNotificationResponse();
     if (launched) {
