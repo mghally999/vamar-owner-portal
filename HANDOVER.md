@@ -135,6 +135,10 @@ the toolchain; the CI job "Docker image" proves it on every push.
    it does not run on x86 emulators or Chromebooks, and the download page says so. Two more
    build profiles in `apps/mobile/eas.json`: `staging` (the same app against the staging API)
    and `emulator` (x86_64, production API, preview channel) for testing on an Android emulator.
+   **Push on Android** needs the Firebase project's FCM V1 service account key uploaded to
+   Expo once (expo.dev > project > Credentials > Android > `ae.vamar.owner` > FCM V1 service
+   account key; the key comes from Firebase > Project settings > Service accounts). Without it
+   Expo answers every send with `InvalidCredentials` and no Android phone gets a notification.
    **New APK** (native changes): raise `version` in `apps/mobile/app.config.ts`, then
    `eas build --profile preview --platform android`, then run the **Publish APK** workflow
    (GitHub > Actions) with the build's artifact link, once for `production` and once for
