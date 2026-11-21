@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import { index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, instant } from './_common.js';
 import { devicePlatform, lang, notificationType, ownerStatus, subjectType } from './enums.js';
@@ -61,6 +62,10 @@ export const sessions = pgTable(
   (t) => [
     index('sessions_subject_idx').on(t.subjectType, t.subjectId),
     index('sessions_expires_idx').on(t.expiresAt),
+    /** isSessionActive: the newest session of a rotated chain, found by its parent. */
+    index('sessions_rotated_from_idx')
+      .on(t.rotatedFrom)
+      .where(sql`${t.rotatedFrom} IS NOT NULL`),
   ],
 );
 

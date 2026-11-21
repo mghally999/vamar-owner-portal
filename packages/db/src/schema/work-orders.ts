@@ -42,7 +42,10 @@ export const workOrders = pgTable(
       .on(t.scheduledFor)
       .where(sql`${t.scheduledFor} IS NOT NULL`),
     /** Staff list: newest first. */
-    index('work_orders_reported_idx').on(t.reportedOn.desc(), t.id.desc()),
+    index('work_orders_reported_idx').on(
+      t.reportedOn.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     check('work_orders_estimate_positive', sql`${t.estimateFils} IS NULL OR ${t.estimateFils} > 0`),
   ],
 );

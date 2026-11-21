@@ -79,7 +79,7 @@ export const unitStatusEvents = pgTable(
     actorStaffId: uuid().references(() => staffUsers.id),
     at: instant().notNull().defaultNow(),
   },
-  (t) => [index('unit_status_events_unit_idx').on(t.unitId, t.at.desc())],
+  (t) => [index('unit_status_events_unit_idx').on(t.unitId, t.at.desc().nullsFirst())],
 );
 
 /**

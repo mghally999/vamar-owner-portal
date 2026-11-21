@@ -142,7 +142,18 @@ export const expenses = pgTable(
       .on(t.unitId, t.invoiceDate)
       .where(sql`${t.unitId} IS NOT NULL`),
     /** Staff list: newest invoice first within a status (the drafts queue, posted lists). */
-    index('expenses_status_date_idx').on(t.status, t.invoiceDate.desc(), t.id.desc()),
+    // `.nullsFirst()`: plain DESC, the order the queries use (`desc(col)`). drizzle-kit writes a bare
+    // `.desc()` as DESC NULLS LAST, which Postgres cannot walk for ORDER BY ... DESC (0013).
+    index('expenses_status_date_idx').on(
+      t.status,
+      t.invoiceDate.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
+    /** Staff list without a status filter (its default view): newest invoice first. */
+    index('expenses_invoice_date_idx').on(
+      t.invoiceDate.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     /**
      * Staff report totals: every posted expense of the period (and the comparison period) summed
      * by month, kind and category. Carrying the summed columns lets that be an index-only scan of

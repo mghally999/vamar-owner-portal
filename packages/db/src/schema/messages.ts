@@ -34,9 +34,17 @@ export const messageThreads = pgTable(
   },
   (t) => [
     /** The staff inbox: open or closed, latest activity first. */
-    index('message_threads_inbox_idx').on(t.status, t.lastMessageAt.desc(), t.id.desc()),
+    index('message_threads_inbox_idx').on(
+      t.status,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     /** The owner's own list, and the inbox filtered by owner. */
-    index('message_threads_owner_idx').on(t.ownerId, t.lastMessageAt.desc(), t.id.desc()),
+    index('message_threads_owner_idx').on(
+      t.ownerId,
+      t.lastMessageAt.desc().nullsFirst(),
+      t.id.desc().nullsFirst(),
+    ),
     /** Threads waiting for a staff answer: the Today line and the inbox's "waiting" filter. */
     index('message_threads_waiting_idx')
       .on(t.lastMessageAt)
