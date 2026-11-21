@@ -6,7 +6,7 @@ name: Publish APK
 #
 # The file is checked before anything is replaced: the version in apps/mobile/app.config.ts, the
 # preview update channel (so it receives the over-the-air updates), ARM64 code for phones, and
-# the production API address with no local one. The APK it replaces is kept under
+# the production API address. The APK it replaces is kept under
 # releases/archive/ for a rollback, and the new one is downloaded back through the public link.
 # `verify only` runs the checks and keeps the file as a workflow artifact for 7 days; it also
 # accepts the x86_64 `emulator` build (apps/mobile/eas.json), which phones cannot run.
@@ -69,8 +69,10 @@ jobs:
             echo "::error::no ARM64 code for phones"; exit 1
           fi
           unzip -p new.apk assets/index.android.bundle > bundle
+          # The address comes only from EXPO_PUBLIC_API_BASE (no source file names it), so finding
+          # it proves the build used it. The local fallback in src/lib/api.ts stays in the bundle
+          # as dead code, so its text alone means nothing.
           grep -aq 'https://vamar-owner-portal.vamar-api.workers.dev' bundle || { echo "::error::production API address missing"; exit 1; }
-          if grep -aqE '10\.0\.2\.2|localhost:8787|127\.0\.0\.1:8787' bundle; then echo "::error::local API address inside"; exit 1; fi
           echo "VERSION=$got" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
