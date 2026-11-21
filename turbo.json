@@ -2,7 +2,13 @@
   "$schema": "https://turbo.build/schema.json",
   "agentGuidance": false,
   "ui": "tui",
-  "globalDependencies": ["tsconfig.base.json", ".env", "**/.dev.vars"],
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "eslint.config.js",
+    "tooling/ci/vitest-all-files-ran.ts",
+    ".env",
+    "**/.dev.vars"
+  ],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
