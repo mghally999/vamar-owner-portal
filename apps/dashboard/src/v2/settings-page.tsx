@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { WEEK_STARTS, type WeekStart } from '@vamar/shared';
+import { WEEK_STARTS, filsToInputText, parseAmountInput, type WeekStart } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import {
   Button,
@@ -44,17 +44,18 @@ export function SettingsPage() {
     setHijri(q.data.hijriDisplay);
     setFeeLabel(q.data.showBeforeFeeLabel);
     setFiles(q.data.ownersSeeInvoiceFiles);
-    setThreshold(String(Math.round(q.data.largeExpenseAlertFils / 100)));
-    setApprovalThreshold(String(Math.round(q.data.repairApprovalThresholdFils / 100)));
+    setThreshold(filsToInputText(q.data.largeExpenseAlertFils));
+    setApprovalThreshold(filsToInputText(q.data.repairApprovalThresholdFils));
     setSilenceDays(String(q.data.repairApprovalSilenceDays));
   }, [q.data]);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
-  const aed = Number(threshold.replace(/[^0-9.]/g, ''));
-  const valid = Number.isFinite(aed) && aed >= 0;
-  const approvalAed = Number(approvalThreshold.replace(/[^0-9.]/g, ''));
-  const approvalValid =
-    approvalThreshold.trim() !== '' && Number.isFinite(approvalAed) && approvalAed >= 0;
+  // parseAmountInput reads Arabic-Indic digits and separators; stripping everything but 0-9 and
+  // '.' turned ١٠٠٠٠ into an empty string, saved as 0. An empty alert threshold still means 0.
+  const thresholdFils = threshold.trim() === '' ? 0 : parseAmountInput(threshold);
+  const valid = thresholdFils !== null;
+  const approvalFils = parseAmountInput(approvalThreshold);
+  const approvalValid = approvalFils !== null;
   // Whole days, 0 to 60: the range the API accepts.
   const days = /^\d{1,2}$/.test(silenceDays.trim()) ? Number(silenceDays.trim()) : NaN;
   const daysValid = Number.isInteger(days) && days >= 0 && days <= 60;
@@ -65,8 +66,8 @@ export function SettingsPage() {
       hijri !== q.data.hijriDisplay ||
       feeLabel !== q.data.showBeforeFeeLabel ||
       files !== q.data.ownersSeeInvoiceFiles ||
-      Math.round(aed * 100) !== q.data.largeExpenseAlertFils ||
-      Math.round(approvalAed * 100) !== q.data.repairApprovalThresholdFils ||
+      thresholdFils !== q.data.largeExpenseAlertFils ||
+      approvalFils !== q.data.repairApprovalThresholdFils ||
       days !== q.data.repairApprovalSilenceDays);
 
   async function submit() {
@@ -76,8 +77,8 @@ export function SettingsPage() {
       hijriDisplay: hijri,
       showBeforeFeeLabel: feeLabel,
       ownersSeeInvoiceFiles: files,
-      largeExpenseAlertFils: Math.round(aed * 100),
-      repairApprovalThresholdFils: Math.round(approvalAed * 100),
+      largeExpenseAlertFils: thresholdFils ?? 0,
+      repairApprovalThresholdFils: approvalFils ?? 0,
       repairApprovalSilenceDays: days,
     });
     setNotice(t('settings_saved'));

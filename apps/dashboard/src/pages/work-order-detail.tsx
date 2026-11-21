@@ -7,6 +7,8 @@ import { useMemo, useState } from 'react';
 import {
   WORK_ORDER_PRIORITIES,
   WORK_ORDER_STATUSES,
+  filsToInputText,
+  parseAmountInput,
   todayInDubai,
   type PlainDate,
   type WorkOrderPriority,
@@ -121,16 +123,16 @@ export function WorkOrderDetailPage() {
     setScheduledFor((w.scheduledFor as PlainDate | null) ?? null);
     setVendorId(w.vendorId ?? '');
     setVisibleToOwner(w.visibleToOwner);
-    setEstimate(w.estimateFils === null ? '' : String(w.estimateFils / 100));
+    setEstimate(filsToInputText(w.estimateFils));
   }
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
   const editor = auth.hasRole('editor');
   const locked = w?.status === 'cancelled';
-  const estimateText = estimate.replace(/[^0-9.]/g, '');
-  const estimateFils = estimateText === '' ? null : Math.round(Number(estimateText) * 100);
-  const estimateValid =
-    estimateFils === null || (Number.isSafeInteger(estimateFils) && estimateFils > 0);
+  // Arabic-Indic digits and separators are read, not dropped (parseAmountInput).
+  const estimateBlank = estimate.trim() === '';
+  const estimateFils = estimateBlank ? null : parseAmountInput(estimate);
+  const estimateValid = estimateBlank || (estimateFils !== null && estimateFils > 0);
   const canSave =
     editor &&
     !locked &&

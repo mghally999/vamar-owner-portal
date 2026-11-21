@@ -153,6 +153,8 @@ describe('WorkOrderDetailPage', () => {
       screen.getByRole('textbox', { name: /^Description/ }),
       'Tenant reported water on the floor.',
     );
+    // Arabic-Indic digits are read, not stripped to an empty (or wrong) amount.
+    await user.type(screen.getByRole('textbox', { name: /^Estimate \(AED\)/ }), '٢٬٥٠٠٫٥٠');
     await user.click(screen.getByRole('button', { name: 'Create' }));
     await vi.waitFor(() => {
       expect(api.last('POST', '/api/staff/work-orders').body).toMatchObject({
@@ -164,6 +166,7 @@ describe('WorkOrderDetailPage', () => {
         scheduledFor: '2026-12-05',
         vendorId: 'ven-clean',
         visibleToOwner: true,
+        estimateFils: 250_050,
       });
     });
     await vi.waitFor(() => {

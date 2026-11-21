@@ -34,7 +34,8 @@ describe('SettingsPage', () => {
     await user.selectOptions(week, 'sunday');
     await user.click(screen.getByRole('checkbox', { name: /Hijri/ }));
     await user.clear(threshold);
-    await user.type(threshold, '7500');
+    // Typed on an Arabic keyboard: the digits used to be stripped and 0 saved.
+    await user.type(threshold, '٧٬٥٠٠');
     await user.click(save);
     expect(await screen.findByText('Settings saved.')).toBeTruthy();
     expect(api.last('PATCH', '/api/staff/settings').body).toEqual({
