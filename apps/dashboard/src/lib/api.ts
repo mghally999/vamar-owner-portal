@@ -109,13 +109,19 @@ const authFetch: typeof fetch = async (input, init) => {
     if (token) headers.set('authorization', `Bearer ${token}`);
     return fetch(input, { ...init, headers, credentials: 'include' });
   };
-  let res = await run(accessToken);
   const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
   const isAuthCall = url.includes('/api/auth/staff/');
+  // On load the page's queries start before the session is restored (child effects run before
+  // AuthProvider's). They wait for that one refresh instead of going out without a token, failing
+  // with 401 and starting a second refresh: one request and one 401 fewer per early query.
+  const restored =
+    accessToken === null && !isAuthCall && hasSessionFlag() ? await refreshStaffSession() : null;
+  let res = await run(accessToken);
   if (res.status === 401 && !isAuthCall) {
     // Expired or missing access token: one cookie refresh, then replay. Only a refusal ends the
     // session; a server hiccup leaves the 401 to the caller's retry policy.
-    const next = await refreshStaffSession();
+    // A refresh that just failed for this request is not tried again.
+    const next = restored && !restored.ok ? restored : await refreshStaffSession();
     if (next.ok) {
       // Read the refused response before replacing it: an unread body keeps its request open in
       // the browser, one per page load that raced the session refresh.

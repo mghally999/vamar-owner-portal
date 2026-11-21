@@ -143,6 +143,46 @@ describe('request', () => {
     expect(lost).not.toHaveBeenCalled();
   });
 
+  it('a request made while the session is restored waits for that one refresh', async () => {
+    // A reload: the session flag is set, no token yet, and the page's queries start at once.
+    setSessionFlag(true);
+    const api = mockApi({
+      'GET /api/staff/overview': (c: ApiCall) =>
+        c.headers.get('authorization') === 'Bearer fresh'
+          ? { month: '2026-10' }
+          : apiError(401, 'unauthenticated'),
+      'GET /api/staff/messages/counts': (c: ApiCall) =>
+        c.headers.get('authorization') === 'Bearer fresh'
+          ? { unreadThreads: 0, waiting: 0 }
+          : apiError(401, 'unauthenticated'),
+      'POST /api/auth/staff/refresh': { accessToken: 'fresh', user: staffUser() },
+    });
+    await Promise.all([
+      request('/api/staff/overview'),
+      request('/api/staff/messages/counts'),
+      refreshStaffSession(), // AuthProvider's own, started after the queries
+    ]);
+    // One refresh, and each query sent once with the token: no 401 and no replay.
+    expect(api.calls.map((c) => c.path)).toEqual([
+      '/api/auth/staff/refresh',
+      '/api/staff/overview',
+      '/api/staff/messages/counts',
+    ]);
+  });
+
+  it('does not refresh twice for one request when the restore is refused', async () => {
+    const lost = vi.fn();
+    setSessionLostHandler(lost);
+    setSessionFlag(true);
+    const api = mockApi({
+      'GET /api/staff/overview': apiError(401, 'unauthenticated'),
+      'POST /api/auth/staff/refresh': apiError(401, 'unauthenticated'),
+    });
+    await expect(request('/api/staff/overview')).rejects.toMatchObject({ status: 401 });
+    expect(api.to('POST', '/api/auth/staff/refresh')).toHaveLength(1);
+    expect(lost).toHaveBeenCalledTimes(1);
+  });
+
   it('never refreshes for the sign-in routes themselves', async () => {
     const api = mockApi({ 'POST /api/auth/staff/totp/verify': apiError(401, 'totp_invalid') });
     await expect(
