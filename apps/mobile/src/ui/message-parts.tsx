@@ -144,6 +144,8 @@ export function MessageComposer({
   return (
     <View style={{ gap: 8 }}>
       <TextInput
+        // Grows with the phone's text size up to the cap Text uses (src/ui/index.tsx).
+        maxFontSizeMultiplier={1.3}
         accessibilityLabel={label}
         value={text}
         onChangeText={setText}

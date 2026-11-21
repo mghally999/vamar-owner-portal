@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
+import { ScrollView } from 'react-native';
 import ChequeDetailScreen from '../../../app/cheque/[id]';
 import ThreadScreen from '../../../app/message/[id]';
 import NewThreadScreen from '../../../app/message/new';
@@ -280,5 +281,40 @@ describe('Messages, requests', () => {
     expect(await screen.findByText('Is this cheque <b>registered</b>?')).toBeTruthy();
     await new Promise((r) => setTimeout(r, 50));
     expect(sent('POST /api/owner/messages/th-1/read')).toHaveLength(0);
+  });
+});
+
+describe('Thread, scrolling and text size', () => {
+  it('opens at the newest message and follows a new one', async () => {
+    const scrollToEnd = (ScrollView.prototype as unknown as { scrollToEnd: jest.Mock }).scrollToEnd;
+    scrollToEnd.mockClear();
+    routeState.params = { id: 'th-1' };
+    mockApi({
+      'GET /api/owner/messages/th-1': { body: detail() },
+      'POST /api/owner/messages/th-1/read': { body: { ok: true } },
+    });
+    await renderApp(<ThreadScreen />);
+    await screen.findByText('Is this cheque <b>registered</b>?');
+    const [view] = screen.container.queryAll(
+      (node) =>
+        typeof node.type === 'string' && typeof node.props.onContentSizeChange === 'function',
+    );
+    if (!view) throw new Error('no scroll view');
+    await fireEvent(view, 'contentSizeChange', 400, 1600);
+    expect(scrollToEnd).toHaveBeenLastCalledWith({ animated: false });
+    // Same last message (a poll, a resize): stays where the owner is.
+    await fireEvent(view, 'contentSizeChange', 400, 1700);
+    expect(scrollToEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps how far the writing box grows with the phone text size, as text does', async () => {
+    routeState.params = { id: 'th-1' };
+    mockApi({
+      'GET /api/owner/messages/th-1': { body: detail() },
+      'POST /api/owner/messages/th-1/read': { body: { ok: true } },
+    });
+    await renderApp(<ThreadScreen />);
+    const box = await screen.findByLabelText('Your reply');
+    expect(box.props.maxFontSizeMultiplier).toBe(1.3);
   });
 });

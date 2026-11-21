@@ -87,6 +87,7 @@ export default function PhoneScreen() {
             </Text>
           </View>
           <TextInput
+            maxFontSizeMultiplier={1.3}
             accessibilityLabel={tr('phone_label')}
             value={local}
             onChangeText={(v) => {

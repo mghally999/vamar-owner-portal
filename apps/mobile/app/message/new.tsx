@@ -44,6 +44,7 @@ export default function NewThreadScreen() {
           {tm('message_subject')}
         </Text>
         <TextInput
+          maxFontSizeMultiplier={1.3}
           accessibilityLabel={tm('message_subject')}
           value={subject}
           onChangeText={setSubject}

@@ -199,6 +199,7 @@ function AnswerForm({ approval }: { approval: ApprovalDetail }) {
         {ta('approval_note')}
       </Text>
       <TextInput
+        maxFontSizeMultiplier={1.3}
         accessibilityLabel={ta('approval_note')}
         value={note}
         onChangeText={setNote}

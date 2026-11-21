@@ -1,5 +1,5 @@
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { useMarkRead, useReply, useThread } from '@/lib/message-queries';
 import { useMessageText } from '@/lib/message-text';
@@ -29,10 +29,24 @@ export default function ThreadScreen() {
     if (th?.id && lastId && hasUnread) markRead(th.id);
   }, [th?.id, lastId, hasUnread, markRead]);
 
+  // Oldest first with the reply box last: open at the newest message, and follow each new one.
+  const scroll = useRef<ScrollView>(null);
+  const shownLast = useRef<string | undefined>(undefined);
+
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
 
   return (
-    <ScrollView contentContainerStyle={layout.screen} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      ref={scroll}
+      contentContainerStyle={layout.screen}
+      keyboardShouldPersistTaps="handled"
+      onContentSizeChange={() => {
+        if (!lastId || shownLast.current === lastId) return;
+        // The first time without animation (the screen opens there), later ones scroll.
+        scroll.current?.scrollToEnd({ animated: shownLast.current !== undefined });
+        shownLast.current = lastId;
+      }}
+    >
       <View style={{ gap: 6, paddingVertical: 8 }}>
         {th ? (
           <>

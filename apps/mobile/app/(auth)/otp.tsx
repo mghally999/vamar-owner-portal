@@ -58,6 +58,7 @@ export default function OtpScreen() {
         </Text>
       </View>
       <TextInput
+        maxFontSizeMultiplier={1.3}
         accessibilityLabel={tr('otp_title')}
         value={code}
         onChangeText={(v) => {
