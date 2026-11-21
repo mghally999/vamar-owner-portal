@@ -1,6 +1,8 @@
 /** Owner messages: the inbox, one thread, the header counts and the staff writes. */
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MessageLinkType, MessageSenderType, MessageThreadStatus } from '@vamar/shared';
+import { useEffect } from 'react';
+import { useActive } from '@/lib/activity';
 import { qs, request } from '@/lib/api';
 import { keys } from '@/lib/queries';
 
@@ -85,15 +87,29 @@ export function useInbox(f: InboxFilters) {
 }
 
 /** The header badge: open threads with an owner message nobody on staff has read yet. */
+/** How often the header count is polled while someone is using the tab. */
+export const COUNTS_POLL_MS = 60_000;
+
+/**
+ * The header's unread count. It polls only while the tab is visible and in use (lib/activity.ts):
+ * a dashboard left open on an idle screen used to ask every minute all day, keeping the database
+ * awake. Coming back catches up at once when the count is older than one poll.
+ */
 export function useMessageCounts() {
-  return useQuery({
+  const active = useActive();
+  const q = useQuery({
     queryKey: messageKeys.counts,
     queryFn: () =>
       request<{ unreadThreads: number; waiting: number }>('/api/staff/messages/counts'),
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: active ? COUNTS_POLL_MS : false,
     retry: false,
   });
+  const { refetch, dataUpdatedAt } = q;
+  useEffect(() => {
+    if (active && dataUpdatedAt > 0 && Date.now() - dataUpdatedAt > COUNTS_POLL_MS) void refetch();
+  }, [active, dataUpdatedAt, refetch]);
+  return q;
 }
 
 export function useThread(id: string) {

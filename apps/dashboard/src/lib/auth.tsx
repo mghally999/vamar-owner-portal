@@ -8,7 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { isActive, onActivityChange } from './activity';
 import {
+  accessTokenAge,
   ApiRequestError,
   getCachedUser,
   hasSessionFlag,
@@ -50,6 +52,8 @@ const RANK = { viewer: 0, editor: 1, admin: 2 } as const;
 /** Access tokens live 15 minutes; refresh with a margin. */
 const ACCESS_TOKEN_MINUTES = 15;
 const REFRESH_EVERY_MS = (ACCESS_TOKEN_MINUTES - 3) * 60_000;
+/** How often the age of the token is checked (no request unless it is due). */
+const CHECK_EVERY_MS = 60_000;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [stage, setStage] = useState<AuthStage>('loading');
@@ -83,11 +87,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, [queryClient]);
 
-  // Refresh the access token before it expires while signed in. A server hiccup is retried on
-  // the next tick; only a refusal ends the session.
+  // Refresh the access token before it expires, but only while someone is using the tab: a
+  // hidden or idle tab no longer wakes the database every 12 minutes. Coming back refreshes a
+  // token that has gone stale before the page asks for anything (a request that still meets an
+  // expired token refreshes on its own). A server hiccup is retried on the next check; only a
+  // refusal ends the session.
   useEffect(() => {
     if (stage !== 'authenticated') return;
-    const id = window.setInterval(() => {
+    const refreshIfDue = () => {
+      if (!isActive() || accessTokenAge() < REFRESH_EVERY_MS) return;
       void refreshStaffSession().then((r) => {
         if (!r.ok && r.reason === 'unauthenticated') {
           setAccessToken(null);
@@ -98,9 +106,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           window.location.assign('/login?reason=expired');
         }
       });
-    }, REFRESH_EVERY_MS);
+    };
+    const id = window.setInterval(refreshIfDue, CHECK_EVERY_MS);
+    const unsubscribe = onActivityChange(refreshIfDue);
     return () => {
       window.clearInterval(id);
+      unsubscribe();
     };
   }, [stage, queryClient]);
 

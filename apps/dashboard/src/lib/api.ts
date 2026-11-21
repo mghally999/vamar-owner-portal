@@ -51,8 +51,15 @@ export function setSessionFlag(on: boolean): void {
   }
 }
 
+/** When the current access token was received (ms since epoch); 0 without one. */
+let accessTokenAt = 0;
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  accessTokenAt = token ? Date.now() : 0;
+}
+/** How old the access token is, in ms (Infinity without one). */
+export function accessTokenAge(): number {
+  return accessToken ? Date.now() - accessTokenAt : Infinity;
 }
 export function getAccessToken() {
   return accessToken;
@@ -76,7 +83,7 @@ export async function refreshStaffSession(): Promise<RefreshOutcome> {
       }
       if (!res.ok) return { ok: false, reason: 'transient' };
       const body: { accessToken: string; user: StaffUser } = await res.json();
-      accessToken = body.accessToken;
+      setAccessToken(body.accessToken);
       currentUser = body.user;
       setSessionFlag(true);
       return { ok: true, token: body.accessToken };

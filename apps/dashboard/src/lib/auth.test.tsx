@@ -37,6 +37,21 @@ function renderAuth() {
 
 const assign = vi.fn();
 
+/** Moves the clock on minute by minute with someone typing, so the tab stays active. */
+async function useFor(ms: number) {
+  for (let t = 0; t < ms; t += 60_000) {
+    window.dispatchEvent(new KeyboardEvent('keydown'));
+    await vi.advanceTimersByTimeAsync(60_000);
+  }
+}
+
+let visibility: DocumentVisibilityState = 'visible';
+function setVisibility(v: DocumentVisibilityState) {
+  visibility = v;
+  document.dispatchEvent(new Event('visibilitychange'));
+}
+Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
+
 beforeEach(() => {
   localStorage.clear();
   setAccessToken(null);
@@ -54,6 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  visibility = 'visible';
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
@@ -88,7 +104,7 @@ describe('AuthProvider', () => {
     // A server hiccup on a scheduled refresh keeps the session.
     mockApi({ 'POST /api/auth/staff/refresh': apiError(503, 'unavailable') });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(12 * 60_000);
+      await useFor(12 * 60_000);
     });
     expect(screen.getByText('stage:authenticated')).toBeTruthy();
     expect(assign).not.toHaveBeenCalled();
@@ -100,11 +116,49 @@ describe('AuthProvider', () => {
       }),
     });
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(12 * 60_000);
+      await useFor(2 * 60_000);
     });
     expect(await screen.findByText('stage:anonymous')).toBeTruthy();
     expect(assign).toHaveBeenCalledWith('/login?reason=expired');
     expect(getAccessToken()).toBeNull();
+  });
+
+  it('does not refresh while the tab is hidden or idle, and refreshes a stale token on return', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    localStorage.setItem('vamar_staff_session', '1');
+    const api = mockApi({
+      'POST /api/auth/staff/refresh': { accessToken: 'access-1', user: staffUser() },
+    });
+    renderAuth();
+    expect(await screen.findByText('stage:authenticated')).toBeTruthy();
+    const refreshes = () => api.to('POST', '/api/auth/staff/refresh').length;
+    expect(refreshes()).toBe(1);
+    // An hour behind other tabs: before, five refreshes woke the database.
+    act(() => {
+      setVisibility('hidden');
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+    });
+    expect(refreshes()).toBe(1);
+    // Back on the tab: the stale token is renewed at once.
+    act(() => {
+      setVisibility('visible');
+    });
+    await vi.waitFor(() => {
+      expect(refreshes()).toBe(2);
+    });
+    // Visible but nobody using it: one refresh is due at 12 min, but the tab is idle from 5 min.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60 * 60_000);
+    });
+    expect(refreshes()).toBe(2);
+    act(() => {
+      window.dispatchEvent(new Event('pointerdown'));
+    });
+    await vi.waitFor(() => {
+      expect(refreshes()).toBe(3);
+    });
   });
 
   it('a request refused mid-session signs out and leaves the page for the login', async () => {
