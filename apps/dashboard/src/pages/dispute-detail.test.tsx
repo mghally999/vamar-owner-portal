@@ -213,7 +213,10 @@ describe('DisputeDetailPage', () => {
 
   it('saves edited internal notes', async () => {
     const { api, user } = await renderApp('/disputes/dsp-1', { routes: routes() });
-    const notes = await screen.findByDisplayValue('Tenant asked for a payment plan.');
+    const notes = await screen.findByRole('textbox', {
+      name: 'Internal notes (never shown to owners)',
+    });
+    expect(notes).toHaveProperty('value', 'Tenant asked for a payment plan.');
     const save = screen.getByRole('button', { name: 'Save' });
     expect(save).toHaveProperty('disabled', true);
     await user.type(notes, ' Declined.');

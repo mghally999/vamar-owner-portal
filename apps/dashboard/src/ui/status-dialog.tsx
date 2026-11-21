@@ -19,7 +19,7 @@ import { useChangeChequeStatus, type StatusChangeInput } from '@/lib/queries';
 import { useHolidaySet } from '@/lib/queries-v2';
 import { DatePicker } from './date-picker';
 import { Dialog } from './dialog';
-import { Button, ChequeStatusChip, Field, Input, Select, Textarea } from './primitives';
+import { Button, ChequeStatusChip, Field, Input, Textarea } from './primitives';
 
 interface ChequeLike {
   id: string;
@@ -221,7 +221,6 @@ export function StatusDialog({
           {error ? <p className="text-[13px] text-danger">{error}</p> : null}
         </div>
       )}
-      <Select className="hidden" aria-hidden tabIndex={-1} />
     </Dialog>
   );
 }

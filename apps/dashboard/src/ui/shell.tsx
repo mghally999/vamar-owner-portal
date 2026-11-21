@@ -194,9 +194,9 @@ export function AppShell() {
             onClick={() => {
               setOpen(true);
             }}
-            aria-label="Menu"
+            aria-label={t('nav_menu')}
           >
-            <Menu className="size-6" />
+            <Menu className="size-6" aria-hidden />
           </button>
         </div>
       </header>

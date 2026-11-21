@@ -554,6 +554,7 @@ function NotesEditor({ value, onSave }: { value: string; onSave: (v: string) => 
           setText(e.target.value);
         }}
         rows={4}
+        aria-label={t('dispute_internalNotes')}
       />
       <div className="flex justify-end">
         <Button
