@@ -78,7 +78,7 @@ jobs:
           PW_CHANNEL: chromium
           PWA_URL: https://vamar-owner-portal-staging.vamar-api.workers.dev
         run: |
-          npx playwright install --with-deps chromium
+          bash ../../tooling/ci/install-playwright.sh
           pnpm e2e:pwa
       - name: Staging from outside (Playwright, both themes and languages, headers, refusals)
         working-directory: apps/dashboard

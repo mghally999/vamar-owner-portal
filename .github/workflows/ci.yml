@@ -31,6 +31,14 @@ jobs:
         run: pnpm typecheck
       - name: Lint
         run: pnpm lint
+      # monitor/ (the uptime Worker) and tooling/ are not workspace packages, so turbo's typecheck,
+      # lint and test tasks do not reach them; they use the root node_modules.
+      - name: Uptime monitor and CI tooling (typecheck, lint, unit tests)
+        run: |
+          npx tsc -p monitor/tsconfig.json
+          npx tsc -p tooling/tsconfig.json
+          npx eslint monitor tooling
+          npx vitest run --root monitor
       - name: Format check
         run: pnpm format:check
       - name: Tests with coverage thresholds (PGlite in-process; no database service needed)
@@ -116,24 +124,17 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
       - name: Install
         run: pnpm install --frozen-lockfile
       - name: Playwright browsers
-        # The system packages come from the Ubuntu mirrors, which are sometimes unreachable from
-        # the runners: retry, then install the browser alone (the runner image already carries
-        # Chrome's libraries) rather than failing the job before any test runs.
-        run: |
-          # Each attempt is capped: an unreachable mirror makes apt wait for many minutes.
-          for attempt in 1 2; do
-            timeout 300 pnpm --filter @vamar/dashboard exec playwright install --with-deps chromium && exit 0
-            echo "browser install with system packages failed (attempt $attempt)"; sleep 15
-          done
-          echo "::warning::Ubuntu mirrors unreachable; installing Chromium without system packages"
-          pnpm --filter @vamar/dashboard exec playwright install chromium
+        # Chromium from Playwright's CDN; the Ubuntu packages only when it does not start without
+        # them (the apt mirrors often hang from the runners: tooling/ci/install-playwright.sh).
+        working-directory: apps/dashboard
+        run: bash ../../tooling/ci/install-playwright.sh
       - name: Build the dashboard and the owner web app (served by the API at /app)
         # journeys-owner.spec.ts drives the owner web app; the API dev server serves it from
         # apps/dashboard/dist/app when that exists at start. The emulator's demo Firebase config is

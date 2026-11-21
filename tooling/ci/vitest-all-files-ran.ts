@@ -8,11 +8,11 @@ import type { Reporter, TestModule, TestSpecification } from 'vitest/node';
 export default class AllTestFilesRan implements Reporter {
   private selected: string[] = [];
 
-  onTestRunStart(specifications: ReadonlyArray<TestSpecification>): void {
+  onTestRunStart(specifications: readonly TestSpecification[]): void {
     this.selected = specifications.map((s) => s.moduleId);
   }
 
-  onTestRunEnd(modules: ReadonlyArray<TestModule>, unhandledErrors: ReadonlyArray<unknown>): void {
+  onTestRunEnd(modules: readonly TestModule[], unhandledErrors: readonly unknown[]): void {
     const ran = new Set(
       modules
         .filter((m) => {
