@@ -129,19 +129,21 @@ the toolchain; the CI job "Docker image" proves it on every push.
    and on the 1st of each month sends every owner a summary of the month that ended (collected,
    expenses, net). Each push is sent once (dedupe key). Staging has no cron: run it with
    `POST /api/staff/jobs/daily` as an admin.
-4. **Owner app.** The v2 owner app is JavaScript only (no new native module): it reaches installed
-   apps of version 1.2.0 through `eas update --channel preview` (runtime 1.2.0), no new APK and no
-   change to `APP_LATEST_VERSION` or `APP_MIN_VERSION`. The APK is built for 64-bit ARM phones only (`arm64-v8a`, which keeps it near
-   37 MB): it does not install on x86 emulators or Chromebooks; the download page says so. The
-   `staging` build profile in `apps/mobile/eas.json` builds the same app against the staging API
-   for testing. JavaScript-only fixes: `eas update --channel preview` reaches installed apps of
-   the same version on their next launch. Native changes: raise `version` in
-   `apps/mobile/app.config.ts`, `eas build --profile preview --platform android`, upload the APK
-   (`npx wrangler r2 object put vamar-files/releases/vamar-owner-app.apk --file <apk> --remote`,
-   same for `vamar-files-staging`), then set `APP_LATEST_VERSION` in `apps/api/wrangler.jsonc`
-   and deploy: installed apps show an update banner. Raise `APP_MIN_VERSION` only when old apps
-   must stop working (they then show a blocking "update required" screen). The web app updates
-   itself on the next visit.
+4. **Owner app.** Installed apps of version 1.2.0 get JavaScript changes through
+   `eas update --channel preview --environment preview` (runtime 1.2.0) on their next two
+   launches: no new APK. The APK is built for 64-bit ARM phones only (`arm64-v8a`, about 37 MB):
+   it does not run on x86 emulators or Chromebooks, and the download page says so. Two more
+   build profiles in `apps/mobile/eas.json`: `staging` (the same app against the staging API)
+   and `emulator` (x86_64, production API, preview channel) for testing on an Android emulator.
+   **New APK** (native changes): raise `version` in `apps/mobile/app.config.ts`, then
+   `eas build --profile preview --platform android`, then run the **Publish APK** workflow
+   (GitHub > Actions) with the build's artifact link, once for `production` and once for
+   `staging`. It checks the version, the update channel, the ARM64 code and the API address,
+   keeps the replaced APK under `releases/archive/`, and reads the new one back through
+   `/download`. Do it before EAS deletes the artifact (about 30 days). Then set
+   `APP_LATEST_VERSION` in `apps/api/wrangler.jsonc` and deploy: older apps show an update
+   banner. Raise `APP_MIN_VERSION` only when old apps must stop working (they then show a
+   blocking "update required" screen). The web app updates itself on the next visit.
 
 ## Keeping it healthy
 
