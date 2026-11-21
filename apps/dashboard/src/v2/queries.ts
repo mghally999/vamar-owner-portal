@@ -115,6 +115,17 @@ export function useDeleteEvent() {
 
 // Holidays -----------------------------------------------------------------------------------------
 
+/**
+ * Holidays, settings, categories and vendors are also read through lib/queries-v2.ts under keys
+ * without the 'v2' prefix (date pickers, the period bar, expense forms). A change made here
+ * refreshes both, or those pages kept the old values until their staleTime ran out (up to an hour
+ * for the holiday warnings).
+ */
+function invalidateBoth(qc: ReturnType<typeof useQueryClient>, v2: string, lib: string) {
+  void qc.invalidateQueries({ queryKey: ['v2', v2] });
+  void qc.invalidateQueries({ queryKey: [lib] });
+}
+
 export function useHolidays(year?: number) {
   return useQuery({
     queryKey: v2keys.holidays(year),
@@ -129,7 +140,9 @@ export function useUpsertHoliday() {
   return useMutation({
     mutationFn: (input: Holiday) =>
       request<Holiday>('/api/staff/holidays', { method: 'PUT', body: JSON.stringify(input) }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['v2', 'holidays'] }),
+    onSuccess: () => {
+      invalidateBoth(qc, 'holidays', 'holidays');
+    },
   });
 }
 
@@ -137,7 +150,9 @@ export function useDeleteHoliday() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (date: string) => request(`/api/staff/holidays/${date}`, { method: 'DELETE' }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['v2', 'holidays'] }),
+    onSuccess: () => {
+      invalidateBoth(qc, 'holidays', 'holidays');
+    },
   });
 }
 
@@ -158,6 +173,7 @@ export function useUpdateSettings() {
       request<Settings>('/api/staff/settings', { method: 'PATCH', body: JSON.stringify(patch) }),
     onSuccess: (data) => {
       qc.setQueryData(v2keys.settings, data);
+      void qc.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 }
@@ -188,7 +204,9 @@ export function useSaveCategory() {
             method: 'POST',
             body: JSON.stringify(body),
           }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['v2', 'categories'] }),
+    onSuccess: () => {
+      invalidateBoth(qc, 'categories', 'expense-categories');
+    },
   });
 }
 
@@ -213,7 +231,9 @@ export function useSaveVendor() {
             body: JSON.stringify(body),
           })
         : request<Vendor>('/api/staff/vendors', { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['v2', 'vendors'] }),
+    onSuccess: () => {
+      invalidateBoth(qc, 'vendors', 'vendors');
+    },
   });
 }
 

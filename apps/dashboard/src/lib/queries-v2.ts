@@ -75,7 +75,11 @@ export function useCreateVendor() {
       email?: string | null;
       trn?: string | null;
     }) => request<Vendor>('/api/staff/vendors', { method: 'POST', body: JSON.stringify(input) }),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['vendors'] }),
+    onSuccess: () => {
+      // The vendors page reads them under ['v2', 'vendors'] (src/v2/queries.ts).
+      void qc.invalidateQueries({ queryKey: ['vendors'] });
+      void qc.invalidateQueries({ queryKey: ['v2', 'vendors'] });
+    },
   });
 }
 
