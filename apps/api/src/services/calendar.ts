@@ -17,7 +17,11 @@ import { EXPECTED_STATUS_LIST, orSql, type Dbx } from '../db.js';
 import { notFound } from '../errors.js';
 import type { Patch } from '../util/types.js';
 import { audit, type AuditActor } from './audit.js';
-import { ownerUnitsSubquery } from './owner-scope.js';
+import {
+  chequeHeldOnDueDate,
+  ownershipOnChequeDueDate,
+  ownerUnitsSubquery,
+} from './owner-scope.js';
 import { workOrderInOwnerScope } from './work-orders.js';
 
 const {
@@ -75,10 +79,15 @@ export async function calendarItems(
   scope: Scope,
 ): Promise<CalendarItem[]> {
   const items: CalendarItem[] = [];
-  const unitFilter = (col: typeof contracts.unitId | typeof disputes.unitId): SQL[] => {
+  /** `ownerScope` replaces the owner's current units (cheques follow their due date). */
+  const unitFilter = (
+    col: typeof contracts.unitId | typeof disputes.unitId,
+    ownerScope?: (ownerId: string) => SQL,
+  ): SQL[] => {
     const out: SQL[] = [];
     if (range.unitId) out.push(eq(col, range.unitId));
-    if (scope.ownerId) out.push(inArray(col, ownerUnitsSubquery(db, scope.ownerId)));
+    if (scope.ownerId)
+      out.push(ownerScope?.(scope.ownerId) ?? inArray(col, ownerUnitsSubquery(db, scope.ownerId)));
     else if (range.ownerId) out.push(inArray(col, ownerUnitsSubquery(db, range.ownerId)));
     return out;
   };
@@ -102,12 +111,12 @@ export async function calendarItems(
           bAr: buildings.nameAr,
           bEn: buildings.nameEn,
           tenant: tenants.name,
-          // The owner's share valid on the cheque's due date (as in the summary); null when
-          // the owner did not hold the unit on that day.
+          // The owner's share valid on the cheque's due date (as in the summary and the
+          // period list), so a unit sold since still shows the seller its cheques of that time.
           shareBp: scope.ownerId
             ? sql<
                 number | null
-              >`(select uo.share_bp from ${unitOwnerships} uo where uo.unit_id = ${contracts.unitId} and uo.owner_id = ${scope.ownerId} and uo.from_date <= ${cheques.dueDate} and (uo.to_date is null or uo.to_date > ${cheques.dueDate}) limit 1)`
+              >`(select ${unitOwnerships.shareBp} from ${unitOwnerships} where ${unitOwnerships.unitId} = ${contracts.unitId} and ${unitOwnerships.ownerId} = ${scope.ownerId} and ${ownershipOnChequeDueDate()} limit 1)`
             : sql<number | null>`10000`,
         })
         .from(cheques)
@@ -121,7 +130,7 @@ export async function calendarItems(
             lte(cheques.dueDate, range.to),
             sql`${contracts.status} <> 'draft'`,
             sql`${cheques.status} in ${EXPECTED_STATUS_LIST}`,
-            ...unitFilter(contracts.unitId),
+            ...unitFilter(contracts.unitId, (ownerId) => chequeHeldOnDueDate(db, ownerId)),
             ...buildingFilter(),
           ),
         )

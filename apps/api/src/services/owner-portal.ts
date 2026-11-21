@@ -18,6 +18,8 @@ import {
   chequeInOwnerScope,
   contractInOwnerScope,
   disputeInOwnerScope,
+  ownershipOnChequeDueDate,
+  ownershipShowsCheque,
   unitInOwnerScope,
 } from './owner-scope.js';
 import { decodeCursor, defineSort, page, sortedKeyset } from '../util/pagination.js';
@@ -235,9 +237,7 @@ export async function ownerCheques(db: Dbx, ownerId: string, q: OwnerChequeQuery
   const byDueDate = q.from !== undefined || q.to !== undefined;
   const conditions: (SQL | undefined)[] = [
     eq(unitOwnerships.ownerId, ownerId),
-    byDueDate
-      ? sql`${unitOwnerships.fromDate} <= ${cheques.dueDate} and (${unitOwnerships.toDate} is null or ${unitOwnerships.toDate} > ${cheques.dueDate})`
-      : isNull(unitOwnerships.toDate),
+    byDueDate ? ownershipOnChequeDueDate() : isNull(unitOwnerships.toDate),
     sql`${contracts.status} <> 'draft'`,
     sql`${cheques.amountFils} is not null`,
   ];
@@ -273,6 +273,11 @@ export async function ownerCheques(db: Dbx, ownerId: string, q: OwnerChequeQuery
   return { items: p.items.map(withShare), nextCursor: p.nextCursor };
 }
 
+/**
+ * One cheque as the lists show it: a sold unit's cheque stays open to the seller for the time
+ * they held it, with the share of its due date (as the period list); a cheque on a unit the
+ * owner holds now and did not hold on its due date (the unit screen) carries the current share.
+ */
 export async function ownerChequeDetail(db: Dbx, ownerId: string, chequeId: string) {
   const [row] = await db
     .select({ ...ownerChequeSelect, imageKey: cheques.imageKey })
@@ -281,11 +286,7 @@ export async function ownerChequeDetail(db: Dbx, ownerId: string, chequeId: stri
     .innerJoin(units, eq(units.id, contracts.unitId))
     .innerJoin(
       unitOwnerships,
-      and(
-        eq(unitOwnerships.unitId, units.id),
-        eq(unitOwnerships.ownerId, ownerId),
-        isNull(unitOwnerships.toDate),
-      ),
+      and(eq(unitOwnerships.unitId, units.id), ownershipShowsCheque(ownerId)),
     )
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
@@ -295,7 +296,10 @@ export async function ownerChequeDetail(db: Dbx, ownerId: string, chequeId: stri
         chequeInOwnerScope(db, ownerId),
         sql`${contracts.status} <> 'draft'`,
       ),
-    );
+    )
+    // Both rows can match (held then, holds now): the share of the due date wins.
+    .orderBy(sql`case when ${ownershipOnChequeDueDate()} then 0 else 1 end`)
+    .limit(1);
   if (!row) throw notFound('Cheque');
   const timeline = await db
     .select({
