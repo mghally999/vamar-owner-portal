@@ -9,7 +9,7 @@ import {
   type ChequeStatus,
   type PlainDate,
   sharePct,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { groupByDay } from '@/lib/calendar';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';

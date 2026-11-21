@@ -1,7 +1,7 @@
 import { useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { ScrollView, View } from 'react-native';
-import { sharePct } from '@vamar/shared';
+import { sharePct } from '@/lib/shared';
 import { API_BASE, authHeaders } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useCheque } from '@/lib/queries';

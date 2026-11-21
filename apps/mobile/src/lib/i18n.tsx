@@ -17,7 +17,7 @@ import {
   formatNumber,
   type Lang,
   type PlainDate,
-} from '@vamar/shared';
+} from './shared';
 import { messages, type MessageKey } from './messages';
 import { getItem, setItem } from './storage';
 

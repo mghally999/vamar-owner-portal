@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, View } from 'react-native';
-import { todayInDubai } from '@vamar/shared';
+import { todayInDubai } from '@/lib/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { useMe, useStatementYears } from '@/lib/queries';

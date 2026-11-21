@@ -1,5 +1,5 @@
 /** Shapes of the owner approval endpoints (apps/api/src/services/approvals.ts). */
-import type { RepairApprovalStatus } from '@vamar/shared';
+import type { RepairApprovalStatus } from './shared';
 
 export interface ApprovalItem {
   id: string;

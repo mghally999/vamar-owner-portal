@@ -4,7 +4,7 @@ import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
-import { formatPeriod } from '@vamar/shared';
+import { formatPeriod } from '@/lib/shared';
 import {
   launchStatementSelection,
   sameSelection,

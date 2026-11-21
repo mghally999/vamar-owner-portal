@@ -2,7 +2,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, View } from 'react-native';
-import { occupancyPct, sharePct } from '@vamar/shared';
+import { occupancyPct, sharePct } from '@/lib/shared';
 import { useOwnerBudgets } from '@/lib/budget-queries';
 import { useI18n } from '@/lib/i18n';
 import { useBuildings, useUnits } from '@/lib/queries';

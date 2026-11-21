@@ -7,7 +7,7 @@ import {
   MESSAGE_LINK_TYPES,
   normalizeSubject,
   type MessageLinkType,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useCreateThread } from '@/lib/message-queries';
 import { useMessageText } from '@/lib/message-text';

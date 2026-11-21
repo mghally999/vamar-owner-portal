@@ -13,7 +13,7 @@ import {
   type TextProps,
   type ViewProps,
 } from 'react-native';
-import type { ChequeStatus } from '@vamar/shared';
+import type { ChequeStatus } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { fonts, statusColors, useTheme, type Theme } from '@/lib/theme';

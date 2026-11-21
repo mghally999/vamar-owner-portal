@@ -20,8 +20,8 @@ import {
   type Lang,
   type Period,
   type PlainDate,
-} from '@vamar/shared';
-import { CHEQUE_STATUS_LABEL, DISPUTE_STATUS_LABEL } from '@vamar/shared';
+} from './shared';
+import { CHEQUE_STATUS_LABEL, DISPUTE_STATUS_LABEL } from './shared';
 import { qs, request } from './api';
 import { messages, type MessageKey } from './messages';
 import type { PeriodQuery } from './period';

@@ -8,7 +8,7 @@ import {
   startOfWeek,
   todayInDubai,
   type PlainDate,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { groupByDay } from '@/lib/calendar';
 import { useI18n } from '@/lib/i18n';
 import { useCalendar, useMe } from '@/lib/queries';

@@ -3,7 +3,7 @@
  * feature does not touch the shared messages file; `vars` work as in useI18n().t.
  */
 import { useCallback } from 'react';
-import { BUDGET_LEVEL_LABEL, BUDGET_TOTAL_LABEL, type BudgetLevel, type Lang } from '@vamar/shared';
+import { BUDGET_LEVEL_LABEL, BUDGET_TOTAL_LABEL, type BudgetLevel, type Lang } from './shared';
 import { useI18n } from './i18n';
 
 const ar = {

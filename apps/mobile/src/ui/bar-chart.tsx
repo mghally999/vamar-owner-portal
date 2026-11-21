@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { formatMonth, type PlainDate } from '@vamar/shared';
+import { formatMonth, type PlainDate } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Row, Text } from '.';

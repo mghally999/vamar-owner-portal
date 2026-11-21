@@ -7,7 +7,7 @@ import {
   UNIT_STATUS_LABEL,
   type TimelineKind,
   type UnitStatus,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useUnit, useUnitTimeline } from '@/lib/queries';

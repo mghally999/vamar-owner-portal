@@ -3,7 +3,7 @@
  * does not touch the shared messages file; `vars` work as in useI18n().t.
  */
 import { useCallback } from 'react';
-import { formatDate, todayInDubai, type Lang } from '@vamar/shared';
+import { formatDate, todayInDubai, type Lang } from './shared';
 import { useI18n } from './i18n';
 
 const ar = {

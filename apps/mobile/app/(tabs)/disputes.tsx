@@ -1,7 +1,7 @@
 import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { DISPUTE_STATUS_LABEL, DISPUTE_TYPE_LABEL } from '@vamar/shared';
+import { DISPUTE_STATUS_LABEL, DISPUTE_TYPE_LABEL } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useDisputes } from '@/lib/queries';
 import type { DisputeItem } from '@/lib/types';

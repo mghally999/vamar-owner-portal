@@ -1,7 +1,7 @@
 import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
-import { WORK_ORDER_STATUS_LABEL } from '@vamar/shared';
+import { WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useWorkOrders } from '@/lib/queries';
 import type { WorkOrderItem } from '@/lib/types';

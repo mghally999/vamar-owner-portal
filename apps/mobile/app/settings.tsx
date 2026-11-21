@@ -2,7 +2,7 @@ import * as Application from 'expo-application';
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
-import { todayInDubai } from '@vamar/shared';
+import { todayInDubai } from '@/lib/shared';
 import { API_BASE, request } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';

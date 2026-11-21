@@ -2,7 +2,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { EXPENSE_KIND_LABEL, type ExpenseKind } from '@vamar/shared';
+import { EXPENSE_KIND_LABEL, type ExpenseKind } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { usePeriod } from '@/lib/period';
 import { useBuildings, useExpenses, useMe, useSummary } from '@/lib/queries';

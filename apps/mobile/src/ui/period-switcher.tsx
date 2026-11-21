@@ -8,7 +8,7 @@ import {
   todayInDubai,
   type PlainDate,
   type WeekStart,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { QUICK_PRESETS, sameSelection, selectionLabel, type PeriodSelection } from '@/lib/period';
 import { useTheme } from '@/lib/theme';

@@ -19,7 +19,7 @@ import {
   type Period,
   type PlainDate,
   type ResolvablePreset,
-} from '@vamar/shared';
+} from './shared';
 
 export type PeriodSelection =
   | { kind: 'preset'; preset: ResolvablePreset }

@@ -4,7 +4,7 @@
  */
 import { useRouter } from 'expo-router';
 import { View } from 'react-native';
-import type { MessageLinkType } from '@vamar/shared';
+import type { MessageLinkType } from '@/lib/shared';
 import { useMessageText } from '@/lib/message-text';
 import { Button } from './index';
 

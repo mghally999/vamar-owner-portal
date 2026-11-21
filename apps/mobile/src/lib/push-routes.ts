@@ -4,7 +4,7 @@
  * month it summarises (`from`, `to`); everything else is derived here so the same table serves
  * the phone and the tests.
  */
-import { isPlainDate } from '@vamar/shared';
+import { isPlainDate } from './shared';
 
 export type PushHref = string | { pathname: string; params: Record<string, string> };
 

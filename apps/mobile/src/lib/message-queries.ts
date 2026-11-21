@@ -4,7 +4,7 @@
  * place. A message carrying a file goes as a multipart form, one file per message.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { MessageLinkType, MessageSenderType, MessageThreadStatus } from '@vamar/shared';
+import type { MessageLinkType, MessageSenderType, MessageThreadStatus } from './shared';
 import { ApiRequestError, request } from './api';
 
 export interface MessageLink {

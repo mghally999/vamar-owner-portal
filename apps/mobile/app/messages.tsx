@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
-import { MESSAGE_THREAD_STATUS_LABEL } from '@vamar/shared';
+import { MESSAGE_THREAD_STATUS_LABEL } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useThreads } from '@/lib/message-queries';
 import { messageTime, useMessageText } from '@/lib/message-text';

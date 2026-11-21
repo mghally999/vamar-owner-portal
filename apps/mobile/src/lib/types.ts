@@ -13,7 +13,7 @@ import type {
   UnitType,
   WorkOrderPriority,
   WorkOrderStatus,
-} from '@vamar/shared';
+} from './shared';
 
 export interface OwnerProfile {
   id: string;

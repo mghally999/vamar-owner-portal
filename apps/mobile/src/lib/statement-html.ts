@@ -1,6 +1,6 @@
 /** Statement HTML, shared by the phone (PDF through expo-print) and the web app (print dialog). */
-import { formatAmount, formatDate, formatMonth, type Lang, type PlainDate } from '@vamar/shared';
-import { CHEQUE_STATUS_LABEL } from '@vamar/shared';
+import { formatAmount, formatDate, formatMonth, type Lang, type PlainDate } from './shared';
+import { CHEQUE_STATUS_LABEL } from './shared';
 import type { ChequeItem } from './types';
 
 export interface StatementInput {

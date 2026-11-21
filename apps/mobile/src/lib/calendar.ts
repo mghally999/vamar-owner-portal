@@ -2,7 +2,7 @@
  * Calendar helpers for the app's own views: the colour of each kind of item, grouping by day and
  * the ranges a view needs. Grids come from @vamar/shared (monthGrid, weekDays).
  */
-import type { CalendarItem, CalendarItemKind } from '@vamar/shared';
+import type { CalendarItem, CalendarItemKind } from './shared';
 import { status as statusColors, brand } from '@vamar/tokens';
 import type { Theme } from './theme';
 

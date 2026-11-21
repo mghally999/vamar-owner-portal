@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Linking, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
-import { EXPENSE_KIND_LABEL, WORK_ORDER_STATUS_LABEL } from '@vamar/shared';
+import { EXPENSE_KIND_LABEL, WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
 import { API_BASE, authHeaders } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';

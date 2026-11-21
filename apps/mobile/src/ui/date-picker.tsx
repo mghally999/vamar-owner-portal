@@ -9,7 +9,7 @@ import {
   WEEKDAY_SHORT,
   type PlainDate,
   type WeekStart,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Button, Row, Text } from '.';

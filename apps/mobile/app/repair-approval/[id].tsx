@@ -2,7 +2,7 @@ import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
-import { REPAIR_APPROVAL_STATUS_LABEL, type RepairApprovalStatus } from '@vamar/shared';
+import { REPAIR_APPROVAL_STATUS_LABEL, type RepairApprovalStatus } from '@/lib/shared';
 import { API_BASE, authHeaders } from '@/lib/api';
 import { useApprovalText } from '@/lib/approval-messages';
 import { useAnswerApproval, useApproval } from '@/lib/approval-queries';

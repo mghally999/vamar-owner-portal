@@ -3,7 +3,7 @@
  * queries.ts so the feature stays in one place.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { RepairApprovalStatus } from '@vamar/shared';
+import type { RepairApprovalStatus } from './shared';
 import { qs, request } from './api';
 import type { ApprovalAnswer, ApprovalDetail, ApprovalItem } from './approval-types';
 

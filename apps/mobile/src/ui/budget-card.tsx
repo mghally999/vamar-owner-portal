@@ -4,7 +4,7 @@
  * year is heading. The figures are the building's, the ones Vamar manages, not the owner's share.
  */
 import { View } from 'react-native';
-import type { BudgetLevel } from '@vamar/shared';
+import type { BudgetLevel } from '@/lib/shared';
 import { useBudgetText } from '@/lib/budget-messages';
 import type { OwnerBuildingBudget, OwnerBudgetLine } from '@/lib/budget-queries';
 import { useI18n } from '@/lib/i18n';

@@ -5,7 +5,7 @@ import {
   type ExpenseKind,
   type TimelineKind,
   type WorkOrderStatus,
-} from '@vamar/shared';
+} from './shared';
 import type { PeriodQuery } from './period';
 import { qs, request } from './api';
 import type {

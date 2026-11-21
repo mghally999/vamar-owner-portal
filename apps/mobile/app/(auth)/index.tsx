@@ -2,12 +2,13 @@ import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { phoneE164Schema } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { fonts, useTheme } from '@/lib/theme';
 import { Button, Text } from '@/ui';
 import { Logo } from '@/ui/logo';
+
+const UAE_MOBILE = /^\+9715\d{8}$/;
 
 /** Phone entry: +971 by default; the number is normalised to E.164 before Firebase. */
 export default function PhoneScreen() {
@@ -22,7 +23,8 @@ export default function PhoneScreen() {
 
   const e164 = normalise(local);
   // UAE mobiles: 9 digits after +971, starting with 5 (a leading 0 is dropped by normalise).
-  const valid = phoneE164Schema.safeParse(e164).success && /^\+9715\d{8}$/.test(e164);
+  // Valid E.164 by construction, so the shared zod schema is not needed (nor bundled).
+  const valid = UAE_MOBILE.test(e164);
 
   async function submit() {
     if (!valid) {

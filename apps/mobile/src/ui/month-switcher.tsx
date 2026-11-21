@@ -1,5 +1,5 @@
 import { Pressable, View } from 'react-native';
-import { addMonthsClamped, type PlainDate } from '@vamar/shared';
+import { addMonthsClamped, type PlainDate } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useTheme } from '@/lib/theme';
 import { Text } from '.';

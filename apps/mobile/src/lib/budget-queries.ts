@@ -1,6 +1,6 @@
 /** The budgets of the owner's buildings for this year (GET /api/owner/budgets). */
 import { useQuery } from '@tanstack/react-query';
-import type { BudgetLine, PlainDate } from '@vamar/shared';
+import type { BudgetLine, PlainDate } from './shared';
 import { request } from './api';
 
 export interface OwnerBudgetLine extends BudgetLine {

@@ -1,6 +1,6 @@
 import { Link } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
-import { REPAIR_APPROVAL_STATUS_LABEL } from '@vamar/shared';
+import { REPAIR_APPROVAL_STATUS_LABEL } from '@/lib/shared';
 import { useApprovalText } from '@/lib/approval-messages';
 import { useApprovals } from '@/lib/approval-queries';
 import { useI18n } from '@/lib/i18n';

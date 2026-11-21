@@ -12,7 +12,7 @@ import {
   normalizeMessageText,
   textLength,
   type MessageLinkType,
-} from '@vamar/shared';
+} from '@/lib/shared';
 import { API_BASE, authHeaders } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import {
