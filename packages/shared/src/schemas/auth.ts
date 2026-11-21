@@ -1,13 +1,25 @@
 import { z } from 'zod';
 import { devicePlatformSchema } from './enums.js';
 
+/**
+ * An Expo push token as `getExpoPushTokenAsync` returns it: `ExponentPushToken[...]` (or the newer
+ * `ExpoPushToken[...]`). Anything else would only be refused by Expo at send time.
+ */
+export const expoPushTokenSchema = z
+  .string()
+  .trim()
+  .max(256)
+  .regex(/^Expo(nent)?PushToken\[[A-Za-z0-9_-]{1,200}\]$/, {
+    message: 'Not an Expo push token',
+  });
+
 /** Device identity sent by the app on every auth call. `deviceId` is generated once per install. */
 export const deviceInfoSchema = z.object({
   deviceId: z.string().trim().min(8).max(128),
   platform: devicePlatformSchema,
   /** e.g. "iPhone 15" or "Samsung SM-S918B", shown in the devices list and login alerts. */
   model: z.string().trim().max(120).default(''),
-  pushToken: z.string().trim().max(256).nullable().default(null),
+  pushToken: expoPushTokenSchema.nullable().default(null),
 });
 export type DeviceInfo = z.infer<typeof deviceInfoSchema>;
 
@@ -31,7 +43,7 @@ export const totpCodeSchema = z.object({
 
 export const registerPushTokenSchema = z.object({
   deviceId: z.string().trim().min(8).max(128),
-  pushToken: z.string().trim().min(10).max(256),
+  pushToken: expoPushTokenSchema,
 });
 
 /** Claims in our own access JWT (HS256, 15 minutes). */
