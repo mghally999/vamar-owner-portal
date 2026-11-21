@@ -12,6 +12,8 @@ import {
   formatDate,
   formatMonth,
   formatNumber,
+  interpolate,
+  todayInDubai,
   type Lang,
   type PlainDate,
 } from '@vamar/shared';
@@ -73,11 +75,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
       lang,
       dir,
       setLang,
-      t: (key, vars) => {
-        let s = dict[key];
-        if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-        return s;
-      },
+      t: (key, vars) => interpolate(dict[key], vars),
       money: (fils) => (fils === null || fils === undefined ? '—' : formatAmount(fils, lang)),
       num: (fils) => formatNumber(fils, lang),
       date: (d) => (d ? formatDate(d as PlainDate, lang) : '—'),
@@ -85,13 +83,9 @@ export function LangProvider({ children }: { children: ReactNode }) {
       dateTime: (iso) => {
         if (!iso) return '—';
         const d = typeof iso === 'string' ? new Date(iso) : iso;
-        const day = new Intl.DateTimeFormat('en-CA', {
-          timeZone: 'Asia/Dubai',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        }).format(d) as PlainDate;
-        return `${formatDate(day, lang)} ${timeFmt.format(d)}`;
+        // The Dubai day from the shared, cached formatter: a new Intl.DateTimeFormat per call
+        // cost about 0.5 ms, and the audit log formats one per row.
+        return `${formatDate(todayInDubai(d), lang)} ${timeFmt.format(d)}`;
       },
       pick: (ar, en) => (lang === 'ar' ? ar : en),
     };
