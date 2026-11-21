@@ -33,34 +33,10 @@ export interface CalendarEvent {
   notes: string;
 }
 
-export interface Holiday {
-  date: string;
-  nameAr: string;
-  nameEn: string;
-  tentative: boolean;
-}
+// One definition, shared with the hooks in lib/queries-v2.ts that read the same endpoints.
+export type { ExpenseCategory, Holiday, Vendor } from '@/lib/types-v2';
 
 export type Settings = AppSettings;
-
-export interface ExpenseCategory {
-  id: string;
-  nameAr: string;
-  nameEn: string;
-  kind: ExpenseKind;
-  parentId: string | null;
-  sort: number;
-  active: boolean;
-}
-
-export interface Vendor {
-  id: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  trn: string | null;
-  notes: string;
-  active: boolean;
-}
 
 /** The identifiers the building record carries beyond the base BuildingDetail. */
 export interface BuildingIdentifiers {
