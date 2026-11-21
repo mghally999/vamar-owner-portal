@@ -24,7 +24,8 @@ import { BuildingBudget } from '@/ui/budget-card';
 type RowItem =
   | { kind: 'building'; building: BuildingItem }
   | { kind: 'unit'; unit: UnitItem; last: boolean }
-  | { kind: 'truncated' };
+  | { kind: 'truncated' }
+  | { kind: 'unitsError' };
 
 /**
  * Properties tab: buildings with occupancy and this year's budget, then units with tenant, end
@@ -48,8 +49,10 @@ export default function PropertiesScreen() {
       });
     }
     if (units.data?.truncated) out.push({ kind: 'truncated' });
+    // The buildings came but their units did not: say so instead of showing empty buildings.
+    if (units.isError) out.push({ kind: 'unitsError' });
     return out;
-  }, [buildings.data, units.data]);
+  }, [buildings.data, units.data, units.isError]);
 
   if (buildings.isPending) {
     return (
@@ -82,7 +85,7 @@ export default function PropertiesScreen() {
           ? `b-${item.building.id}`
           : item.kind === 'unit'
             ? `u-${item.unit.id}`
-            : 'truncated'
+            : item.kind
       }
       getItemType={(item) => item.kind}
       extraData={budgets.data}
@@ -90,6 +93,13 @@ export default function PropertiesScreen() {
       onRefresh={() => void Promise.all([buildings.refetch(), units.refetch(), budgets.refetch()])}
       refreshing={buildings.isRefetching}
       renderItem={({ item }) => {
+        if (item.kind === 'unitsError') {
+          return (
+            <View style={{ marginTop: 12 }}>
+              <ErrorState onRetry={() => void units.refetch()} />
+            </View>
+          );
+        }
         if (item.kind === 'truncated') {
           return (
             <Text variant="caption" color="soft" style={{ marginTop: 12 }}>

@@ -122,6 +122,16 @@ describe('Properties', () => {
     expect(await screen.findByText('Oasis Tower')).toBeTruthy();
   });
 
+  it('says when the units could not be loaded, and loads them again on retry', async () => {
+    mockApi({ 'GET /api/owner/units': { status: 503, body: {} } });
+    await renderApp(<PropertiesScreen />);
+    await screen.findByText('Oasis Tower');
+    mockApi({ 'GET /api/owner/units': { body: { items: units } } });
+    await fireEvent.press(await screen.findByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Never rented')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Retry' })).toBeNull();
+  });
+
   it('reloads buildings and units when pulled', async () => {
     await renderApp(<PropertiesScreen />);
     await screen.findByText('Oasis Tower');
