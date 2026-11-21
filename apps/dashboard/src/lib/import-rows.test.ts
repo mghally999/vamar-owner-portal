@@ -27,6 +27,8 @@ describe('owner rows', () => {
   it('refuses 12345 and a foreign number with an Arabic and English message', () => {
     const short = owner({ ...base, phoneE164: '12345' });
     expect(coerce('phoneE164', '12345')).toBe('+97112345');
+    // Arabic-Indic digits, as typed on an Arabic keyboard, are phone digits too.
+    expect(coerce('phoneE164', '٠٥٠١٢٣٤٥٦٧')).toBe('+971501234567');
     expect(short.success).toBe(false);
     const message = short.error?.issues[0]?.message ?? '';
     expect(message).toContain('UAE mobile');

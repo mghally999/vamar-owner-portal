@@ -1,4 +1,5 @@
 /* UI copy for the v2 pages (calendar, property records, dispute cheques, admin pages). Arabic first. */
+import { interpolate } from '@vamar/shared';
 import { useCallback } from 'react';
 import { useI18n } from '@/lib/i18n';
 
@@ -485,11 +486,7 @@ export function useV2() {
   const i18n = useI18n();
   const dict = v2Messages[i18n.lang];
   const t = useCallback(
-    (key: V2MessageKey, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: V2MessageKey, vars?: Record<string, string | number>) => interpolate(dict[key], vars),
     [dict],
   );
   return { ...i18n, t, tv2: t, lib: i18n.t };

@@ -1,6 +1,6 @@
 /* UI copy for renewal suggestions and reminders. Arabic first in use; same keys in both. */
 import { useCallback } from 'react';
-import type { Emirate } from '@vamar/shared';
+import { interpolate, type Emirate } from '@vamar/shared';
 import { useI18n } from './i18n';
 
 const en = {
@@ -141,11 +141,8 @@ export function useRenewalI18n() {
   const i18n = useI18n();
   const dict = renewalMessages[i18n.lang];
   const t = useCallback(
-    (key: RenewalMessageKey, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: RenewalMessageKey, vars?: Record<string, string | number>) =>
+      interpolate(dict[key], vars),
     [dict],
   );
   /** "Renewal due in N days", with the Arabic forms for 1, 2, 3–10 and 11 or more. */

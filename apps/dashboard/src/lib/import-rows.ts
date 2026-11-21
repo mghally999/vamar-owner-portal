@@ -14,6 +14,7 @@ import {
   importContractRowSchema,
   importExpenseRowSchema,
   importShareRowSchema,
+  normalisePhoneInput,
   parseAmountInput,
   UNIT_TYPES,
   unitIdentifiersSchema,
@@ -263,12 +264,9 @@ export function coerce(key: string, raw: unknown): unknown {
   let v: unknown = typeof raw === 'string' ? raw.trim() : raw;
   if (v === '') return undefined;
   if (PHONE_KEYS.has(key)) {
-    const digits = cellText(v).replace(/[^\d+]/g, '');
-    if (digits.startsWith('+')) v = digits;
-    else if (digits.startsWith('00')) v = `+${digits.slice(2)}`;
-    else if (digits.startsWith('971')) v = `+${digits}`;
-    else if (digits.startsWith('0')) v = `+971${digits.slice(1)}`;
-    else v = `+971${digits}`;
+    // The shared rule (also used by the owner app): Arabic-Indic digits count, UAE by default.
+    // A cell with no digits stays as typed so the schema refuses it with its own message.
+    v = normalisePhoneInput(cellText(v)) || cellText(v);
   }
   if (DATE_KEYS.has(key)) {
     if (typeof v === 'number') v = excelSerialToDate(v);

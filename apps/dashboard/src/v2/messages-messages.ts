@@ -1,6 +1,7 @@
 /* UI copy for owner messages (the inbox, a thread, the header link, Today). Arabic first. */
 import { useCallback } from 'react';
 import {
+  interpolate,
   MESSAGE_LINK_LABEL,
   MESSAGE_THREAD_STATUS_LABEL,
   type MessageLinkType,
@@ -107,11 +108,7 @@ export function useMessageText() {
   const i18n = useI18n();
   const dict = messageMessages[i18n.lang];
   const t = useCallback(
-    (key: Key, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: Key, vars?: Record<string, string | number>) => interpolate(dict[key], vars),
     [dict],
   );
   const statusLabel = useCallback(

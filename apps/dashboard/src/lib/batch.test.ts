@@ -9,5 +9,6 @@ describe('import batching', () => {
     expect(batches.every((b) => b.length <= 2000)).toBe(true);
     expect(batches.flat()).toEqual(rows);
     expect(chunk([], 500)).toEqual([]);
+    expect(() => chunk(rows, 0)).toThrow(RangeError);
   });
 });

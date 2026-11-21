@@ -1,6 +1,6 @@
 /* UI copy for owner approval of large repairs (work orders, expenses, settings, Today). Arabic first. */
 import { useCallback } from 'react';
-import { APPROVAL_STATE_LABEL, REPAIR_APPROVAL_STATUS_LABEL } from '@vamar/shared';
+import { APPROVAL_STATE_LABEL, REPAIR_APPROVAL_STATUS_LABEL, interpolate } from '@vamar/shared';
 import type { ApprovalState, RepairApprovalStatus } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 
@@ -90,11 +90,7 @@ export function useApprovalText() {
   const i18n = useI18n();
   const dict = approvalMessages[i18n.lang];
   const t = useCallback(
-    (key: Key, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: Key, vars?: Record<string, string | number>) => interpolate(dict[key], vars),
     [dict],
   );
   const statusLabel = useCallback(

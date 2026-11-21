@@ -1,6 +1,11 @@
 /* UI copy for building budgets (building page, the budgets page, Today). Arabic first. */
 import { useCallback } from 'react';
-import { BUDGET_LEVEL_LABEL, BUDGET_TOTAL_LABEL, type BudgetLevel } from '@vamar/shared';
+import {
+  BUDGET_LEVEL_LABEL,
+  BUDGET_TOTAL_LABEL,
+  interpolate,
+  type BudgetLevel,
+} from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
 
 const ar = {
@@ -80,11 +85,7 @@ export function useBudgetText() {
   const i18n = useI18n();
   const dict = budgetMessages[i18n.lang];
   const t = useCallback(
-    (key: Key, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: Key, vars?: Record<string, string | number>) => interpolate(dict[key], vars),
     [dict],
   );
   const levelLabel = useCallback((l: BudgetLevel) => BUDGET_LEVEL_LABEL[l][i18n.lang], [i18n.lang]);

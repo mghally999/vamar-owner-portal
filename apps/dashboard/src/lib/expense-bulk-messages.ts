@@ -1,4 +1,5 @@
 /* UI copy for bulk actions on expenses (the list and the drafts queue). Same keys in both. */
+import { interpolate } from '@vamar/shared';
 import { useCallback } from 'react';
 import { useI18n } from './i18n';
 
@@ -103,11 +104,8 @@ export function useExpenseBulkI18n() {
   const i18n = useI18n();
   const dict = expenseBulkMessages[i18n.lang];
   const tb = useCallback(
-    (key: ExpenseBulkMessageKey, vars?: Record<string, string | number>) => {
-      let s: string = dict[key];
-      if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll(`{${k}}`, String(v));
-      return s;
-    },
+    (key: ExpenseBulkMessageKey, vars?: Record<string, string | number>) =>
+      interpolate(dict[key], vars),
     [dict],
   );
   return { ...i18n, tb };
