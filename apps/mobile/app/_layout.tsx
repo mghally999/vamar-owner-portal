@@ -1,5 +1,4 @@
-import NetInfo from '@react-native-community/netinfo';
-import { onlineManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter } from 'expo-router';
 import { Platform, View } from 'react-native';
@@ -13,6 +12,12 @@ import { messageText } from '@/lib/message-text';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { LangProvider, useI18n } from '@/lib/i18n';
 import { PeriodProvider } from '@/lib/period';
+import {
+  connectFocusManager,
+  connectOnlineManager,
+  createQueryClient,
+  useClearCacheWhenSignedOut,
+} from '@/lib/query-client';
 import { usePushNavigation } from '@/lib/push';
 import type { PushHref } from '@/lib/push-routes';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
@@ -28,13 +33,8 @@ void SplashScreen.preventAutoHideAsync();
 // tabs underneath it, so it has a back button.
 export const unstable_settings = { initialRouteName: '(tabs)' };
 
-// Queries pause while the phone is offline and resume on reconnect; what was fetched last stays
-// on screen in the meantime (see OfflineBanner).
-onlineManager.setEventListener((setOnline) =>
-  NetInfo.addEventListener((state) => {
-    setOnline(state.isConnected !== false);
-  }),
-);
+connectOnlineManager();
+connectFocusManager();
 
 /**
  * Stack screens (cheque, unit, dispute, settings) use the same themed header as the tabs, with a
@@ -62,20 +62,7 @@ function stackHeader(title: string) {
   };
 }
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: 24 * 60 * 60_000,
-      retry: (failureCount, error) => {
-        if (failureCount >= 2) return false;
-        const status = (error as { status?: number }).status ?? 0;
-        return status === 0 || status >= 500;
-      },
-      networkMode: 'offlineFirst',
-    },
-  },
-});
+const queryClient = createQueryClient();
 
 export default function RootLayout() {
   return (
@@ -112,6 +99,7 @@ function Root() {
     [router],
   );
   usePushNavigation(openFromPush, auth.stage === 'authenticated');
+  useClearCacheWhenSignedOut(queryClient, auth.stage);
   const [fontsLoaded, fontError] = useFonts({
     'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
     'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),
