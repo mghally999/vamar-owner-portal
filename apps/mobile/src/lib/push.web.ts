@@ -6,6 +6,10 @@ export { routeForNotification } from './push-routes';
 export function usePushNavigation(_navigate: (href: PushHref) => void, _enabled: boolean): void {
   // nothing to listen to on the web
 }
+
+export function usePushUpdates(_refresh: (keys: string[][]) => void, _enabled: boolean): void {
+  // nothing to listen to on the web
+}
 export type PushState = 'registered' | 'off' | 'denied' | 'unsupported' | 'failed';
 
 export function notificationsEnabled(): Promise<boolean> {
@@ -16,10 +20,14 @@ export function lastPushState(): Promise<PushState | null> {
   return Promise.resolve('unsupported');
 }
 
-export function registerForPush(): Promise<PushState> {
+export function registerForPush(_options: { ask?: boolean } = {}): Promise<PushState> {
   return Promise.resolve('unsupported');
 }
 
 export function setNotifications(_on: boolean): Promise<PushState> {
   return Promise.resolve('unsupported');
+}
+
+export function forgetPushToken(): Promise<void> {
+  return Promise.resolve();
 }

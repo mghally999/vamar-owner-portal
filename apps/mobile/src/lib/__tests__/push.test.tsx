@@ -60,6 +60,23 @@ describe('push registration', () => {
     expect(await lastPushState()).toBe('denied');
   });
 
+  it('does not show the prompt again on later launches once refused; the switch asks again', async () => {
+    notifications.getPermissionsAsync.mockResolvedValue({ status: 'denied' });
+    notifications.requestPermissionsAsync.mockResolvedValue({ status: 'denied' });
+    await expect(registerForPush()).resolves.toBe('denied');
+    await expect(registerForPush()).resolves.toBe('denied');
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(1);
+    notifications.requestPermissionsAsync.mockResolvedValue({ status: 'granted' });
+    await expect(setNotifications(true)).resolves.toBe('registered');
+    expect(notifications.requestPermissionsAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it('never asks when the phone says it cannot ask again', async () => {
+    notifications.getPermissionsAsync.mockResolvedValue({ status: 'denied', canAskAgain: false });
+    await expect(registerForPush({ ask: true })).resolves.toBe('denied');
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
   it('registers after the owner grants permission when asked', async () => {
     notifications.getPermissionsAsync.mockResolvedValue({ status: 'undetermined' });
     await expect(registerForPush()).resolves.toBe('registered');

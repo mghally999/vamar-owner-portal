@@ -53,3 +53,40 @@ export function routeForNotification(data: PushData | null | undefined): PushHre
       return '/(tabs)';
   }
 }
+
+/**
+ * What a notification that arrives while the app is open makes out of date: the query keys (by
+ * prefix) to fetch again, so the screen behind the banner is current when the owner looks.
+ */
+export function refreshKeysFor(data: PushData | null | undefined): string[][] {
+  const type = typeof data?.type === 'string' ? data.type : '';
+  const id = typeof data?.entityId === 'string' ? data.entityId : '';
+  const one = (key: string) => (id ? [[key, id]] : []);
+  switch (type) {
+    case 'cheque_due_soon':
+    case 'cheque_bounced':
+      return [['cheques'], ...one('cheque'), ['summary'], ['home'], ['calendar']];
+    case 'contract_ending_60':
+    case 'contract_ending_30':
+      return [['units'], ['summary'], ['calendar']];
+    case 'budget_threshold':
+      return [['budgets']];
+    case 'hearing_soon':
+      return [['disputes'], ...one('dispute'), ['calendar']];
+    case 'work_order_done':
+      return [['work-orders'], ...one('work-order'), ['summary']];
+    case 'large_expense':
+      return [['expenses'], ...one('expense'), ['summary'], ['budgets']];
+    case 'monthly_summary':
+      return [['summary']];
+    case 'new_device_login':
+      return [['devices']];
+    case 'message_reply':
+      // The list (unread counts) and every open thread share the prefix.
+      return [['messages']];
+    case 'repair_approval_needed':
+      return [['approvals'], ...one('approval'), ['work-orders']];
+    default:
+      return [];
+  }
+}

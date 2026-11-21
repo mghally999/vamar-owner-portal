@@ -18,7 +18,7 @@ import {
   createQueryClient,
   useClearCacheWhenSignedOut,
 } from '@/lib/query-client';
-import { usePushNavigation } from '@/lib/push';
+import { usePushNavigation, usePushUpdates } from '@/lib/push';
 import type { PushHref } from '@/lib/push-routes';
 import { ThemeProvider, useTheme, useThemeChoice } from '@/lib/theme';
 import { LockScreen } from '@/screens/lock';
@@ -100,6 +100,11 @@ function Root() {
   );
   usePushNavigation(openFromPush, auth.stage === 'authenticated');
   useClearCacheWhenSignedOut(queryClient, auth.stage);
+  // A notification arriving with the app open refreshes the figures it is about.
+  const refreshFromPush = useCallback((keys: string[][]) => {
+    for (const queryKey of keys) void queryClient.invalidateQueries({ queryKey });
+  }, []);
+  usePushUpdates(refreshFromPush, auth.stage === 'authenticated');
   const [fontsLoaded, fontError] = useFonts({
     'Almarai-Light': require('../../../packages/tokens/assets/fonts/Almarai-Light.ttf'),
     'Almarai-Regular': require('../../../packages/tokens/assets/fonts/Almarai-Regular.ttf'),

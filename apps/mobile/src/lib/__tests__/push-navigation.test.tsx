@@ -1,6 +1,7 @@
-import { renderHook } from '@testing-library/react-native';
-import { usePushNavigation } from '@/lib/push';
-import { pushResponses } from '@/test/native';
+import { renderHook, waitFor } from '@testing-library/react-native';
+import { usePushNavigation, usePushUpdates } from '@/lib/push';
+import { mockApi, sent } from '@/test/api';
+import { notifications, pushResponses } from '@/test/native';
 
 const response = (data: unknown) => ({ notification: { request: { content: { data } } } });
 
@@ -65,5 +66,92 @@ describe('opening the screen behind a tapped notification', () => {
     });
     expect(navigate).not.toHaveBeenCalled();
     expect(pushResponses.listeners).toHaveLength(0);
+  });
+
+  it('opens the launch notification once: not again after a reload or the next sign-in', async () => {
+    const navigate = jest.fn();
+    const tap = {
+      notification: {
+        request: { identifier: 'n-1', content: { data: { type: 'hearing_soon', entityId: 'd1' } } },
+      },
+      actionIdentifier: 'expo.modules.notifications.actions.DEFAULT',
+    };
+    pushResponses.last = tap;
+    const first = await renderHook(
+      ({ on }: { on: boolean }) => {
+        usePushNavigation(navigate, on);
+      },
+      { initialProps: { on: true } },
+    );
+    // The same tap reported again by the listener is not opened twice.
+    pushResponses.listeners[0]!(tap);
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(notifications.clearLastNotificationResponse).toHaveBeenCalledTimes(1);
+    expect(pushResponses.last).toBeNull();
+    // Signed out and in again (or reloaded): nothing left to open.
+    await first.rerender({ on: false });
+    await first.rerender({ on: true });
+    expect(navigate).toHaveBeenCalledTimes(1);
+    // A new tap still opens.
+    pushResponses.listeners[0]!({
+      notification: {
+        request: { identifier: 'n-2', content: { data: { type: 'large_expense', entityId: 'x' } } },
+      },
+    });
+    expect(navigate).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps working on a phone whose native module cannot clear the launch tap', async () => {
+    notifications.clearLastNotificationResponse.mockImplementation(() => {
+      throw new Error('not available');
+    });
+    const navigate = jest.fn();
+    pushResponses.last = response({ type: 'new_device_login' });
+    await renderHook(() => {
+      usePushNavigation(navigate, true);
+    });
+    expect(navigate).toHaveBeenCalledWith('/settings');
+  });
+});
+
+describe('notifications while the app is open', () => {
+  it('refreshes what an arriving notification is about, and nothing for an unknown one', async () => {
+    const refresh = jest.fn();
+    const { unmount } = await renderHook(() => {
+      usePushUpdates(refresh, true);
+    });
+    pushResponses.received[0]!({
+      request: { content: { data: { type: 'message_reply', entityId: 'm1' } } },
+    });
+    expect(refresh).toHaveBeenCalledWith([['messages']]);
+    pushResponses.received[0]!({ request: { content: { data: { type: 'unknown' } } } });
+    expect(refresh).toHaveBeenCalledTimes(1);
+    await unmount();
+    expect(pushResponses.received).toHaveLength(0);
+    expect(pushResponses.tokens).toHaveLength(0);
+  });
+
+  it('registers a new push token as soon as the phone hands one out', async () => {
+    mockApi({ 'POST /api/owner/push-token': { body: { ok: true } } });
+    notifications.getExpoPushTokenAsync.mockResolvedValue({ data: 'ExponentPushToken[new]' });
+    await renderHook(() => {
+      usePushUpdates(jest.fn(), true);
+    });
+    pushResponses.tokens[0]!();
+    await waitFor(() => {
+      expect(sent('POST /api/owner/push-token')[0]?.body).toMatchObject({
+        pushToken: 'ExponentPushToken[new]',
+      });
+    });
+    // Without asking for permission.
+    expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('listens to nothing while signed out', async () => {
+    await renderHook(() => {
+      usePushUpdates(jest.fn(), false);
+    });
+    expect(pushResponses.received).toHaveLength(0);
+    expect(pushResponses.tokens).toHaveLength(0);
   });
 });

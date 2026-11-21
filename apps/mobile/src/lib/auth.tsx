@@ -19,7 +19,7 @@ import {
   refreshSession,
 } from './api';
 import { confirmCode, startPhoneSignIn, type Confirmation } from './firebase';
-import { registerForPush } from './push';
+import { forgetPushToken, registerForPush } from './push';
 import { deviceId, getItem, setItem } from './storage';
 import type { OwnerProfile } from './types';
 
@@ -167,6 +167,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     const refreshToken = await getItem('refreshToken');
     if (refreshToken) {
+      // First, while the session still lets it: this phone stops receiving the owner's pushes.
+      await forgetPushToken();
       try {
         await request('/api/auth/owner/logout', {
           method: 'POST',

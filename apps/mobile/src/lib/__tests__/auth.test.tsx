@@ -9,7 +9,7 @@ import {
   type AuthState,
 } from '@/lib/auth';
 import { getItem, setItem } from '@/lib/storage';
-import { mockApi, offline, sent } from '@/test/api';
+import { fetchMock, mockApi, offline, sent } from '@/test/api';
 import { owner } from '@/test/fixtures';
 import { localAuth, notifications } from '@/test/native';
 import { seedSession } from '@/test/render';
@@ -226,6 +226,25 @@ describe('signing out', () => {
     expect(screen.getByText('anonymous nobody open bio-off no-bio returning')).toBeTruthy();
     expect(await getItem('refreshToken')).toBeNull();
     expect(await getItem('owner')).toBeNull();
+  });
+
+  it('first removes this phone push token, so a signed-out phone gets no more notifications', async () => {
+    await seedSession();
+    mockApi({
+      'POST /api/auth/owner/logout': { body: { ok: true } },
+      'DELETE /api/owner/push-token': { body: { ok: true } },
+    });
+    await start();
+    await screen.findByText(/^authenticated/);
+    fetchMock.mockClear();
+    await act(() => current().signOut());
+    const order = fetchMock.mock.calls.map(
+      ([url, init]) => `${init?.method ?? 'GET'} ${new URL(url).pathname}`,
+    );
+    expect(order).toEqual(['DELETE /api/owner/push-token', 'POST /api/auth/owner/logout']);
+    expect(sent('DELETE /api/owner/push-token')[0]?.headers.get('authorization')).toBe(
+      'Bearer access-2',
+    );
   });
 
   it('signs out locally even when the server cannot be reached', async () => {

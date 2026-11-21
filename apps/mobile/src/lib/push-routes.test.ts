@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { routeForNotification } from './push-routes';
+import { refreshKeysFor, routeForNotification } from './push-routes';
 
 describe('routeForNotification', () => {
   it('opens the screen behind each kind of notification', () => {
@@ -53,5 +53,45 @@ describe('routeForNotification', () => {
     expect(routeForNotification({ type: 'something_else' })).toBe('/(tabs)');
     expect(routeForNotification(null)).toBe('/(tabs)');
     expect(routeForNotification({ type: 42, entityId: 7 })).toBe('/(tabs)');
+  });
+});
+
+describe('refreshKeysFor', () => {
+  it('names what each kind of notification makes out of date', () => {
+    expect(refreshKeysFor({ type: 'cheque_bounced', entityId: 'q1' })).toEqual([
+      ['cheques'],
+      ['cheque', 'q1'],
+      ['summary'],
+      ['home'],
+      ['calendar'],
+    ]);
+    expect(refreshKeysFor({ type: 'message_reply', entityId: 'm1' })).toEqual([['messages']]);
+    expect(refreshKeysFor({ type: 'repair_approval_needed', entityId: 'a1' })).toEqual([
+      ['approvals'],
+      ['approval', 'a1'],
+      ['work-orders'],
+    ]);
+    expect(refreshKeysFor({ type: 'large_expense' })).toEqual([
+      ['expenses'],
+      ['summary'],
+      ['budgets'],
+    ]);
+    expect(refreshKeysFor({ type: 'budget_threshold' })).toEqual([['budgets']]);
+    expect(refreshKeysFor({ type: 'hearing_soon', entityId: 'd1' })).toContainEqual([
+      'dispute',
+      'd1',
+    ]);
+    expect(refreshKeysFor({ type: 'work_order_done', entityId: 'w1' })).toContainEqual([
+      'work-order',
+      'w1',
+    ]);
+    expect(refreshKeysFor({ type: 'contract_ending_30' })).toContainEqual(['units']);
+    expect(refreshKeysFor({ type: 'monthly_summary' })).toEqual([['summary']]);
+    expect(refreshKeysFor({ type: 'new_device_login' })).toEqual([['devices']]);
+  });
+
+  it('refreshes nothing for an unknown or missing type', () => {
+    expect(refreshKeysFor({ type: 'something_new' })).toEqual([]);
+    expect(refreshKeysFor(null)).toEqual([]);
   });
 });
