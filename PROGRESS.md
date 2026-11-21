@@ -337,3 +337,29 @@ fixed. Invoice reading from a photo was postponed by the client (FUTURE.md).
 ومراسلة فامار من داخل التطبيق، وكشف حساب سنوي، ولوحة "اليوم" للموظفين، وتحديث الشيكات والمصروفات دفعة واحدة،
 ومطابقة كشف البنك، واقتراحات تجديد العقود حسب سقف الزيادة في دبي. وأصبحت التقارير أسرع بأكثر من ست مرات، والنسخ
 الاحتياطي يعمل كل ليلة وتمت تجربة الاسترجاع بنجاح، ويوجد تنبيه تلقائي إذا توقف النظام.
+
+## v1.3.1, engineering sweep (21 Nov 2026)
+
+**Faster.** The two slowest staff lists now answer from an index: work orders 183 ms to 1.1 ms,
+expenses 1,797 ms to 1.3 ms on the load database. The owner summary is one database round trip.
+The dashboard's first download is a third smaller with 30 % fewer requests per page, and it stops
+refreshing when the tab is hidden or idle. The owner app bundle is 13.6 % smaller, and tapping a
+calendar day redraws 6 components instead of 1,407.
+
+**Safer and more reliable.** Pushes that Expo refuses are retried (15 minutes, 1 hour, 4 hours,
+at most 4 attempts in a day) and never sent twice; Expo's delivery receipts are read back, and a
+phone that uninstalled the app stops receiving. Signing out of the app stops its notifications.
+Lists can be sorted by column, and an unknown column is refused. A test checks that no staff or
+owner route can be reached without its guard. The demo reset runs in one transaction and keeps
+every staff login. The uptime monitor now runs every 5 minutes on Cloudflare and wakes the
+database only every 2 hours (production) and 12 hours (staging), to stay inside Neon's free
+compute.
+
+**Checked.** CI green; staging test scripts 98 of 98 owner checks and 40 of 40 staff and push
+checks; tag `v1.3.1` deployed staging and production (run 44897760530) with smoke tests passing;
+all 151 protected routes answer 401 without a token; app update a3ea3589 published on runtime
+1.2.0.
+
+تم تحسين سرعة النظام: قوائم الصيانة والمصروفات أصبحت فورية تقريبا، ولوحة التحكم أخف بالثلث، وتطبيق الملاك أصغر
+وأسرع. وأصبحت الإشعارات تعاد تلقائيا إذا فشل إرسالها ولا تصل مرتين، وتتوقف عند تسجيل الخروج. وتمت مراجعة الأمان
+والاختبارات كاملة، وكل الروابط المحمية ترفض الدخول بدون تسجيل، ومراقبة التشغيل تعمل كل خمس دقائق.
