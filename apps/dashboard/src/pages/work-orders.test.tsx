@@ -12,6 +12,7 @@ import {
   workOrderRow,
 } from '@/test/fixtures-v2';
 import { renderApp, pickOption } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -383,5 +384,11 @@ describe('WorkOrderDetailPage', () => {
     await vi.waitFor(() => {
       expect(api.to('GET', '/api/staff/work-orders/wo-1').length).toBeGreaterThan(1);
     });
+  });
+
+  it('sorts the list by priority through the API', async () => {
+    const { api, user } = await renderApp('/work-orders', { role: 'editor', routes: routes() });
+    await screen.findByRole('link', { name: 'AC not cooling' });
+    await expectSortsBy(user, api, '/api/staff/work-orders', 'Priority', 'priority');
   });
 });

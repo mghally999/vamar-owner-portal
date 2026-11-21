@@ -31,10 +31,14 @@ import {
 import { Page } from '@/ui/shell';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 
 /** The list's own filters, kept in the URL (`?status=` also arrives from the Overview's links). */
 const FILTERS = { status: '', buildingId: '', ownerId: '' };
+
+/** Columns the API sorts this list by (its allow-list). */
+const CHEQUES_SORT = ['dueDate', 'unit', 'tenant', 'chequeNo', 'amount', 'status'] as const;
 
 export function ChequesPage() {
   const { t, pick } = useI18n();
@@ -56,12 +60,14 @@ export function ChequesPage() {
   const [notice, setNotice] = useState<string | null>(null);
 
   const buildings = useBuildings();
+  const sorting = useListSort(CHEQUES_SORT);
   const q = useCheques({
     from: period.period.from,
     to: period.period.to,
     buildingId: buildingId || undefined,
     ownerId: ownerId || undefined,
     status: status || undefined,
+    ...sorting.params,
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   // Only the rows in view are in the DOM; a long month stays light however far staff scroll.
@@ -197,13 +203,13 @@ export function ChequesPage() {
                       />
                     </th>
                   ) : null}
-                  <th className="px-4 py-2 text-start font-medium">{t('dueDate')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('unit')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('tenant')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('cheque_no')}</th>
+                  <SortHeader label={t('dueDate')} column="dueDate" state={sorting} />
+                  <SortHeader label={t('unit')} column="unit" state={sorting} />
+                  <SortHeader label={t('tenant')} column="tenant" state={sorting} />
+                  <SortHeader label={t('cheque_no')} column="chequeNo" state={sorting} />
                   <th className="px-4 py-2 text-start font-medium">{t('cheque_bank')}</th>
-                  <th className="px-4 py-2 text-end font-medium">{t('amount')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                  <SortHeader label={t('amount')} column="amount" state={sorting} align="end" />
+                  <SortHeader label={t('status')} column="status" state={sorting} />
                   {auth.hasRole('editor') ? <th className="px-2 py-2" /> : null}
                 </tr>
               </thead>

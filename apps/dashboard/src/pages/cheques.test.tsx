@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, chequeRow, owner, ownerDetail, page } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -326,6 +327,27 @@ describe('ChequesPage', () => {
     await vi.waitFor(() => {
       expect(router.state.location.search).not.toHaveProperty('status');
     });
+  });
+
+  it('sorts by every column both ways through the API and keeps the order in the URL', async () => {
+    const { api, router, user } = await renderApp('/cheques', { routes: routes() });
+    await screen.findByText('Liam Carter');
+    // The default order is the API's own: no sort sent.
+    expect(api.last('GET', '/api/staff/cheques').query['sort']).toBeUndefined();
+    const columns: [string, string][] = [
+      ['Due date', 'dueDate'],
+      ['Unit', 'unit'],
+      ['Tenant', 'tenant'],
+      ['Cheque no.', 'chequeNo'],
+      ['Amount', 'amount'],
+      ['Status', 'status'],
+    ];
+    for (const [label, column] of columns) {
+      await expectSortsBy(user, api, '/api/staff/cheques', label, column);
+    }
+    expect(router.state.location.search).toMatchObject({ sort: 'status', dir: 'desc' });
+    // Paging asks for the next page in the same order.
+    expect(api.last('GET', '/api/staff/cheques').query['limit']).toBe('50');
   });
 
   it('shows the mixed state, clears the selection, refuses future dates and labels unknown cheques by id', async () => {

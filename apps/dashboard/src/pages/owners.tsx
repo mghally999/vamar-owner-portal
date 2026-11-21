@@ -28,12 +28,16 @@ import {
 import { Page } from '@/ui/shell';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 
 /** Kept in the URL so a reload or Back from an owner brings the same list back. */
 const FILTERS = { search: '', status: '' };
 
+/** Columns the API sorts this list by (its allow-list). */
+const OWNERS_SORT = ['phone', 'units', 'status', 'nameAr', 'nameEn'] as const;
+
 export function OwnersPage() {
-  const { t, pick } = useI18n();
+  const { t, pick, lang } = useI18n();
   const auth = useAuth();
   const qc = useQueryClient();
   const [{ search: searchTerm, status }, setFilters] = useUrlFilters(FILTERS);
@@ -42,7 +46,12 @@ export function OwnersPage() {
   });
   const [creating, setCreating] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const q = useOwners({ search: searchTerm || undefined, status: status || undefined });
+  const sorting = useListSort(OWNERS_SORT);
+  const q = useOwners({
+    search: searchTerm || undefined,
+    status: status || undefined,
+    ...sorting.params,
+  });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
 
   return (
@@ -111,10 +120,14 @@ export function OwnersPage() {
           <ResponsiveTable className="w-full min-w-[640px] text-[15px]">
             <thead>
               <tr className="row-line text-start text-[13px] text-ink-soft">
-                <th className="px-4 py-2 text-start font-medium">{t('owner')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('owner_phone')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('owner_units')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                <SortHeader
+                  label={t('owner')}
+                  column={lang === 'ar' ? 'nameAr' : 'nameEn'}
+                  state={sorting}
+                />
+                <SortHeader label={t('owner_phone')} column="phone" state={sorting} />
+                <SortHeader label={t('owner_units')} column="units" state={sorting} />
+                <SortHeader label={t('status')} column="status" state={sorting} />
               </tr>
             </thead>
             <tbody>

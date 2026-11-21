@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { owner, ownerDetail, page } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -159,5 +160,21 @@ describe('OwnersPage', () => {
     });
     await user.type(await screen.findByRole('textbox', { name: 'Search' }), 'zzz');
     expect(await screen.findByText('No owners match your search.')).toBeTruthy();
+  });
+
+  it('sorts by name in the page language and by unit count through the API', async () => {
+    const { api, user } = await renderApp('/owners', {
+      routes: { 'GET /api/staff/owners': page(OWNERS) },
+    });
+    await screen.findByRole('table');
+    await expectSortsBy(user, api, '/api/staff/owners', 'Owner', 'nameEn');
+    await expectSortsBy(user, api, '/api/staff/owners', 'Units', 'units');
+    cleanup();
+    const ar = await renderApp('/owners', {
+      lang: 'ar',
+      routes: { 'GET /api/staff/owners': page(OWNERS) },
+    });
+    await screen.findByRole('table');
+    await expectSortsBy(ar.user, ar.api, '/api/staff/owners', 'المالك', 'nameAr');
   });
 });

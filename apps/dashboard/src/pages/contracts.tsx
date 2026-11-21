@@ -28,12 +28,16 @@ import {
 import { Page } from '@/ui/shell';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { RenewalDueChip } from '@/ui/renewal-suggestion';
 
 const STATUSES: ContractStatus[] = ['draft', 'active', 'expired', 'terminated', 'renewed'];
 /** Kept in the URL; `endingWithinDays` (set by the Today panel's link) also ticks the ending box. */
 const FILTERS = { status: '', buildingId: '', endingWithinDays: '' };
+
+/** Columns the API sorts this list by (its allow-list). */
+const CONTRACTS_SORT = ['unit', 'tenant', 'startDate', 'endDate', 'annualRent', 'status'] as const;
 
 export function ContractsPage() {
   const { t, pick } = useI18n();
@@ -57,11 +61,13 @@ export function ContractsPage() {
   const withoutRenewal = String(search.withoutRenewal) === '1';
   const dropSearch = useDropSearch();
   const buildings = useBuildings();
+  const sorting = useListSort(CONTRACTS_SORT);
   const q = useContracts({
     status: status || undefined,
     buildingId: buildingId || undefined,
     endingWithinDays: ending ? endingDays : undefined,
     withoutRenewal: withoutRenewal ? '1' : undefined,
+    ...sorting.params,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
   const today = todayInDubai();
@@ -143,13 +149,18 @@ export function ContractsPage() {
           <ResponsiveTable className="w-full min-w-[800px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
-                <th className="px-4 py-2 text-start font-medium">{t('unit')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('tenant')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('contract_start')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('contract_end')}</th>
-                <th className="px-4 py-2 text-end font-medium">{t('contract_rent')}</th>
+                <SortHeader label={t('unit')} column="unit" state={sorting} />
+                <SortHeader label={t('tenant')} column="tenant" state={sorting} />
+                <SortHeader label={t('contract_start')} column="startDate" state={sorting} />
+                <SortHeader label={t('contract_end')} column="endDate" state={sorting} />
+                <SortHeader
+                  label={t('contract_rent')}
+                  column="annualRent"
+                  state={sorting}
+                  align="end"
+                />
                 <th className="px-4 py-2 text-start font-medium">{t('contract_chequeCount')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                <SortHeader label={t('status')} column="status" state={sorting} />
               </tr>
             </thead>
             <tbody>

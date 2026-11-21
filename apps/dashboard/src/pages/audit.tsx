@@ -8,6 +8,7 @@ import { Card, EmptyState, ErrorState, PageHeader, Select, SkeletonRows } from '
 import { Page } from '@/ui/shell';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 
 /**
  * Every entity type the API writes to the audit log (apps/api/src/services: audit(... entityType)).
@@ -42,6 +43,9 @@ export const ENTITY_TYPES = [
 /** Kept in the URL so a reload or a shared link shows the same entries. */
 const FILTERS = { actorId: '', entityType: '', from: '', to: '' };
 
+/** Columns the API sorts this list by (its allow-list). */
+const AUDIT_SORT = ['at', 'actor', 'action', 'entityType'] as const;
+
 export function AuditPage() {
   const { t, dateTime } = useI18n();
   const staff = useStaff();
@@ -50,11 +54,13 @@ export function AuditPage() {
   const from: PlainDate | null = isPlainDate(filters.from) ? filters.from : null;
   const to: PlainDate | null = isPlainDate(filters.to) ? filters.to : null;
   const [open, setOpen] = useState<string | null>(null);
+  const sorting = useListSort(AUDIT_SORT);
   const q = useAudit({
     actorId: actorId || undefined,
     entityType: entityType || undefined,
     from: from ?? undefined,
     to: to ?? undefined,
+    ...sorting.params,
   });
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
 
@@ -126,10 +132,10 @@ export function AuditPage() {
           <ResponsiveTable className="w-full min-w-[760px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
-                <th className="px-4 py-2 text-start font-medium">{t('audit_when')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('audit_actor')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('audit_action')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('audit_entity')}</th>
+                <SortHeader label={t('audit_when')} column="at" state={sorting} />
+                <SortHeader label={t('audit_actor')} column="actor" state={sorting} />
+                <SortHeader label={t('audit_action')} column="action" state={sorting} />
+                <SortHeader label={t('audit_entity')} column="entityType" state={sorting} />
               </tr>
             </thead>
             <tbody>

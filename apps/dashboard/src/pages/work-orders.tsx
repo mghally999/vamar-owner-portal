@@ -29,6 +29,7 @@ import {
 } from '@/ui/primitives';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 import { FilterChip, useDropSearch } from '@/ui/filter-chip';
 import { Page } from '@/ui/shell';
 import {
@@ -76,6 +77,9 @@ export function PriorityChip({ priority }: { priority: WorkOrderPriority }) {
 /** Kept in the URL with `overdue` and `approval`, which arrive from the Today panel's links. */
 const FILTERS = { view: 'list', buildingId: '', status: '', priority: '', search: '' };
 
+/** Columns the API sorts this list by (its allow-list). */
+const WORK_ORDERS_SORT = ['reportedOn', 'title', 'building', 'priority', 'status'] as const;
+
 export function WorkOrdersPage() {
   const { t, pick } = useI18n();
   const auth = useAuth();
@@ -94,6 +98,7 @@ export function WorkOrdersPage() {
   const [awaiting, toggleAwaiting] = useAwaitingApprovalFilter();
   const dropSearch = useDropSearch();
   const buildings = useBuildings();
+  const sorting = useListSort(WORK_ORDERS_SORT);
   const q = useWorkOrders({
     buildingId: buildingId || undefined,
     status: view === 'list' ? status || undefined : undefined,
@@ -101,6 +106,7 @@ export function WorkOrdersPage() {
     search: search || undefined,
     overdue: overdue ? '1' : undefined,
     approval: awaiting ? 'awaiting' : undefined,
+    ...sorting.params,
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
 
@@ -222,13 +228,13 @@ export function WorkOrdersPage() {
           <ResponsiveTable className="w-full min-w-[860px] text-[15px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
-                <th className="px-4 py-2 text-start font-medium">{t('wo_reportedOn')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('wo_titleEn')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('building')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('wo_priority')}</th>
+                <SortHeader label={t('wo_reportedOn')} column="reportedOn" state={sorting} />
+                <SortHeader label={t('wo_titleEn')} column="title" state={sorting} />
+                <SortHeader label={t('building')} column="building" state={sorting} />
+                <SortHeader label={t('wo_priority')} column="priority" state={sorting} />
                 <th className="px-4 py-2 text-start font-medium">{t('wo_scheduledFor')}</th>
                 <th className="px-4 py-2 text-end font-medium">{t('wo_cost')}</th>
-                <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                <SortHeader label={t('status')} column="status" state={sorting} />
               </tr>
             </thead>
             <tbody>

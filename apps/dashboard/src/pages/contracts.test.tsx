@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { building, contractDetail, contractRow, page } from '@/test/fixtures';
 import { at, renderApp } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -96,5 +97,17 @@ describe('ContractsPage', () => {
       },
     });
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('sorts by end date and rent through the API', async () => {
+    const { api, user } = await renderApp('/contracts', {
+      routes: {
+        'GET /api/staff/buildings': BUILDINGS,
+        'GET /api/staff/contracts': page([contractRow()]),
+      },
+    });
+    await screen.findByRole('link', { name: 'Al Noor Tower · 801' });
+    await expectSortsBy(user, api, '/api/staff/contracts', 'End date', 'endDate');
+    await expectSortsBy(user, api, '/api/staff/contracts', 'Annual rent (AED)', 'annualRent');
   });
 });

@@ -5,6 +5,7 @@ import { apiError, type ApiCall } from '@/test/api';
 import { building, buildingDetail, page } from '@/test/fixtures';
 import { expenseRow, expenseTotals, v2Routes } from '@/test/fixtures-v2';
 import { renderApp, pickOption } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 
 vi.mock('@/lib/firebase', () => ({
   firebaseEmailLogin: vi.fn(),
@@ -151,5 +152,12 @@ describe('ExpensesPage', () => {
     expect((await screen.findAllByText('إصلاح المصعد رقم 2')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('مرحَّل').length).toBeGreaterThan(0);
     expect(screen.getByRole('tab', { name: 'قائمة المسودات' })).toBeTruthy();
+  });
+
+  it('sorts by invoice date and total through the API', async () => {
+    const { api, user } = await renderApp('/expenses', { routes: routes() });
+    await screen.findByText('Guard salaries October');
+    await expectSortsBy(user, api, '/api/staff/expenses', 'Invoice date', 'invoiceDate');
+    await expectSortsBy(user, api, '/api/staff/expenses', 'Invoice total', 'total');
   });
 });

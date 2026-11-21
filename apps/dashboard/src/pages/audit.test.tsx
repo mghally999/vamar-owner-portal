@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { apiError, type ApiCall } from '@/test/api';
 import { auditRow, page, staffRow } from '@/test/fixtures';
 import { renderApp } from '@/test/render';
+import { expectSortsBy } from '@/test/sort';
 import { ENTITY_TYPES } from './audit';
 
 vi.mock('@/lib/firebase', () => ({
@@ -173,5 +174,17 @@ describe('AuditPage', () => {
       },
     });
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeTruthy();
+  });
+
+  it('sorts by time and actor through the API', async () => {
+    const { api, user } = await renderApp('/audit', {
+      routes: {
+        'GET /api/staff/staff': { items: [staffRow()] },
+        'GET /api/staff/audit': page(ROWS),
+      },
+    });
+    await screen.findByText('owner.create');
+    await expectSortsBy(user, api, '/api/staff/audit', 'When', 'at');
+    await expectSortsBy(user, api, '/api/staff/audit', 'Actor', 'actor');
   });
 });

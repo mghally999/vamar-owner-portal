@@ -39,6 +39,7 @@ import {
 import { ExpenseBulkBar, ExpenseBulkDialog, actionsFor } from '@/ui/expense-bulk';
 import { LoadMore } from '@/ui/load-more';
 import { ResponsiveTable } from '@/ui/responsive-table';
+import { SortHeader, useListSort } from '@/ui/sort-header';
 import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 import { Page } from '@/ui/shell';
 import {
@@ -91,6 +92,9 @@ const FILTERS = {
   search: '',
 };
 
+/** Columns the API sorts this list by (its allow-list). */
+const EXPENSES_SORT = ['invoiceDate', 'category', 'building', 'vendor', 'total', 'status'] as const;
+
 export function ExpensesPage() {
   const { t, pick, money, num, date } = useI18n();
   const { tb } = useExpenseBulkI18n();
@@ -129,6 +133,7 @@ export function ExpensesPage() {
   const [bulkAction, setBulkAction] = useState<BulkExpenseAction | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const sorting = useListSort(EXPENSES_SORT);
   const filters = {
     // Drafts waiting for the owners are shown whatever their invoice date.
     ...(awaiting ? {} : period.query),
@@ -140,6 +145,7 @@ export function ExpensesPage() {
     status: tab === 'all' ? status || undefined : tab,
     vendorId: vendorId || undefined,
     search: searchText || undefined,
+    ...sorting.params,
   };
   const q = useExpenses(filters);
   const rows = q.data?.pages.flatMap((p) => p.items) ?? [];
@@ -393,14 +399,23 @@ export function ExpensesPage() {
                       ) : null}
                     </th>
                   ) : null}
-                  <th className="px-4 py-2 text-start font-medium">{t('expense_invoiceDate')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('expense_category')}</th>
+                  <SortHeader
+                    label={t('expense_invoiceDate')}
+                    column="invoiceDate"
+                    state={sorting}
+                  />
+                  <SortHeader label={t('expense_category')} column="category" state={sorting} />
                   <th className="px-4 py-2 text-start font-medium">{t('expense_reason')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('building')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('expense_vendor')}</th>
+                  <SortHeader label={t('building')} column="building" state={sorting} />
+                  <SortHeader label={t('expense_vendor')} column="vendor" state={sorting} />
                   <th className="px-4 py-2 text-start font-medium">{t('expense_invoiceNo')}</th>
-                  <th className="px-4 py-2 text-end font-medium">{t('expense_total')}</th>
-                  <th className="px-4 py-2 text-start font-medium">{t('status')}</th>
+                  <SortHeader
+                    label={t('expense_total')}
+                    column="total"
+                    state={sorting}
+                    align="end"
+                  />
+                  <SortHeader label={t('status')} column="status" state={sorting} />
                 </tr>
               </thead>
               <tbody>

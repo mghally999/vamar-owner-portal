@@ -60,7 +60,17 @@ export function useOverview() {
   });
 }
 
-export function useOwners(filters: { search?: string | undefined; status?: string | undefined }) {
+/** `?sort=&dir=` of a list the API sorts (each list checks the column against its allow-list). */
+// A type, not an interface, so it stays assignable to the query-key records.
+// eslint-disable-next-line @typescript-eslint/consistent-type-definitions
+export type SortParams = {
+  sort?: string | undefined;
+  dir?: 'asc' | 'desc' | undefined;
+};
+
+export function useOwners(
+  filters: { search?: string | undefined; status?: string | undefined } & SortParams,
+) {
   return useInfiniteQuery({
     queryKey: keys.owners(filters),
     queryFn: ({ pageParam }) =>
@@ -232,12 +242,14 @@ export function useCreateTenant() {
   });
 }
 
-export function useContracts(filters: {
-  status?: ContractStatus | undefined;
-  buildingId?: string | undefined;
-  endingWithinDays?: number | undefined;
-  withoutRenewal?: '1' | undefined;
-}) {
+export function useContracts(
+  filters: SortParams & {
+    status?: ContractStatus | undefined;
+    buildingId?: string | undefined;
+    endingWithinDays?: number | undefined;
+    withoutRenewal?: '1' | undefined;
+  },
+) {
   return useInfiniteQuery({
     queryKey: keys.contracts(filters),
     queryFn: ({ pageParam }) =>
@@ -336,7 +348,7 @@ export function useTerminateContract(id: string) {
   });
 }
 
-export interface ChequeFilters {
+export interface ChequeFilters extends SortParams {
   month?: string | undefined;
   from?: string | undefined;
   to?: string | undefined;
@@ -596,13 +608,15 @@ export function useStaffMutations() {
   };
 }
 
-export function useAudit(filters: {
-  actorId?: string | undefined;
-  entityType?: string | undefined;
-  action?: string | undefined;
-  from?: string | undefined;
-  to?: string | undefined;
-}) {
+export function useAudit(
+  filters: SortParams & {
+    actorId?: string | undefined;
+    entityType?: string | undefined;
+    action?: string | undefined;
+    from?: string | undefined;
+    to?: string | undefined;
+  },
+) {
   return useInfiniteQuery({
     queryKey: keys.audit(filters),
     queryFn: ({ pageParam }) =>
