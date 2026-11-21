@@ -1,4 +1,4 @@
-import { and, desc, eq, ilike, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, desc, eq, ilike, isNull, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import type { ChangeOwnerPhoneInput, CreateOwnerInput } from '@vamar/shared';
 import type { Patch } from '../util/types.js';
@@ -7,9 +7,27 @@ import { conflict, notFound } from '../errors.js';
 import { log } from '../util/log.js';
 import { audit, type AuditActor } from './audit.js';
 import { revokeSessions } from '../auth/tokens.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { defineSort, sortedKeyset, type SortChoice } from '../util/pagination.js';
 
 const { owners, unitOwnerships, units, buildings, devices } = schema;
+
+/** Raw `owners.id`: drizzle writes an unqualified "id" in a one-table select, which uo also has. */
+const unitCountSql = sql<number>`(select count(*)::int from ${unitOwnerships} uo where uo.owner_id = owners.id and uo.to_date is null)`;
+
+/** Columns the staff owner table can be sorted by; default newest first. */
+export const OWNER_SORT = defineSort({
+  columns: {
+    createdAt: { expr: owners.createdAt, kind: 'instant' },
+    nameEn: { expr: owners.nameEn, kind: 'text' },
+    nameAr: { expr: owners.nameAr, kind: 'text' },
+    phone: { expr: owners.phoneE164, kind: 'text' },
+    status: { expr: owners.status, kind: 'enum' },
+    units: { expr: unitCountSql, kind: 'number' },
+  },
+  id: owners.id,
+  default: { sort: 'createdAt', dir: 'desc' },
+});
+export type OwnerSortKey = keyof typeof OWNER_SORT.columns;
 
 export async function listOwners(
   db: Dbx,
@@ -18,9 +36,10 @@ export async function listOwners(
     status?: 'invited' | 'active' | 'disabled' | undefined;
     cursor?: string | undefined;
     limit: number;
+    sort?: SortChoice<OwnerSortKey> | undefined;
   },
 ) {
-  const cursor = decodeCursor(q.cursor);
+  const keyset = sortedKeyset(OWNER_SORT, q.sort ?? OWNER_SORT.default, q.cursor);
   const conditions = [];
   if (q.status) conditions.push(eq(owners.status, q.status));
   if (q.search) {
@@ -29,14 +48,7 @@ export async function listOwners(
       or(ilike(owners.nameAr, s), ilike(owners.nameEn, s), ilike(owners.phoneE164, s)),
     );
   }
-  if (cursor) {
-    conditions.push(
-      or(
-        lt(owners.createdAt, new Date(cursor.key)),
-        and(eq(owners.createdAt, new Date(cursor.key)), lt(owners.id, cursor.id)),
-      ),
-    );
-  }
+  if (keyset.after) conditions.push(keyset.after);
   const rows = await db
     .select({
       id: owners.id,
@@ -47,13 +59,14 @@ export async function listOwners(
       preferredLang: owners.preferredLang,
       status: owners.status,
       createdAt: owners.createdAt,
-      unitCount: sql<number>`(select count(*)::int from ${unitOwnerships} uo where uo.owner_id = owners.id and uo.to_date is null)`,
+      unitCount: unitCountSql,
+      sortKey: keyset.sortKey,
     })
     .from(owners)
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(owners.createdAt), desc(owners.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.createdAt.toISOString(), id: r.id }));
+  return keyset.page(rows, q.limit);
 }
 
 export async function getOwnerDetail(db: Dbx, id: string) {

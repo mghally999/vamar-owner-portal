@@ -2,7 +2,7 @@
  * Everything the owner app reads. Every query is scoped through owner-scope.ts and amounts are
  * the owner's share (gross, no commission). The home screen is one SQL round trip.
  */
-import { and, asc, desc, eq, gt, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   EXPECTED_CHEQUE_STATUSES,
@@ -20,7 +20,7 @@ import {
   disputeInOwnerScope,
   unitInOwnerScope,
 } from './owner-scope.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { decodeCursor, defineSort, page, sortedKeyset } from '../util/pagination.js';
 import { chequeNosSql, disputeChequeRows } from './disputes.js';
 
 const {
@@ -457,30 +457,31 @@ const ownerDisputeSelect = {
   chequeNos: chequeNosSql,
 };
 
+/** Newest first; the cursor keeps microseconds (sortedKeyset). */
+const OWNER_DISPUTE_ORDER = defineSort({
+  columns: { openedAt: { expr: disputes.openedAt, kind: 'instant' } },
+  id: disputes.id,
+  default: { sort: 'openedAt', dir: 'desc' },
+});
+
 /** Owner's disputes, newest first; keyset on (opened_at, id). */
 export async function ownerDisputes(
   db: Dbx,
   ownerId: string,
   q: { cursor?: string | undefined; limit: number } = { limit: 50 },
 ) {
-  const cursor = decodeCursor(q.cursor);
-  const conditions: (SQL | undefined)[] = [disputeInOwnerScope(db, ownerId)];
-  if (cursor) {
-    const key = new Date(cursor.key);
-    conditions.push(
-      or(lt(disputes.openedAt, key), and(eq(disputes.openedAt, key), lt(disputes.id, cursor.id))),
-    );
-  }
+  const keyset = sortedKeyset(OWNER_DISPUTE_ORDER, OWNER_DISPUTE_ORDER.default, q.cursor);
+  const conditions: (SQL | undefined)[] = [disputeInOwnerScope(db, ownerId), keyset.after];
   const rows = await db
-    .select(ownerDisputeSelect)
+    .select({ ...ownerDisputeSelect, sortKey: keyset.sortKey })
     .from(disputes)
     .innerJoin(units, eq(units.id, disputes.unitId))
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .leftJoin(tenants, eq(tenants.id, disputes.tenantId))
     .where(and(...conditions))
-    .orderBy(desc(disputes.openedAt), desc(disputes.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.openedAt.toISOString(), id: r.id }));
+  return keyset.page(rows, q.limit);
 }
 
 export async function ownerDisputeDetail(db: Dbx, ownerId: string, disputeId: string) {

@@ -24,10 +24,11 @@ import {
   renewContract,
   terminateContract,
   updateContract,
+  CONTRACT_SORT,
 } from '../../services/contracts.js';
 import { getRenewalSuggestion } from '../../services/renewals.js';
 import { today } from '../../util/today.js';
-import { editor, idParam, viewer } from './common.js';
+import { editor, idParam, viewer, sortOf } from './common.js';
 
 export const contractsRoutes = new Hono<AppEnv>()
   .get(
@@ -46,7 +47,14 @@ export const contractsRoutes = new Hono<AppEnv>()
           .transform((v) => v === '1'),
       }),
     ),
-    async (c) => c.json(await listContracts(readDb(c), c.req.valid('query'), today(c.env))),
+    async (c) =>
+      c.json(
+        await listContracts(
+          readDb(c),
+          { ...c.req.valid('query'), sort: sortOf(c, CONTRACT_SORT) },
+          today(c.env),
+        ),
+      ),
   )
   .post('/contracts', editor, zValidator('json', createContractSchema), async (c) =>
     c.json(

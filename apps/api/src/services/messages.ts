@@ -7,7 +7,7 @@
  * Read receipts are one time per side on the thread: a side's unread count is the other side's
  * messages after that time. Writing a message counts as having read the thread.
  */
-import { and, desc, eq, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   countUnread,
@@ -18,9 +18,9 @@ import {
   type MessageThreadStatus,
   type StaffThreadQuery,
 } from '@vamar/shared';
-import { orSql, type Dbx } from '../db.js';
+import type { Dbx } from '../db.js';
 import { ApiError, notFound, validation } from '../errors.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { defineSort, sortedKeyset } from '../util/pagination.js';
 import { storeUpload } from './attachments.js';
 import { audit, type AuditActor } from './audit.js';
 import { expenseAttachmentInOwnerScope } from './expenses.js';
@@ -390,9 +390,16 @@ export async function ownerThreadDetail(db: Dbx, ownerId: string, id: string) {
 
 const ownerName = { id: owners.id, nameAr: owners.nameAr, nameEn: owners.nameEn };
 
+/** Latest activity first; the cursor keeps microseconds (sortedKeyset). */
+const INBOX_ORDER = defineSort({
+  columns: { lastMessageAt: { expr: threads.lastMessageAt, kind: 'instant' } },
+  id: threads.id,
+  default: { sort: 'lastMessageAt', dir: 'desc' },
+});
+
 /** The staff inbox: latest activity first, keyset on (last_message_at, id). */
 export async function staffInbox(db: Dbx, staffId: string, q: StaffThreadQuery) {
-  const cursor = decodeCursor(q.cursor);
+  const keyset = sortedKeyset(INBOX_ORDER, INBOX_ORDER.default, q.cursor);
   const conditions: SQL[] = [];
   if (q.status !== 'all') conditions.push(eq(threads.status, q.status));
   if (q.ownerId) conditions.push(eq(threads.ownerId, q.ownerId));
@@ -407,15 +414,7 @@ export async function staffInbox(db: Dbx, staffId: string, q: StaffThreadQuery) 
   if (q.assignedTo === 'none') conditions.push(isNull(threads.assignedStaffId));
   else if (q.assignedTo)
     conditions.push(eq(threads.assignedStaffId, q.assignedTo === 'me' ? staffId : q.assignedTo));
-  if (cursor) {
-    const key = new Date(cursor.key);
-    conditions.push(
-      orSql(
-        lt(threads.lastMessageAt, key),
-        and(eq(threads.lastMessageAt, key), lt(threads.id, cursor.id)),
-      ),
-    );
-  }
+  if (keyset.after) conditions.push(keyset.after);
   const rows = await db
     .select({
       ...summaryColumns,
@@ -424,16 +423,20 @@ export async function staffInbox(db: Dbx, staffId: string, q: StaffThreadQuery) 
       owner: ownerName,
       assignedId: staffUsers.id,
       assignedName: staffUsers.name,
+      sortKey: keyset.sortKey,
     })
     .from(threads)
     .innerJoin(owners, eq(owners.id, threads.ownerId))
     .leftJoin(staffUsers, eq(staffUsers.id, threads.assignedStaffId))
     .where(and(...conditions))
-    .orderBy(desc(threads.lastMessageAt), desc(threads.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
   const labels = await linkLabels(db, linksOf(rows));
-  const items: StaffThreadSummary[] = rows.map((r) => staffSummaryOf(r, labels));
-  return page(items, q.limit, (r) => ({ key: r.lastMessageAt.toISOString(), id: r.id }));
+  const items: (StaffThreadSummary & { sortKey: string })[] = rows.map((r) => ({
+    ...staffSummaryOf(r, labels),
+    sortKey: r.sortKey,
+  }));
+  return keyset.page(items, q.limit);
 }
 
 function staffSummaryOf(

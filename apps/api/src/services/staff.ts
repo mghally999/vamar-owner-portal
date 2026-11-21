@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, lte, lt, or, sql } from 'drizzle-orm';
+import { and, eq, gte, lte, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import type { StaffRole } from '@vamar/shared';
 import { isDemoTrialAccount } from '../config.js';
@@ -7,7 +7,7 @@ import { conflict, notFound } from '../errors.js';
 import { audit, type AuditActor } from './audit.js';
 import { revokeSessions } from '../auth/tokens.js';
 import { log } from '../util/log.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { defineSort, sortedKeyset, type SortChoice } from '../util/pagination.js';
 
 const { staffUsers, auditLog } = schema;
 
@@ -137,10 +137,24 @@ export interface AuditQuery {
   to?: string | undefined;
   cursor?: string | undefined;
   limit: number;
+  sort?: SortChoice<AuditSortKey> | undefined;
 }
 
+/** Columns the audit log can be sorted by; default newest first. */
+export const AUDIT_SORT = defineSort({
+  columns: {
+    at: { expr: auditLog.at, kind: 'instant' },
+    action: { expr: auditLog.action, kind: 'text' },
+    entityType: { expr: auditLog.entityType, kind: 'text' },
+    actor: { expr: sql`coalesce(${staffUsers.name}, '')`, kind: 'text' },
+  },
+  id: auditLog.id,
+  default: { sort: 'at', dir: 'desc' },
+});
+export type AuditSortKey = keyof typeof AUDIT_SORT.columns;
+
 export async function queryAudit(db: Dbx, q: AuditQuery) {
-  const cursor = decodeCursor(q.cursor);
+  const keyset = sortedKeyset(AUDIT_SORT, q.sort ?? AUDIT_SORT.default, q.cursor);
   const conditions = [];
   if (q.actorId) conditions.push(eq(auditLog.actorId, q.actorId));
   if (q.entityType) conditions.push(eq(auditLog.entityType, q.entityType));
@@ -148,13 +162,7 @@ export async function queryAudit(db: Dbx, q: AuditQuery) {
   if (q.action) conditions.push(sql`${auditLog.action} like ${q.action + '%'}`);
   if (q.from) conditions.push(gte(auditLog.at, new Date(q.from)));
   if (q.to) conditions.push(lte(auditLog.at, new Date(`${q.to}T23:59:59.999Z`)));
-  if (cursor)
-    conditions.push(
-      or(
-        lt(auditLog.at, new Date(cursor.key)),
-        and(eq(auditLog.at, new Date(cursor.key)), lt(auditLog.id, cursor.id)),
-      ),
-    );
+  if (keyset.after) conditions.push(keyset.after);
   const rows = await db
     .select({
       id: auditLog.id,
@@ -168,11 +176,12 @@ export async function queryAudit(db: Dbx, q: AuditQuery) {
       after: auditLog.after,
       ip: auditLog.ip,
       at: auditLog.at,
+      sortKey: keyset.sortKey,
     })
     .from(auditLog)
     .leftJoin(staffUsers, eq(staffUsers.id, auditLog.actorId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(auditLog.at), desc(auditLog.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.at.toISOString(), id: r.id }));
+  return keyset.page(rows, q.limit);
 }

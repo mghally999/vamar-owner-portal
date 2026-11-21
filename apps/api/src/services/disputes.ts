@@ -1,9 +1,9 @@
-import { and, desc, eq, inArray, lt, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import type { CreateDisputeInput, DisputeStatus } from '@vamar/shared';
 import { orSql, type Dbx } from '../db.js';
 import { ApiError, notFound, validation } from '../errors.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { defineSort, sortedKeyset, type SortChoice } from '../util/pagination.js';
 import { audit, type AuditActor } from './audit.js';
 import { listAttachments } from './attachments.js';
 
@@ -36,11 +36,28 @@ export interface DisputeListQuery {
   hearingTo?: string | undefined;
   cursor?: string | undefined;
   limit: number;
+  sort?: SortChoice<DisputeSortKey> | undefined;
 }
 
-/** Staff dispute list, newest first; keyset on (opened_at, id). */
+/** Columns the staff case list can be sorted by; default newest first. */
+export const DISPUTE_SORT = defineSort({
+  columns: {
+    openedAt: { expr: disputes.openedAt, kind: 'instant' },
+    hearing: { expr: sql`coalesce(${disputes.nextHearingDate}, '0001-01-01'::date)`, kind: 'date' },
+    caseNo: { expr: disputes.caseNo, kind: 'text' },
+    status: { expr: disputes.status, kind: 'enum' },
+    amountClaimed: { expr: sql`coalesce(${disputes.amountClaimedFils}, -1)`, kind: 'number' },
+    tenant: { expr: sql`coalesce(${tenants.name}, '')`, kind: 'text' },
+    building: { expr: buildings.nameEn, kind: 'text' },
+  },
+  id: disputes.id,
+  default: { sort: 'openedAt', dir: 'desc' },
+});
+export type DisputeSortKey = keyof typeof DISPUTE_SORT.columns;
+
+/** Staff dispute list, newest first by default; keyset on (sort column, id). */
 export async function listDisputes(db: Dbx, q: DisputeListQuery) {
-  const cursor = decodeCursor(q.cursor);
+  const keyset = sortedKeyset(DISPUTE_SORT, q.sort ?? DISPUTE_SORT.default, q.cursor);
   const conditions = [];
   if (q.status) conditions.push(eq(disputes.status, q.status));
   if (q.unitId) conditions.push(eq(disputes.unitId, q.unitId));
@@ -58,15 +75,7 @@ export async function listDisputes(db: Dbx, q: DisputeListQuery) {
       ),
     );
   }
-  if (cursor) {
-    const key = new Date(cursor.key);
-    conditions.push(
-      orSql(
-        lt(disputes.openedAt, key),
-        and(eq(disputes.openedAt, key), lt(disputes.id, cursor.id)),
-      ),
-    );
-  }
+  if (keyset.after) conditions.push(keyset.after);
   const rows = await db
     .select({
       id: disputes.id,
@@ -84,15 +93,16 @@ export async function listDisputes(db: Dbx, q: DisputeListQuery) {
       buildingNameEn: buildings.nameEn,
       tenantName: tenants.name,
       chequeNos: chequeNosSql,
+      sortKey: keyset.sortKey,
     })
     .from(disputes)
     .innerJoin(units, eq(units.id, disputes.unitId))
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .leftJoin(tenants, eq(tenants.id, disputes.tenantId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(disputes.openedAt), desc(disputes.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.openedAt.toISOString(), id: r.id }));
+  return keyset.page(rows, q.limit);
 }
 
 export async function getDisputeDetail(db: Dbx, id: string) {

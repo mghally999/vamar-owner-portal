@@ -53,12 +53,14 @@ import {
   updateRule,
   updateVendor,
   voidExpense,
+  EXPENSE_SORT,
+  VENDOR_SORT,
 } from '../../services/expenses.js';
 import { queueLargeExpenseAlert } from '../../services/notifications.js';
 import { getSettings } from '../../services/settings.js';
 import { forbidden } from '../../errors.js';
 import { today } from '../../util/today.js';
-import { admin, editor, idParam, viewer } from './common.js';
+import { admin, editor, idParam, viewer, sortOf } from './common.js';
 
 const flag = z
   .enum(['1', '0', 'true', 'false'])
@@ -105,9 +107,17 @@ export const expensesRoutes = new Hono<AppEnv>()
     viewer,
     zValidator(
       'query',
-      z.object({ search: z.string().trim().max(80).optional(), includeInactive: flag }),
+      z.object({
+        search: z.string().trim().max(80).optional(),
+        includeInactive: flag,
+        cursor: z.string().max(512).optional(),
+        limit: z.coerce.number().int().min(1).max(200).default(200),
+      }),
     ),
-    async (c) => c.json({ items: await listVendors(readDb(c), c.req.valid('query')) }),
+    async (c) =>
+      c.json(
+        await listVendors(readDb(c), { ...c.req.valid('query'), sort: sortOf(c, VENDOR_SORT) }),
+      ),
   )
   .post('/vendors', editor, zValidator('json', createVendorSchema), async (c) =>
     c.json(
@@ -135,7 +145,11 @@ export const expensesRoutes = new Hono<AppEnv>()
     const q = c.req.valid('query');
     const settings = await getSettings(db);
     return c.json(
-      await listExpenses(db, { ...q, period: optionalPeriod(q, today(c.env), settings.weekStart) }),
+      await listExpenses(db, {
+        ...q,
+        period: optionalPeriod(q, today(c.env), settings.weekStart),
+        sort: sortOf(c, EXPENSE_SORT),
+      }),
     );
   })
   .post(

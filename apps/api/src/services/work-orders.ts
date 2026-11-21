@@ -16,7 +16,13 @@ import {
 import { andSql, orSql, type Dbx } from '../db.js';
 import { conflict, notFound } from '../errors.js';
 import type { Patch } from '../util/types.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import {
+  decodeCursor,
+  defineSort,
+  page,
+  sortedKeyset,
+  type SortChoice,
+} from '../util/pagination.js';
 import {
   approvalStateSql,
   assertApprovalsAllow,
@@ -78,9 +84,9 @@ const workOrderSelect = {
   photoCount: sql<number>`(select count(*)::int from ${schema.attachments} a where a.entity_type = 'work_order' and a.entity_id = ${workOrders.id})`,
 };
 
-function baseQuery(db: Dbx) {
+function baseQuery<E extends Record<string, SQL>>(db: Dbx, extra?: E) {
   return db
-    .select(workOrderSelect)
+    .select({ ...workOrderSelect, ...(extra ?? ({} as E)) })
     .from(workOrders)
     .innerJoin(buildings, eq(buildings.id, workOrders.buildingId))
     .leftJoin(units, eq(units.id, workOrders.unitId))
@@ -88,9 +94,32 @@ function baseQuery(db: Dbx) {
     .leftJoin(expenses, eq(expenses.id, workOrders.expenseId));
 }
 
-/** Staff list and board; keyset on (reported_on desc, id desc). */
-export async function listWorkOrders(db: Dbx, q: WorkOrderListQuery) {
-  const cursor = decodeCursor(q.cursor);
+/** Columns the staff work order list can be sorted by; default newest report first. */
+export const WORK_ORDER_SORT = defineSort({
+  columns: {
+    reportedOn: { expr: workOrders.reportedOn, kind: 'date' },
+    scheduledFor: {
+      expr: sql`coalesce(${workOrders.scheduledFor}, '0001-01-01'::date)`,
+      kind: 'date',
+    },
+    status: { expr: workOrders.status, kind: 'enum' },
+    priority: { expr: workOrders.priority, kind: 'enum' },
+    title: { expr: workOrders.titleEn, kind: 'text' },
+    vendor: { expr: sql`coalesce(${vendors.name}, '')`, kind: 'text' },
+    building: { expr: buildings.nameEn, kind: 'text' },
+    estimate: { expr: sql`coalesce(${workOrders.estimateFils}, -1)`, kind: 'number' },
+  },
+  id: workOrders.id,
+  default: { sort: 'reportedOn', dir: 'desc' },
+});
+export type WorkOrderSortKey = keyof typeof WORK_ORDER_SORT.columns;
+
+/** Staff list and board; keyset on (sort column, id), newest report first by default. */
+export async function listWorkOrders(
+  db: Dbx,
+  q: WorkOrderListQuery & { sort?: SortChoice<WorkOrderSortKey> | undefined },
+) {
+  const keyset = sortedKeyset(WORK_ORDER_SORT, q.sort ?? WORK_ORDER_SORT.default, q.cursor);
   const conditions: SQL[] = [];
   if (q.buildingId) conditions.push(eq(workOrders.buildingId, q.buildingId));
   if (q.unitId) conditions.push(eq(workOrders.unitId, q.unitId));
@@ -111,18 +140,21 @@ export async function listWorkOrders(db: Dbx, q: WorkOrderListQuery) {
       sql`(${workOrders.titleAr} ilike ${like} or ${workOrders.titleEn} ilike ${like} or ${workOrders.description} ilike ${like})`,
     );
   }
-  if (cursor)
-    conditions.push(
-      orSql(
-        lt(workOrders.reportedOn, cursor.key),
-        and(eq(workOrders.reportedOn, cursor.key), lt(workOrders.id, cursor.id)),
-      ),
-    );
-  const rows = await baseQuery(db)
+  if (keyset.after) conditions.push(keyset.after);
+  // The page's ids first, joining only what the filter and sort use (unused left joins are
+  // dropped); the full rows and their per-row counts are built for those ids alone.
+  const pageIds = db
+    .select({ id: workOrders.id })
+    .from(workOrders)
+    .leftJoin(buildings, eq(buildings.id, workOrders.buildingId))
+    .leftJoin(vendors, eq(vendors.id, workOrders.vendorId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(workOrders.reportedOn), desc(workOrders.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.reportedOn, id: r.id }));
+  const rows = await baseQuery(db, { sortKey: keyset.sortKey })
+    .where(inArray(workOrders.id, pageIds))
+    .orderBy(...keyset.orderBy);
+  return keyset.page(rows, q.limit);
 }
 
 export async function getWorkOrderDetail(db: Dbx, id: string) {

@@ -20,9 +20,10 @@ import {
   getWorkOrderDetail,
   listWorkOrders,
   updateWorkOrder,
+  WORK_ORDER_SORT,
 } from '../../services/work-orders.js';
 import { today } from '../../util/today.js';
-import { admin, editor, idParam, viewer } from './common.js';
+import { admin, editor, idParam, viewer, sortOf } from './common.js';
 
 export const workOrdersRoutes = new Hono<AppEnv>()
   .get('/work-orders', viewer, zValidator('query', workOrderListQuerySchema), async (c) => {
@@ -31,6 +32,7 @@ export const workOrdersRoutes = new Hono<AppEnv>()
       await listWorkOrders(readDb(c), {
         ...q,
         overdueBefore: overdue ? today(c.env) : undefined,
+        sort: sortOf(c, WORK_ORDER_SORT),
       }),
     );
   })

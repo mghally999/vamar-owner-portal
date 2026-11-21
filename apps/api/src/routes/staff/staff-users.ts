@@ -20,8 +20,9 @@ import {
   queryAudit,
   resetStaffTotp,
   updateStaff,
+  AUDIT_SORT,
 } from '../../services/staff.js';
-import { admin, idParam } from './common.js';
+import { admin, idParam, sortOf } from './common.js';
 
 export const staffUsersRoutes = new Hono<AppEnv>()
   .get('/staff', admin, async (c) => c.json({ items: await listStaff(readDb(c)) }))
@@ -66,5 +67,6 @@ export const staffUsersRoutes = new Hono<AppEnv>()
         to: plainDateSchema.optional(),
       }),
     ),
-    async (c) => c.json(await queryAudit(readDb(c), c.req.valid('query'))),
+    async (c) =>
+      c.json(await queryAudit(readDb(c), { ...c.req.valid('query'), sort: sortOf(c, AUDIT_SORT) })),
   );

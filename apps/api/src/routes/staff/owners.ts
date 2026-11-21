@@ -20,8 +20,9 @@ import {
   setOwnerStatus,
   updateOwner,
   changeOwnerPhone,
+  OWNER_SORT,
 } from '../../services/owners.js';
-import { admin, editor, idParam, viewer } from './common.js';
+import { admin, editor, idParam, viewer, sortOf } from './common.js';
 
 export const ownersRoutes = new Hono<AppEnv>()
   .get(
@@ -34,7 +35,8 @@ export const ownersRoutes = new Hono<AppEnv>()
         status: ownerStatusSchema.optional(),
       }),
     ),
-    async (c) => c.json(await listOwners(readDb(c), c.req.valid('query'))),
+    async (c) =>
+      c.json(await listOwners(readDb(c), { ...c.req.valid('query'), sort: sortOf(c, OWNER_SORT) })),
   )
   .post('/owners', editor, zValidator('json', createOwnerSchema), async (c) =>
     c.json(

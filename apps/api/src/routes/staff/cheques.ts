@@ -27,6 +27,7 @@ import {
   getChequeDetail,
   listCheques,
   updateChequeRow,
+  CHEQUE_SORT,
 } from '../../services/cheques.js';
 import {
   deleteBankCsvMapping,
@@ -36,7 +37,7 @@ import {
 import { queueBounceAlerts } from '../../services/notifications.js';
 import { ApiError, validation } from '../../errors.js';
 import { today } from '../../util/today.js';
-import { editor, idParam, statusList, viewer } from './common.js';
+import { editor, idParam, statusList, viewer, sortOf } from './common.js';
 
 export const chequesRoutes = new Hono<AppEnv>()
   // Registered before /cheques/:id so the literal path is not read as a cheque id.
@@ -94,7 +95,10 @@ export const chequesRoutes = new Hono<AppEnv>()
         status: statusList,
       }),
     ),
-    async (c) => c.json(await listCheques(readDb(c), c.req.valid('query'))),
+    async (c) =>
+      c.json(
+        await listCheques(readDb(c), { ...c.req.valid('query'), sort: sortOf(c, CHEQUE_SORT) }),
+      ),
   )
   .get('/cheques/:id', viewer, idParam, async (c) =>
     c.json(await getChequeDetail(readDb(c), c.req.valid('param').id)),

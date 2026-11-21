@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
 import {
   addDays,
@@ -13,7 +13,7 @@ import {
 import type { Dbx } from '../db.js';
 import { ApiError, conflict, notFound, validation } from '../errors.js';
 import { audit, type AuditActor } from './audit.js';
-import { decodeCursor, page } from '../util/pagination.js';
+import { defineSort, sortedKeyset, type SortChoice } from '../util/pagination.js';
 
 const { contracts, cheques, chequeEvents, units, buildings, tenants } = schema;
 
@@ -26,10 +26,28 @@ export interface ContractListQuery {
   withoutRenewal?: boolean | undefined;
   cursor?: string | undefined;
   limit: number;
+  sort?: SortChoice<ContractSortKey> | undefined;
 }
 
+/** Columns the staff contract table can be sorted by; default newest first. */
+export const CONTRACT_SORT = defineSort({
+  columns: {
+    createdAt: { expr: contracts.createdAt, kind: 'instant' },
+    startDate: { expr: contracts.startDate, kind: 'date' },
+    endDate: { expr: contracts.endDate, kind: 'date' },
+    annualRent: { expr: contracts.annualRentFils, kind: 'number' },
+    status: { expr: contracts.status, kind: 'enum' },
+    tenant: { expr: tenants.name, kind: 'text' },
+    building: { expr: buildings.nameEn, kind: 'text' },
+    unit: { expr: units.unitNo, kind: 'text' },
+  },
+  id: contracts.id,
+  default: { sort: 'createdAt', dir: 'desc' },
+});
+export type ContractSortKey = keyof typeof CONTRACT_SORT.columns;
+
 export async function listContracts(db: Dbx, q: ContractListQuery, todayDate: PlainDate) {
-  const cursor = decodeCursor(q.cursor);
+  const keyset = sortedKeyset(CONTRACT_SORT, q.sort ?? CONTRACT_SORT.default, q.cursor);
   const conditions = [];
   if (q.status) conditions.push(eq(contracts.status, q.status));
   if (q.unitId) conditions.push(eq(contracts.unitId, q.unitId));
@@ -44,14 +62,7 @@ export async function listContracts(db: Dbx, q: ContractListQuery, todayDate: Pl
     conditions.push(
       sql`not exists (select 1 from ${contracts} r where r.previous_contract_id = ${contracts.id})`,
     );
-  if (cursor) {
-    conditions.push(
-      or(
-        lt(contracts.createdAt, new Date(cursor.key)),
-        and(eq(contracts.createdAt, new Date(cursor.key)), lt(contracts.id, cursor.id)),
-      ),
-    );
-  }
+  if (keyset.after) conditions.push(keyset.after);
   const rows = await db
     .select({
       id: contracts.id,
@@ -68,15 +79,16 @@ export async function listContracts(db: Dbx, q: ContractListQuery, todayDate: Pl
       chequeCount: contracts.chequeCount,
       status: contracts.status,
       createdAt: contracts.createdAt,
+      sortKey: keyset.sortKey,
     })
     .from(contracts)
     .innerJoin(units, eq(units.id, contracts.unitId))
     .innerJoin(buildings, eq(buildings.id, units.buildingId))
     .innerJoin(tenants, eq(tenants.id, contracts.tenantId))
     .where(conditions.length ? and(...conditions) : undefined)
-    .orderBy(desc(contracts.createdAt), desc(contracts.id))
+    .orderBy(...keyset.orderBy)
     .limit(q.limit + 1);
-  return page(rows, q.limit, (r) => ({ key: r.createdAt.toISOString(), id: r.id }));
+  return keyset.page(rows, q.limit);
 }
 
 export async function getContractDetail(db: Dbx, id: string) {

@@ -23,9 +23,10 @@ import {
   listDisputes,
   setDisputeCheques,
   updateDispute,
+  DISPUTE_SORT,
 } from '../../services/disputes.js';
 import { today } from '../../util/today.js';
-import { editor, idParam, viewer } from './common.js';
+import { editor, idParam, viewer, sortOf } from './common.js';
 
 export const disputesRoutes = new Hono<AppEnv>()
   .get(
@@ -42,7 +43,10 @@ export const disputesRoutes = new Hono<AppEnv>()
         hearingTo: plainDateSchema.optional(),
       }),
     ),
-    async (c) => c.json(await listDisputes(readDb(c), c.req.valid('query'))),
+    async (c) =>
+      c.json(
+        await listDisputes(readDb(c), { ...c.req.valid('query'), sort: sortOf(c, DISPUTE_SORT) }),
+      ),
   )
   .post('/disputes', editor, zValidator('json', createDisputeWithChequesSchema), async (c) =>
     c.json(
