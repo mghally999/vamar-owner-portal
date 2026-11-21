@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
   useEffect,
+  useRef,
 } from 'react';
 import type { ChequeStatus, ContractStatus, DisputeStatus } from '@vamar/shared';
 import { useI18n } from '@/lib/i18n';
@@ -261,16 +262,27 @@ export function EmptyState({
 
 export function ErrorState({ message, onRetry }: { message?: string; onRetry?: () => void }) {
   const { t } = useI18n();
+  // Pages pass a new arrow on every render. The timer calls the latest one through a ref, so a
+  // re-render (a sibling query settling, a keystroke) no longer restarts the countdown and the
+  // retry still comes every 10 s.
+  const retryRef = useRef(onRetry);
+  useEffect(() => {
+    retryRef.current = onRetry;
+  });
+  const canRetry = onRetry !== undefined;
   // Keep retrying on our own every 10 s while the server or the database comes back.
   useEffect(() => {
-    if (!onRetry) return;
-    const id = window.setTimeout(onRetry, 10_000);
+    if (!canRetry) return;
+    const id = window.setInterval(() => retryRef.current?.(), 10_000);
     return () => {
-      window.clearTimeout(id);
+      window.clearInterval(id);
     };
-  }, [onRetry]);
+  }, [canRetry]);
   return (
-    <div className="card flex flex-wrap items-center justify-between gap-3 border-status-bounced px-5 py-4">
+    <div
+      role="alert"
+      className="card flex flex-wrap items-center justify-between gap-3 border-status-bounced px-5 py-4"
+    >
       <div>
         <p className="text-[15px] text-danger">{message ?? t('error_generic')}</p>
         {onRetry ? <p className="text-[13px] text-ink-soft">{t('error_autoRetry')}</p> : null}

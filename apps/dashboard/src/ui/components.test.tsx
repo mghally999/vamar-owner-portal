@@ -3,12 +3,12 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import axe from 'axe-core';
 import { useState } from 'react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PlainDate } from '@vamar/shared';
 import { LangProvider } from '@/lib/i18n';
 import { applyTheme, setTheme } from '@/lib/theme';
 import { ChequeGrid, type GridRowDraft } from './cheque-grid';
-import { Amount } from './primitives';
+import { Amount, ErrorState } from './primitives';
 
 afterEach(cleanup);
 
@@ -97,5 +97,38 @@ describe('theme', () => {
     localStorage.setItem('vamar.theme', 'neon');
     applyTheme();
     expect(document.documentElement.dataset['theme']).toBeUndefined();
+  });
+});
+
+describe('ErrorState', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('retries every 10 s even when the page re-renders it with a new callback', () => {
+    vi.useFakeTimers();
+    const calls: number[] = [];
+    const view = withLang('en', <ErrorState onRetry={() => calls.push(0)} />);
+    expect(screen.getByRole('alert').textContent).toContain('Retry');
+    // Pages pass an inline arrow, so every render brings a new one; before, each restarted the timer.
+    for (let i = 1; i <= 4; i += 1) {
+      vi.advanceTimersByTime(3_000);
+      view.rerender(
+        <LangProvider>
+          <ErrorState onRetry={() => calls.push(i)} />
+        </LangProvider>,
+      );
+    }
+    // 12 s have passed: one retry, made with the callback current at 10 s.
+    expect(calls).toEqual([3]);
+    vi.advanceTimersByTime(10_000);
+    expect(calls).toEqual([3, 4]);
+  });
+
+  it('does not retry on its own without a callback', () => {
+    vi.useFakeTimers();
+    withLang('en', <ErrorState message="Gone" />);
+    vi.advanceTimersByTime(30_000);
+    expect(screen.getByRole('alert').textContent).toBe('Gone');
   });
 });
