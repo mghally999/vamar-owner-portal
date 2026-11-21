@@ -32,9 +32,12 @@ export function FilterChip({
         borderColor: active ? t.colors.primary : t.colors.border,
       }}
     >
+      {/* One line: Android otherwise can break the label after a redraw and hide its last
+          word inside a chip sized for all of it ("This year" drawn as "This"). */}
       <Text
         variant="caption"
         weight="medium"
+        numberOfLines={1}
         style={{ color: active ? t.colors.onPrimary : t.colors.ink }}
       >
         {label}

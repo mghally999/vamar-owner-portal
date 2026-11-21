@@ -80,9 +80,11 @@ export function PeriodSwitcher({
         borderColor: active ? t.colors.primary : t.colors.border,
       }}
     >
+      {/* One line, as in FilterChip: Android can otherwise hide the last word after a redraw. */}
       <Text
         variant="caption"
         weight="medium"
+        numberOfLines={1}
         style={{ color: active ? t.colors.onPrimary : t.colors.ink }}
       >
         {label}

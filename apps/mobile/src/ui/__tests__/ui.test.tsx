@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import { LangProvider } from '@/lib/i18n';
 import { ThemeProvider } from '@/lib/theme';
 import { Amount, EmptyState, ErrorState, ProgressBar, StatusChip } from '..';
+import { FilterChip } from '../filter-chip';
 import { MonthSwitcher } from '../month-switcher';
+import { PeriodSwitcher } from '../period-switcher';
 
 const mockStore = new Map<string, string>();
 jest.mock('@/lib/storage', () => ({
@@ -106,6 +108,21 @@ describe('owner app UI', () => {
     const tree = JSON.stringify(screen.toJSON());
     expect(tree).toContain('"width":"100%"');
     expect(tree).toContain('"width":"0%"');
+  });
+
+  it('keeps chip labels on one line, so Android cannot hide their last word', async () => {
+    await renderIn(
+      'en',
+      <>
+        <FilterChip label="Al Noor Tower" active={false} onPress={() => undefined} />
+        <PeriodSwitcher
+          value={{ kind: 'preset', preset: 'this_month' }}
+          onChange={() => undefined}
+        />
+      </>,
+    );
+    expect((await screen.findByText('Al Noor Tower')).props.numberOfLines).toBe(1);
+    expect(screen.getByText('This year').props.numberOfLines).toBe(1);
   });
 
   it('offers a retry on the error state', async () => {
