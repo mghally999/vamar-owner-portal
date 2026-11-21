@@ -1,5 +1,5 @@
 import { sql } from 'drizzle-orm';
-import { index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, jsonb, pgTable, smallint, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, id, instant } from './_common.js';
 import { devicePlatform, lang, notificationType, ownerStatus, subjectType } from './enums.js';
 import { staffUsers } from './staff.js';
@@ -80,9 +80,50 @@ export const notificationLog = pgTable(
     entityId: uuid().notNull(),
     /** `type:entityId:date`; the unique constraint makes cron re-runs idempotent. */
     dedupeKey: text().notNull().unique(),
+    /** Time of the latest attempt. */
     sentAt: instant().notNull().defaultNow(),
-    /** Expo ticket status or error code, for support. */
+    /**
+     * `queued`, `ok`, `no_device`, `error:<code>` (permanent ticket error), `failed:<reason>`
+     * (transport problem, retried) or `undelivered:<code>` (the Expo receipt reported an error).
+     */
     result: text().notNull().default(''),
+    /** First attempt: retries stop a day after it. */
+    createdAt: createdAt(),
+    /** Sends tried so far (a retry is claimed only below the cap). */
+    attempts: smallint().notNull().default(1),
+    /** When a `failed:` row may be tried again; null once retries are over. */
+    nextAttemptAt: instant(),
+    /** What a retry needs to send it again (params, device left out); cleared once final. */
+    payload: jsonb(),
   },
-  (t) => [index('notification_log_owner_idx').on(t.ownerId, t.sentAt)],
+  (t) => [
+    index('notification_log_owner_idx').on(t.ownerId, t.sentAt),
+    /** The retry pass: failed sends that are due. */
+    index('notification_log_retry_idx')
+      .on(t.nextAttemptAt)
+      .where(sql`${t.result} LIKE 'failed:%'`),
+  ],
+);
+
+/**
+ * Expo tickets of pushes that were accepted, kept until their receipt is read (Expo keeps a
+ * receipt for a day). A receipt with an error marks the notification undelivered; one with
+ * DeviceNotRegistered also clears that device's token if it is still the same token.
+ */
+export const pushTickets = pgTable(
+  'push_tickets',
+  {
+    /** Expo's ticket id. */
+    id: text().primaryKey(),
+    notificationId: uuid()
+      .notNull()
+      .references(() => notificationLog.id, { onDelete: 'cascade' }),
+    deviceId: uuid()
+      .notNull()
+      .references(() => devices.id, { onDelete: 'cascade' }),
+    /** The token the push went to, so a late receipt never clears a newer token. */
+    pushToken: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index('push_tickets_created_idx').on(t.createdAt)],
 );

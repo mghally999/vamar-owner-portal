@@ -10,7 +10,7 @@ import { cronDb } from '../db.js';
 import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { today } from '../util/today.js';
-import { deliver, type DeliveryReport } from './notifications.js';
+import { deliverEvent, type DeliveryReport } from './notifications.js';
 
 const NOTHING: DeliveryReport = { sent: 0, skipped: 0, failed: 0 };
 
@@ -34,7 +34,7 @@ export async function queueMessageReplyPush(
       )
       .where(eq(schema.threadMessages.id, messageId));
     if (row?.senderType !== 'staff') return NOTHING;
-    const report = await deliver(env, db, [
+    const report = await deliverEvent(env, db, [
       {
         ownerId: row.ownerId,
         type: 'message_reply',

@@ -23,6 +23,11 @@ export interface RetryOptions {
   backoffMs?: number;
   /** Which responses are worth another attempt (default: 429 and 5xx). */
   retryOn?: (res: Response) => boolean;
+  /**
+   * Repeat the call after a timeout (default true). Off for a request that must not happen twice:
+   * after a timeout the server may have acted on it (an Expo push already sent).
+   */
+  retryOnTimeout?: boolean;
   label?: string;
 }
 
@@ -62,6 +67,7 @@ export async function fetchWithRetry(
     retries = 2,
     backoffMs = 400,
     retryOn = defaultRetryOn,
+    retryOnTimeout = true,
     label = url,
   } = options;
   let lastError: OutboundError | undefined;
@@ -76,7 +82,7 @@ export async function fetchWithRetry(
         timedOut ? 'timeout' : 'network',
         `${label} ${timedOut ? 'timed out' : 'failed'}: ${e instanceof Error ? e.message : String(e)}`,
       );
-      if (attempt === retries) throw lastError;
+      if (attempt === retries || (timedOut && !retryOnTimeout)) throw lastError;
     }
     const delay = backoffMs * 2 ** attempt;
     await sleep(delay / 2 + Math.random() * (delay / 2));

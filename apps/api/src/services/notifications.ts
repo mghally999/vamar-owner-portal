@@ -3,10 +3,23 @@
  *
  * Every notification is recorded in notification_log under a unique dedupe key, in two phases:
  * the key is claimed (`queued`) before the send, and the row is updated with the outcome after it
- * (`ok`, `no_device`, `error:<code>` or `failed:<reason>`). A `failed:` row is a transport problem
- * (Expo down, timeout) and is claimed again by the next run, so nothing is lost; an `error:` row
- * is a permanent ticket error and is not retried. On DeviceNotRegistered the device's token is
- * cleared.
+ * (`ok`, `no_device`, `error:<code>` or `failed:<reason>`). Claims are atomic, so two runs never
+ * send the same row.
+ *
+ * - `failed:` is a transport problem (Expo down, refused with 429/5xx, network). The row keeps what
+ *   it needs to be sent again (`payload`) and is retried with backoff (PUSH_RETRY) by the follow-up
+ *   pass, up to a cap and only within a day of the first attempt. The daily job's own types are
+ *   also claimed again when it regenerates them.
+ * - A timeout is not retried (`error:timeout`): Expo may have accepted the request, and a missed
+ *   push is better than the same push twice. The Expo call itself is never repeated after one.
+ * - `error:` is a permanent ticket error and is not retried. On DeviceNotRegistered the device's
+ *   token is cleared (only if it is still the token the push went to).
+ * - Accepted tickets are kept in push_tickets; the follow-up pass reads their receipts (Expo keeps
+ *   them a day), marks the notification `undelivered:<code>` when every receipt is an error, and
+ *   clears tokens on DeviceNotRegistered.
+ *
+ * The follow-up pass (pushFollowUp) runs after every event delivery, while the database is awake
+ * anyway, and in the daily job; it never wakes the database on its own.
  */
 import { and, eq, inArray, isNull, isNotNull, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
@@ -25,15 +38,32 @@ import {
   type PlainDate,
 } from '@vamar/shared';
 import type { Dbx } from '../db.js';
-import { cronDb } from '../db.js';
+import { cronDb, rowsOf } from '../db.js';
 import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { fetchWithRetry, OutboundError } from '../util/outbound.js';
 import { expenseOwnerIds } from './expenses.js';
 import { ownerVisibleCost, workOrderOwnerIds } from './work-orders.js';
 
+const { notificationLog, pushTickets, devices } = schema;
+
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
+const EXPO_RECEIPTS_URL = 'https://exp.host/--/api/v2/push/getReceipts';
 const EXPO_TIMEOUT_MS = 10_000;
+/** Expo accepts up to 1,000 receipt ids per call. */
+const RECEIPT_BATCH = 500;
+
+/** Retries of `failed:` sends: attempts in all, the wait after each failure, and the window. */
+export const PUSH_RETRY = {
+  maxAttempts: 4,
+  backoffMs: [15 * 60_000, 60 * 60_000, 4 * 60 * 60_000],
+  windowMs: 24 * 60 * 60_000,
+  /** Rows taken per follow-up pass. */
+  batch: 50,
+} as const;
+
+/** Receipts are read once a ticket is this old (Expo's advice) and dropped after a day. */
+export const RECEIPTS = { minAgeMs: 15 * 60_000, maxAgeMs: 24 * 60 * 60_000 } as const;
 
 export interface PendingNotification {
   ownerId: string;
@@ -51,7 +81,7 @@ export interface DeliveryReport {
   sent: number;
   /** Already delivered earlier, owner disabled, or no device. */
   skipped: number;
-  /** Transport failures; claimed again by the next run. */
+  /** Transport failures; retried later (PUSH_RETRY). */
   failed: number;
 }
 
@@ -70,7 +100,23 @@ interface ExpoTicket {
   details?: { error?: string };
 }
 
-type BatchOutcome = { tickets: ExpoTicket[] } | { transportError: string };
+type BatchOutcome = { tickets: ExpoTicket[] } | { transportError: string; retryable: boolean };
+
+/** What a retry needs that the row does not already hold. */
+interface PushPayload {
+  params: NotificationParams;
+  excludeDeviceId?: string | undefined;
+}
+
+/** A claimed notification_log row, ready to send. */
+interface Claim {
+  id: string;
+  ownerId: string;
+  type: NotificationType;
+  entityId: string;
+  payload: PushPayload;
+  attempts: number;
+}
 
 /**
  * What the app reads when the owner taps a push: the type and the record it is about. The monthly
@@ -90,7 +136,11 @@ export function pushData(
   };
 }
 
-/** Deliver a batch: claims the dedupe keys first, then pushes to every active device. */
+/**
+ * Deliver a batch: claims the dedupe keys first (one statement), then pushes to every active
+ * device. A key already handled is skipped; one whose earlier attempt failed in transport is
+ * claimed again while under the attempt cap.
+ */
 export async function deliver(
   env: Bindings,
   db: Dbx,
@@ -101,151 +151,400 @@ export async function deliver(
 
   const ownerIds = [...new Set(pending.map((p) => p.ownerId))];
   const owners = await db
-    .select({
-      id: schema.owners.id,
-      preferredLang: schema.owners.preferredLang,
-      status: schema.owners.status,
-    })
+    .select({ id: schema.owners.id, status: schema.owners.status })
     .from(schema.owners)
     .where(inArray(schema.owners.id, ownerIds));
-  const devices = await db
-    .select({
-      id: schema.devices.id,
-      ownerId: schema.devices.ownerId,
-      deviceId: schema.devices.deviceId,
-      pushToken: schema.devices.pushToken,
-    })
-    .from(schema.devices)
-    .where(
-      and(
-        inArray(schema.devices.ownerId, ownerIds),
-        isNull(schema.devices.revokedAt),
-        isNotNull(schema.devices.pushToken),
-      ),
-    );
+  const live = new Set(owners.filter((o) => o.status !== 'disabled').map((o) => o.id));
 
-  interface Claim {
-    key: string;
-    messages: { msg: ExpoMessage; deviceRowId: string }[];
-    okCount: number;
-    lastError: string | null;
-  }
-  const claims: Claim[] = [];
+  const byKey = new Map<string, PendingNotification>();
   for (const p of pending) {
-    const owner = owners.find((o) => o.id === p.ownerId);
-    if (!owner || owner.status === 'disabled') {
+    if (!live.has(p.ownerId)) {
       report.skipped += 1;
       continue;
     }
     const key = dedupeKey(p.type, p.ownerId, p.entityId, p.date);
-    // Claim the key. A conflict means it was handled before, unless that attempt failed in
-    // transport, in which case the row is claimed again.
-    const claimed = await db
-      .insert(schema.notificationLog)
-      .values({
+    if (byKey.has(key)) report.skipped += 1;
+    else byKey.set(key, p);
+  }
+  if (byKey.size === 0) return report;
+
+  const claimed = await db
+    .insert(notificationLog)
+    .values(
+      [...byKey].map(([key, p]) => ({
         ownerId: p.ownerId,
         type: p.type,
         entityId: p.entityId,
         dedupeKey: key,
         result: 'queued',
+        payload: { params: p.params, excludeDeviceId: p.excludeDeviceId } satisfies PushPayload,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: notificationLog.dedupeKey,
+      set: {
+        result: 'queued',
+        sentAt: sql`now()`,
+        attempts: sql`${notificationLog.attempts} + 1`,
+        nextAttemptAt: null,
+        payload: sql`excluded.payload`,
+      },
+      setWhere: sql`${notificationLog.result} like 'failed:%' and ${notificationLog.attempts} < ${PUSH_RETRY.maxAttempts}`,
+    })
+    .returning({
+      id: notificationLog.id,
+      key: notificationLog.dedupeKey,
+      attempts: notificationLog.attempts,
+    });
+  report.skipped += byKey.size - claimed.length;
+
+  const claims: Claim[] = claimed.flatMap((c) => {
+    const p = byKey.get(c.key);
+    if (!p) return [];
+    return {
+      id: c.id,
+      ownerId: p.ownerId,
+      type: p.type,
+      entityId: p.entityId,
+      attempts: c.attempts,
+      payload: { params: p.params, excludeDeviceId: p.excludeDeviceId },
+    };
+  });
+  const sent = await sendClaims(env, db, claims);
+  report.sent += sent.sent;
+  report.skipped += sent.skipped;
+  report.failed += sent.failed;
+  return report;
+}
+
+/** Push the claimed rows to the owners' devices and record each outcome (a fixed number of statements). */
+async function sendClaims(env: Bindings, db: Dbx, claims: Claim[]): Promise<DeliveryReport> {
+  const report: DeliveryReport = { sent: 0, skipped: 0, failed: 0 };
+  if (claims.length === 0) return report;
+  const ownerIds = [...new Set(claims.map((c) => c.ownerId))];
+  const [owners, targets] = await Promise.all([
+    db
+      .select({
+        id: schema.owners.id,
+        preferredLang: schema.owners.preferredLang,
+        status: schema.owners.status,
       })
-      .onConflictDoUpdate({
-        target: schema.notificationLog.dedupeKey,
-        set: { result: 'queued', sentAt: new Date() },
-        setWhere: sql`${schema.notificationLog.result} like 'failed:%'`,
+      .from(schema.owners)
+      .where(inArray(schema.owners.id, ownerIds)),
+    db
+      .select({
+        id: devices.id,
+        ownerId: devices.ownerId,
+        deviceId: devices.deviceId,
+        pushToken: devices.pushToken,
       })
-      .returning({ id: schema.notificationLog.id });
-    if (claimed.length === 0) {
-      report.skipped += 1;
+      .from(devices)
+      .where(
+        and(
+          inArray(devices.ownerId, ownerIds),
+          isNull(devices.revokedAt),
+          isNotNull(devices.pushToken),
+        ),
+      ),
+  ]);
+
+  interface Item {
+    claim: Claim;
+    deviceRowId: string;
+    token: string;
+    msg: ExpoMessage;
+  }
+  const outcome = new Map<string, { ok: number; error: string | null }>();
+  const items: Item[] = [];
+  for (const c of claims) {
+    const owner = owners.find((o) => o.id === c.ownerId);
+    outcome.set(c.id, { ok: 0, error: null });
+    if (!owner || owner.status === 'disabled') {
+      outcome.set(c.id, { ok: 0, error: 'error:owner_disabled' });
       continue;
     }
-    const copy = notificationCopy(p.params, owner.preferredLang);
-    const targets = devices.filter(
-      (d) => d.ownerId === p.ownerId && d.deviceId !== p.excludeDeviceId && d.pushToken,
-    );
-    if (targets.length === 0) {
-      await setResult(db, key, 'no_device');
-      report.skipped += 1;
-      continue;
-    }
-    claims.push({
-      key,
-      okCount: 0,
-      lastError: null,
-      messages: targets.map((d) => ({
+    const copy = notificationCopy(c.payload.params, owner.preferredLang);
+    for (const d of targets) {
+      if (d.ownerId !== c.ownerId || d.deviceId === c.payload.excludeDeviceId || !d.pushToken)
+        continue;
+      items.push({
+        claim: c,
         deviceRowId: d.id,
+        token: d.pushToken,
         msg: {
-          to: d.pushToken ?? '',
+          to: d.pushToken,
           title: copy.title,
           body: copy.body,
           sound: 'default',
-          data: pushData(p),
+          data: pushData({ type: c.type, entityId: c.entityId, params: c.payload.params }),
         },
-      })),
-    });
+      });
+    }
   }
 
-  const flat = claims.flatMap((c) => c.messages.map((m) => ({ ...m, claim: c })));
-  for (const batch of chunk(flat, EXPO_PUSH_BATCH_SIZE)) {
-    const outcome = await sendExpoBatch(
+  const tickets: { id: string; notificationId: string; deviceId: string; pushToken: string }[] = [];
+  const unregistered: { deviceRowId: string; token: string }[] = [];
+  for (const batch of chunk(items, EXPO_PUSH_BATCH_SIZE)) {
+    const res = await sendExpoBatch(
       env,
       batch.map((b) => b.msg),
     );
-    if ('transportError' in outcome) {
-      for (const item of batch) item.claim.lastError = `failed:${outcome.transportError}`;
+    if ('transportError' in res) {
+      const code = `${res.retryable ? 'failed' : 'error'}:${res.transportError}`;
+      for (const item of batch) {
+        const o = outcome.get(item.claim.id);
+        if (o && !o.error?.startsWith('error:')) o.error = code;
+      }
       continue;
     }
-    for (let i = 0; i < batch.length; i++) {
-      const item = batch[i];
-      const ticket = outcome.tickets[i];
-      if (!item) continue;
+    batch.forEach((item, i) => {
+      const ticket = res.tickets[i];
+      const o = outcome.get(item.claim.id);
+      if (!o) return;
       if (ticket?.status === 'ok') {
-        item.claim.okCount += 1;
-        continue;
+        o.ok += 1;
+        if (ticket.id)
+          tickets.push({
+            id: ticket.id,
+            notificationId: item.claim.id,
+            deviceId: item.deviceRowId,
+            pushToken: item.token,
+          });
+        return;
       }
       const code = ticket?.details?.error ?? ticket?.message ?? 'unknown';
       if (code === 'DeviceNotRegistered') {
-        await db
-          .update(schema.devices)
-          .set({ pushToken: null })
-          .where(eq(schema.devices.id, item.deviceRowId));
+        unregistered.push({ deviceRowId: item.deviceRowId, token: item.token });
         log('info', 'push.device_not_registered', { deviceRowId: item.deviceRowId });
       } else {
         log('warn', 'push.ticket_error', { error: code });
       }
-      item.claim.lastError = `error:${code}`.slice(0, 80);
-    }
+      o.error = `error:${code}`.slice(0, 80);
+    });
   }
 
-  for (const c of claims) {
-    if (c.okCount > 0) {
-      await setResult(db, c.key, 'ok');
-      report.sent += 1;
-    } else if (c.lastError?.startsWith('failed:')) {
-      await setResult(db, c.key, c.lastError);
-      report.failed += 1;
-    } else {
-      await setResult(db, c.key, c.lastError ?? 'error:unknown');
-      report.skipped += 1;
-    }
-  }
+  const now = Date.now();
+  const results = claims.map((c) => {
+    const o = outcome.get(c.id) ?? { ok: 0, error: null };
+    const hasDevice = items.some((i) => i.claim.id === c.id);
+    let result: string;
+    if (o.ok > 0) result = 'ok';
+    else if (o.error) result = o.error;
+    else result = hasDevice ? 'error:unknown' : 'no_device';
+    const failed = result.startsWith('failed:');
+    const backoff = PUSH_RETRY.backoffMs[c.attempts - 1];
+    const retryAt =
+      failed && c.attempts < PUSH_RETRY.maxAttempts && backoff !== undefined
+        ? new Date(now + backoff).toISOString()
+        : null;
+    if (result === 'ok') report.sent += 1;
+    else if (failed) report.failed += 1;
+    else report.skipped += 1;
+    return { id: c.id, result, retryAt };
+  });
+
+  await Promise.all([
+    recordResults(db, results),
+    tickets.length ? db.insert(pushTickets).values(tickets).onConflictDoNothing() : null,
+    clearTokens(db, unregistered),
+  ]);
   if (report.failed > 0) log('warn', 'push.transport_failed', { failed: report.failed });
   return report;
 }
 
-async function setResult(db: Dbx, key: string, result: string): Promise<void> {
+/**
+ * Every outcome in one statement. A failed row keeps its payload and gets its next attempt time;
+ * a final one drops the payload (the push text is in the app, not needed in the log).
+ */
+async function recordResults(
+  db: Dbx,
+  results: { id: string; result: string; retryAt: string | null }[],
+): Promise<void> {
+  if (results.length === 0) return;
+  const values = sql.join(
+    results.map((r) => sql`(${r.id}::uuid, ${r.result}::text, ${r.retryAt}::timestamptz)`),
+    sql`, `,
+  );
+  await db.execute(sql`
+    update ${notificationLog} as n
+    set result = v.result,
+        next_attempt_at = v.retry_at,
+        payload = case when v.result like 'failed:%' then n.payload else null end
+    from (values ${values}) as v(id, result, retry_at)
+    where n.id = v.id`);
+}
+
+/** DeviceNotRegistered: clear each token, unless the device has registered a new one since. */
+async function clearTokens(db: Dbx, list: { deviceRowId: string; token: string }[]): Promise<void> {
+  if (list.length === 0) return;
+  const values = sql.join(
+    list.map((d) => sql`(${d.deviceRowId}::uuid, ${d.token}::text)`),
+    sql`, `,
+  );
+  await db.execute(sql`
+    update ${devices} as d set push_token = null
+    from (values ${values}) as v(id, token)
+    where d.id = v.id and d.push_token = v.token`);
+}
+
+/**
+ * Failed sends that are due again: claimed atomically (a row another pass took is not returned,
+ * so nothing is sent twice) and sent like a new batch.
+ */
+export async function retryFailedPushes(env: Bindings, db: Dbx): Promise<DeliveryReport> {
+  const claimed = rowsOf<{
+    id: string;
+    owner_id: string;
+    type: NotificationType;
+    entity_id: string;
+    payload: PushPayload | string;
+    /** smallint: a number from pg and PGlite, text from some drivers. */
+    attempts: number | string;
+  }>(
+    await db.execute(sql`
+      update ${notificationLog} as n
+      set result = 'queued', sent_at = now(), attempts = n.attempts + 1, next_attempt_at = null
+      where n.id in (
+        select id from ${notificationLog}
+        where result like 'failed:%' and next_attempt_at <= now() and payload is not null
+          and attempts < ${PUSH_RETRY.maxAttempts}
+          and created_at > now() - make_interval(secs => ${PUSH_RETRY.windowMs / 1000})
+        order by next_attempt_at
+        limit ${PUSH_RETRY.batch}
+        for update skip locked)
+        and n.result like 'failed:%'
+      returning n.id, n.owner_id, n.type, n.entity_id, n.payload, n.attempts`),
+  );
+  if (claimed.length === 0) return { sent: 0, skipped: 0, failed: 0 };
+  const report = await sendClaims(
+    env,
+    db,
+    claimed.map((r) => ({
+      id: r.id,
+      ownerId: r.owner_id,
+      type: r.type,
+      entityId: r.entity_id,
+      attempts: Number(r.attempts),
+      payload: (typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload) as PushPayload,
+    })),
+  );
+  log('info', 'push.retried', { ...report });
+  return report;
+}
+
+interface ExpoReceipt {
+  status: 'ok' | 'error';
+  message?: string;
+  details?: { error?: string };
+}
+
+/**
+ * Read the receipts of accepted tickets at least `minAgeMs` old. An `ok` receipt is the end of it;
+ * an error is logged, clears the token on DeviceNotRegistered, and marks the notification
+ * `undelivered:<code>` when none of its pushes got through. Tickets older than a day have no
+ * receipt left and are dropped. Receipts Expo has not produced yet stay for the next pass.
+ */
+export async function checkPushReceipts(
+  env: Bindings,
+  db: Dbx,
+  minAgeMs: number = RECEIPTS.minAgeMs,
+): Promise<{ checked: number; errors: number }> {
+  const now = Date.now();
   await db
-    .update(schema.notificationLog)
-    .set({ result })
-    .where(eq(schema.notificationLog.dedupeKey, key));
+    .delete(pushTickets)
+    .where(
+      sql`${pushTickets.createdAt} < ${new Date(now - RECEIPTS.maxAgeMs).toISOString()}::timestamptz`,
+    );
+  const due = await db
+    .select()
+    .from(pushTickets)
+    .where(sql`${pushTickets.createdAt} <= ${new Date(now - minAgeMs).toISOString()}::timestamptz`)
+    .orderBy(pushTickets.createdAt)
+    .limit(RECEIPT_BATCH * 2);
+  if (due.length === 0) return { checked: 0, errors: 0 };
+
+  const done: string[] = [];
+  const unregistered: { deviceRowId: string; token: string }[] = [];
+  const perNotification = new Map<string, { ok: number; error: string | null }>();
+  for (const batch of chunk(due, RECEIPT_BATCH)) {
+    const receipts = await fetchReceipts(
+      env,
+      batch.map((t) => t.id),
+    );
+    if (!receipts) break;
+    for (const t of batch) {
+      const r = receipts[t.id];
+      if (!r) continue;
+      done.push(t.id);
+      const n = perNotification.get(t.notificationId) ?? { ok: 0, error: null };
+      perNotification.set(t.notificationId, n);
+      if (r.status === 'ok') {
+        n.ok += 1;
+        continue;
+      }
+      const code = r.details?.error ?? r.message ?? 'unknown';
+      n.error = `undelivered:${code}`.slice(0, 80);
+      if (code === 'DeviceNotRegistered')
+        unregistered.push({ deviceRowId: t.deviceId, token: t.pushToken });
+      log('warn', 'push.receipt_error', { error: code });
+    }
+  }
+  const failedIds = [...perNotification].flatMap(([id, n]) =>
+    n.ok === 0 && n.error ? [{ id, result: n.error }] : [],
+  );
+  await Promise.all([
+    done.length ? db.delete(pushTickets).where(inArray(pushTickets.id, done)) : null,
+    clearTokens(db, unregistered),
+  ]);
+  if (failedIds.length) {
+    // Only when every ticket of the notification has been answered by an error receipt.
+    const values = sql.join(
+      failedIds.map((f) => sql`(${f.id}::uuid, ${f.result}::text)`),
+      sql`, `,
+    );
+    await db.execute(sql`
+      update ${notificationLog} as n set result = v.result
+      from (values ${values}) as v(id, result)
+      where n.id = v.id and n.result = 'ok'
+        and not exists (select 1 from ${pushTickets} t where t.notification_id = n.id)`);
+  }
+  return { checked: done.length, errors: failedIds.length };
+}
+
+/**
+ * Retries that are due and receipts that are ready. Runs where the database is already awake:
+ * after an event delivery and in the daily job. Failures are logged, never thrown.
+ */
+export async function pushFollowUp(env: Bindings, db: Dbx): Promise<void> {
+  try {
+    await retryFailedPushes(env, db);
+    await checkPushReceipts(env, db);
+  } catch (e) {
+    log('error', 'push.follow_up_failed', { error: e instanceof Error ? e.message : String(e) });
+  }
+}
+
+/** Event pushes: deliver, then the follow-up pass while the database is awake. */
+export async function deliverEvent(
+  env: Bindings,
+  db: Dbx,
+  pending: PendingNotification[],
+): Promise<DeliveryReport> {
+  if (pending.length === 0) return { sent: 0, skipped: 0, failed: 0 };
+  const report = await deliver(env, db, pending);
+  await pushFollowUp(env, db);
+  return report;
 }
 
 async function sendExpoBatch(env: Bindings, messages: ExpoMessage[]): Promise<BatchOutcome> {
   if (messages.length === 0) return { tickets: [] };
   if (env.APP_ENV === 'test' && env.TEST_DB) {
     // The test harness never talks to Expo; TEST_PUSH selects the outcome to exercise.
-    if (env.TEST_PUSH === 'fail') return { transportError: 'test' };
-    return { tickets: messages.map(() => ({ status: 'ok' as const, id: 'test' })) };
+    if (env.TEST_PUSH === 'fail') return { transportError: 'test', retryable: true };
+    if (env.TEST_PUSH === 'timeout') return { transportError: 'timeout', retryable: false };
+    return {
+      tickets: messages.map(() => ({ status: 'ok' as const, id: `test-${crypto.randomUUID()}` })),
+    };
   }
   const headers: Record<string, string> = {
     'content-type': 'application/json',
@@ -256,11 +555,15 @@ async function sendExpoBatch(env: Bindings, messages: ExpoMessage[]): Promise<Ba
     const res = await fetchWithRetry(
       EXPO_PUSH_URL,
       { method: 'POST', headers, body: JSON.stringify(messages) },
-      { timeoutMs: EXPO_TIMEOUT_MS, retries: 2, label: 'expo push' },
+      { timeoutMs: EXPO_TIMEOUT_MS, retries: 2, retryOnTimeout: false, label: 'expo push' },
     );
     if (!res.ok) {
       log('error', 'push.http_error', { status: res.status });
-      return { transportError: `http_${res.status}` };
+      // 429 and 5xx: Expo did not take the batch, try later. Other 4xx: the request is wrong.
+      return {
+        transportError: `http_${res.status}`,
+        retryable: res.status === 429 || res.status >= 500,
+      };
     }
     const json: { data?: ExpoTicket[] } = await res.json();
     return { tickets: json.data ?? [] };
@@ -270,7 +573,47 @@ async function sendExpoBatch(env: Bindings, messages: ExpoMessage[]): Promise<Ba
       kind,
       error: e instanceof Error ? e.message : String(e),
     });
-    return { transportError: kind };
+    return { transportError: kind, retryable: kind !== 'timeout' };
+  }
+}
+
+async function fetchReceipts(
+  env: Bindings,
+  ids: string[],
+): Promise<Record<string, ExpoReceipt> | null> {
+  if (env.APP_ENV === 'test' && env.TEST_DB) {
+    const outcome = env.TEST_PUSH_RECEIPT ?? 'ok';
+    if (outcome === 'pending') return {};
+    return Object.fromEntries(
+      ids.map((id) => [
+        id,
+        outcome === 'ok'
+          ? { status: 'ok' as const }
+          : { status: 'error' as const, details: { error: outcome } },
+      ]),
+    );
+  }
+  const headers: Record<string, string> = {
+    'content-type': 'application/json',
+    accept: 'application/json',
+  };
+  if (env.EXPO_ACCESS_TOKEN) headers['authorization'] = `Bearer ${env.EXPO_ACCESS_TOKEN}`;
+  try {
+    // Reading receipts is safe to repeat, so timeouts are retried here.
+    const res = await fetchWithRetry(
+      EXPO_RECEIPTS_URL,
+      { method: 'POST', headers, body: JSON.stringify({ ids }) },
+      { timeoutMs: EXPO_TIMEOUT_MS, retries: 2, label: 'expo receipts' },
+    );
+    if (!res.ok) {
+      log('error', 'push.receipts_http_error', { status: res.status });
+      return null;
+    }
+    const json: { data?: Record<string, ExpoReceipt> } = await res.json();
+    return json.data ?? {};
+  } catch (e) {
+    log('error', 'push.receipts_failed', { error: e instanceof Error ? e.message : String(e) });
+    return null;
   }
 }
 
@@ -328,7 +671,7 @@ export async function queueBounceAlerts(env: Bindings, chequeIds: string[]): Pro
         });
       }
     }
-    await deliver(env, db, pending);
+    await deliverEvent(env, db, pending);
   } catch (e) {
     log('error', 'push.bounce_failed', { error: e instanceof Error ? e.message : String(e) });
   } finally {
@@ -355,7 +698,7 @@ export async function queueToOwners(
       .from(schema.owners)
       .where(inArray(schema.owners.id, ownerIds));
     const date = env.TEST_TODAY ? (env.TEST_TODAY as PlainDate) : todayInDubai();
-    return await deliver(
+    return await deliverEvent(
       env,
       db,
       rows.map((o) => ({ ownerId: o.id, type, entityId, date, params: paramsFor(o.lang) })),
@@ -455,7 +798,7 @@ export async function queueNewDeviceAlert(
     const label =
       device.model ||
       (device.platform === 'ios' ? 'iPhone' : device.platform === 'web' ? 'Web' : 'Android');
-    await deliver(env, db, [
+    await deliverEvent(env, db, [
       {
         ownerId,
         type: 'new_device_login',

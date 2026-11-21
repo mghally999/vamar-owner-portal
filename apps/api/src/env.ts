@@ -29,7 +29,9 @@ export interface Bindings {
   /** Tests can pin the business date. */
   TEST_TODAY?: string;
   /** Tests choose the push transport outcome instead of calling Expo. */
-  TEST_PUSH?: 'ok' | 'fail';
+  TEST_PUSH?: 'ok' | 'fail' | 'timeout';
+  /** Tests choose the receipt Expo gives for every ticket (`pending`: not ready yet). */
+  TEST_PUSH_RECEIPT?: 'ok' | 'pending' | 'DeviceNotRegistered' | 'MessageTooBig';
 }
 
 export interface OwnerPrincipal {

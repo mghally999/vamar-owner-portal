@@ -23,7 +23,7 @@ import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { today } from '../util/today.js';
 import { budgetReport } from './budgets.js';
-import { deliver, type DeliveryReport, type PendingNotification } from './notifications.js';
+import { deliverEvent, type DeliveryReport, type PendingNotification } from './notifications.js';
 
 const { budgets, notificationLog, owners, unitOwnerships, units } = schema;
 
@@ -150,7 +150,7 @@ async function checkBudgetAlerts(env: Bindings, db: Dbx): Promise<BudgetAlertRun
         ).map((r) => r.key),
   );
   const toSend = items.filter((i) => !i.usedUpKey || !told.has(i.usedUpKey)).map((i) => i.p);
-  const report = await deliver(env, db, toSend);
+  const report = await deliverEvent(env, db, toSend);
   if (report.sent > 0) log('info', 'push.budget_threshold', { sent: report.sent });
   return { lines: hits.length, ...report };
 }

@@ -10,7 +10,7 @@ import { cronDb } from '../db.js';
 import type { Bindings } from '../env.js';
 import { log } from '../util/log.js';
 import { today } from '../util/today.js';
-import { deliver, type PendingNotification } from './notifications.js';
+import { deliverEvent, type PendingNotification } from './notifications.js';
 
 const { repairApprovals, workOrders, expenses, buildings, units, owners } = schema;
 
@@ -61,7 +61,7 @@ export async function queueApprovalRequests(env: Bindings, approvalIds: string[]
         },
       };
     });
-    await deliver(env, db, pending);
+    await deliverEvent(env, db, pending);
   } catch (e) {
     log('error', 'push.approval_request_failed', {
       error: e instanceof Error ? e.message : String(e),

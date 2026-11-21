@@ -1,4 +1,4 @@
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNull, ne, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { schema } from '@vamar/db';
@@ -19,6 +19,7 @@ import {
   rejectReplayedToken,
   revokeChain,
   revokeSessionByToken,
+  revokeSessions,
   rotateSession,
   signAccessToken,
 } from '../auth/tokens.js';
@@ -191,7 +192,16 @@ export const authOwnerRoutes = new Hono<AppEnv>()
     '/logout',
     zValidator('json', z.object({ refreshToken: z.string().min(20).max(512) })),
     async (c) => {
-      await withTx(c, (tx) => revokeSessionByToken(tx, c.req.valid('json').refreshToken));
+      await withTx(c, async (tx) => {
+        const ended = await revokeSessionByToken(tx, c.req.valid('json').refreshToken);
+        // A signed-out phone must stop getting this owner's pushes (amounts, tenants). The device
+        // row stays, so signing in again on it is not a "new device".
+        if (ended?.subjectType === 'owner' && ended.deviceId)
+          await tx
+            .update(devices)
+            .set({ pushToken: null })
+            .where(and(eq(devices.ownerId, ended.subjectId), eq(devices.deviceId, ended.deviceId)));
+      });
       return c.json({ ok: true });
     },
   )
@@ -238,19 +248,24 @@ export const authOwnerRoutes = new Hono<AppEnv>()
 
   .post('/devices/revoke-others', requireOwner, async (c) => {
     const p = ownerOf(c);
+    // Two statements whatever the number of devices: revoke them (token cleared), then every
+    // session of this owner not on the current device.
     await withTx(c, async (tx) => {
-      const others = await tx
-        .select({ id: devices.id, deviceId: devices.deviceId })
-        .from(devices)
-        .where(and(eq(devices.ownerId, p.id), isNull(devices.revokedAt)));
-      for (const d of others) {
-        if (d.deviceId === p.deviceId) continue;
-        await tx
-          .update(devices)
-          .set({ revokedAt: new Date(), pushToken: null })
-          .where(eq(devices.id, d.id));
-        await revokeChain(tx, 'owner', p.id, d.deviceId);
-      }
+      const otherDevice = p.deviceId ? ne(devices.deviceId, p.deviceId) : undefined;
+      await tx
+        .update(devices)
+        .set({ revokedAt: new Date(), pushToken: null })
+        .where(and(eq(devices.ownerId, p.id), isNull(devices.revokedAt), otherDevice));
+      await revokeSessions(
+        tx,
+        and(
+          eq(schema.sessions.subjectType, 'owner'),
+          eq(schema.sessions.subjectId, p.id),
+          p.deviceId
+            ? or(isNull(schema.sessions.deviceId), ne(schema.sessions.deviceId, p.deviceId))
+            : undefined,
+        ),
+      );
     });
     return c.json({ ok: true });
   });

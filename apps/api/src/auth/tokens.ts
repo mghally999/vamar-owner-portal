@@ -217,9 +217,27 @@ export async function rejectReplayedToken(db: Dbx, refreshToken: string): Promis
   }
 }
 
-export async function revokeSessionByToken(db: Dbx, refreshToken: string): Promise<void> {
+/** Sign-out: revoke the live session behind a refresh token; returns whose it was (null if none). */
+export async function revokeSessionByToken(
+  db: Dbx,
+  refreshToken: string,
+): Promise<{ subjectType: 'owner' | 'staff'; subjectId: string; deviceId: string | null } | null> {
   const hash = await sha256(refreshToken);
-  await revokeSessions(db, eq(schema.sessions.tokenHash, hash));
+  const [row] = await db
+    .update(schema.sessions)
+    .set({ revokedAt: new Date() })
+    .where(and(eq(schema.sessions.tokenHash, hash), isNull(schema.sessions.revokedAt)))
+    .returning({
+      id: schema.sessions.id,
+      rotatedFrom: schema.sessions.rotatedFrom,
+      subjectType: schema.sessions.subjectType,
+      subjectId: schema.sessions.subjectId,
+      deviceId: schema.sessions.deviceId,
+    });
+  if (!row) return null;
+  forgetSession(row.id);
+  if (row.rotatedFrom) forgetSession(row.rotatedFrom);
+  return { subjectType: row.subjectType, subjectId: row.subjectId, deviceId: row.deviceId };
 }
 
 export async function revokeChain(

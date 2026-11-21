@@ -10,9 +10,11 @@
  * 6. v3: owner approvals of large repairs left unanswered for the admin's number of days count as
  *    approved ("approved by silence"), each with its audit row; staff see them on the Today panel
  *
+ * 7. push follow-up: failed event pushes that are due are sent again, and Expo receipts are read
+ *
  * Each step runs on its own: a failure is recorded in the summary and the next step still runs.
- * Notifications are idempotent through notification_log.dedupe_key and transport failures are
- * retried by the next run (see services/notifications.ts).
+ * Notifications are idempotent through notification_log.dedupe_key; transport failures are
+ * retried with backoff (see services/notifications.ts).
  */
 import { and, eq, inArray, isNull, isNotNull, lt, or, sql } from 'drizzle-orm';
 import { schema } from '@vamar/db';
@@ -33,7 +35,9 @@ import { getSettings } from './services/settings.js';
 import { cronDb, rowsOf, type Db } from './db.js';
 import type { Bindings } from './env.js';
 import {
+  checkPushReceipts,
   deliver,
+  retryFailedPushes,
   type DeliveryReport,
   type PendingNotification,
 } from './services/notifications.js';
@@ -74,6 +78,9 @@ export interface DailySummary extends DeliveryReport {
   monthlySummaries: number;
   /** v3: owner answers turned into "approved by silence" today. */
   silentApprovals: number;
+  /** Failed sends tried again, and receipts read (services/notifications.ts). */
+  retried: number;
+  receipts: number;
   errors: string[];
 }
 
@@ -93,6 +100,8 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
     hearingReminders: 0,
     monthlySummaries: 0,
     silentApprovals: 0,
+    retried: 0,
+    receipts: 0,
     errors: [],
   };
   const step = async (name: string, fn: () => Promise<void>) => {
@@ -148,9 +157,33 @@ export async function runDailyJobs(env: Bindings): Promise<DailySummary> {
       summary.silentApprovals = silent.length;
       if (silent.length) log('info', 'cron.approved_by_silence', { count: silent.length });
     });
+    await step('push-follow-up', async () => {
+      // Event pushes that failed during the day, and the receipts of yesterday's tickets.
+      const r = await retryFailedPushes(env, db);
+      summary.retried = r.sent + r.failed + r.skipped;
+      summary.sent += r.sent;
+      summary.failed += r.failed;
+      const receipts = await checkPushReceipts(env, db);
+      summary.receipts = receipts.checked;
+    });
     log(summary.errors.length ? 'warn' : 'info', 'cron.daily', { ...summary });
     if (summary.errors.length) throw new Error(summary.errors.join(' | '));
     return summary;
+  } finally {
+    await close();
+  }
+}
+
+/** Receipts of the tickets the daily run just sent, whatever their age (index.ts, after a delay). */
+export async function readMorningReceipts(env: Bindings): Promise<void> {
+  const { db, close } = cronDb(env);
+  try {
+    const r = await checkPushReceipts(env, db, 0);
+    log('info', 'cron.morning_receipts', r);
+  } catch (e) {
+    log('error', 'cron.morning_receipts_failed', {
+      error: e instanceof Error ? e.message : String(e),
+    });
   } finally {
     await close();
   }

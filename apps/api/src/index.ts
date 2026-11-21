@@ -1,9 +1,11 @@
 import { app } from './app.js';
 import { validateEnv } from './config.js';
-import { runDailyJobs } from './cron.js';
+import { readMorningReceipts, runDailyJobs } from './cron.js';
 import type { Bindings } from './env.js';
 import { log } from './util/log.js';
 import { reportError } from './util/report.js';
+
+const MORNING_RECEIPTS_DELAY_MS = 60_000;
 
 const misconfigured = (problems: string[]): Response => {
   log('error', 'config.invalid', { problems });
@@ -26,10 +28,20 @@ export default {
       return;
     }
     ctx.waitUntil(
-      runDailyJobs(env).then(
-        () => undefined,
-        (e: unknown) => reportError(env, e, { source: 'cron', extra: { cron: controller.cron } }),
-      ),
+      runDailyJobs(env)
+        .then(
+          () => undefined,
+          (e: unknown) => reportError(env, e, { source: 'cron', extra: { cron: controller.cron } }),
+        )
+        // The receipts of this morning's pushes, read a minute later while the database is still
+        // awake (it suspends after 5 idle minutes); waiting costs no CPU time.
+        .then(
+          () =>
+            new Promise((r) =>
+              setTimeout(r, env.APP_ENV === 'test' ? 0 : MORNING_RECEIPTS_DELAY_MS),
+            ),
+        )
+        .then(() => readMorningReceipts(env)),
     );
   },
 } satisfies ExportedHandler<Bindings>;
