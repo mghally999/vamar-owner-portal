@@ -135,6 +135,26 @@ describe('resuming a session', () => {
     }
   });
 
+  it('asks for the session while the biometric checks are still running, not after them', async () => {
+    await seedSession();
+    let finishCheck: (v: boolean) => void = () => undefined;
+    localAuth.hasHardwareAsync.mockReturnValue(
+      new Promise<boolean>((r) => {
+        finishCheck = r;
+      }),
+    );
+    await start();
+    await waitFor(() => {
+      expect(sent('POST /api/auth/owner/refresh')).toHaveLength(1);
+    });
+    expect(screen.getByText(/^loading/)).toBeTruthy();
+    await act(async () => {
+      finishCheck(false);
+      await Promise.resolve();
+    });
+    expect(await screen.findByText(/^authenticated/)).toBeTruthy();
+  });
+
   it('signs the owner out when a later request finds the session revoked', async () => {
     await seedSession();
     await start();

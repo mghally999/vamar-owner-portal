@@ -73,6 +73,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ]).catch(() => fallback);
     void (async () => {
       try {
+        // The refresh is the slow part (the network) and the splash waits for it: start it at
+        // once, alongside the keychain and biometric checks, instead of after them.
+        const refreshed = withTimeout(refreshSession(), null);
         const [bio, savedOwner, hasHw] = await Promise.all([
           withTimeout(getItem('biometrics'), null),
           withTimeout(getItem('owner'), null),
@@ -83,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           : false;
         setBiometricsAvailable(hasHw && enrolled);
         setBiometricsEnabled(bio === '1');
-        const r = await withTimeout(refreshSession(), null);
+        const r = await refreshed;
         // A refused refresh ends the session; no connection keeps the owner signed in with what
         // was shown last (the offline banner explains), and the next request refreshes again.
         const keep =
