@@ -1,0 +1,106 @@
+name: Publish APK
+
+# Puts an Android build from EAS behind /download/vamar-owner-app.apk, the link owners install
+# from. Run it after every new APK build (a new app version), then raise APP_LATEST_VERSION in
+# apps/api/wrangler.jsonc so installed apps offer the update.
+#
+# The file is checked before anything is replaced: the version in apps/mobile/app.config.ts, the
+# preview update channel (so it receives the over-the-air updates), ARM64 code for phones, and
+# the production API address with no local one. The APK it replaces is kept under
+# releases/archive/ for a rollback, and the new one is downloaded back through the public link.
+# `verify only` runs the checks and keeps the file as a workflow artifact for 7 days; it also
+# accepts the x86_64 `emulator` build (apps/mobile/eas.json), which phones cannot run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_url:
+        description: EAS build artifact (https://expo.dev/artifacts/eas/....apk)
+        required: true
+      target:
+        description: Where to publish
+        type: choice
+        options: [production, staging]
+        default: production
+      verify_only:
+        description: Only check the file (nothing is replaced)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-apk-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.target }}
+    env:
+      BUILD_URL: ${{ inputs.build_url }}
+      TARGET: ${{ inputs.target }}
+      VERIFY_ONLY: ${{ inputs.verify_only }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Download
+        run: |
+          if ! printf '%s' "$BUILD_URL" | grep -Eq '^https://expo\.dev/artifacts/eas/[A-Za-z0-9_-]+\.apk$'; then
+            echo "::error::build_url must be an EAS artifact link ending in .apk"; exit 1
+          fi
+          curl -fsSL --retry 5 --retry-all-errors -o new.apk "$BUILD_URL"
+          ls -l new.apk
+          sha256sum new.apk
+
+      - name: Check the file
+        run: |
+          AAPT2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+          want=$(sed -nE "s/^  version: '([0-9.]+)',/\1/p" apps/mobile/app.config.ts)
+          got=$("$AAPT2" dump badging new.apk | sed -nE "s/.*versionName='([^']+)'.*/\1/p")
+          echo "app.config.ts version: $want; APK version: $got"
+          [ -n "$want" ] && [ "$got" = "$want" ] || { echo "::error::APK version $got is not $want"; exit 1; }
+          "$AAPT2" dump xmltree --file AndroidManifest.xml new.apk > manifest.txt
+          grep -q 'expo-channel-name.*preview' manifest.txt || { echo "::error::not on the preview update channel"; exit 1; }
+          echo "Native code for: $(unzip -l new.apk | grep -oE 'lib/[^/]+/libreactnative\.so' | cut -d/ -f2 | tr '\n' ' ')"
+          if [ "$VERIFY_ONLY" != true ] && ! unzip -l new.apk | grep -q 'lib/arm64-v8a/libreactnative.so'; then
+            echo "::error::no ARM64 code for phones"; exit 1
+          fi
+          unzip -p new.apk assets/index.android.bundle > bundle
+          grep -aq 'https://vamar-owner-portal.vamar-api.workers.dev' bundle || { echo "::error::production API address missing"; exit 1; }
+          if grep -aqE '10\.0\.2\.2|localhost:8787|127\.0\.0\.1:8787' bundle; then echo "::error::local API address inside"; exit 1; fi
+          echo "VERSION=$got" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vamar-owner-app-${{ env.VERSION }}
+          path: new.apk
+          retention-days: 7
+
+      - name: Keep the current APK, then publish
+        if: env.VERIFY_ONLY != 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ "$TARGET" = production ]; then BUCKET=vamar-files; else BUCKET=vamar-files-staging; fi
+          W="npx --yes wrangler@4.165.0"
+          if $W r2 object get "$BUCKET/releases/vamar-owner-app.apk" --file current.apk --remote; then
+            AAPT2=$(ls -d "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)
+            old=$("$AAPT2" dump badging current.apk | sed -nE "s/.*versionName='([^']+)'.*/\1/p")
+            $W r2 object put "$BUCKET/releases/archive/vamar-owner-app-${old:-unknown}-$(date -u +%Y%m%d%H%M).apk" \
+              --file current.apk --content-type application/vnd.android.package-archive --remote
+          fi
+          $W r2 object put "$BUCKET/releases/vamar-owner-app.apk" \
+            --file new.apk --content-type application/vnd.android.package-archive --remote
+
+      - name: Download it back through the public link
+        if: env.VERIFY_ONLY != 'true'
+        run: |
+          if [ "$TARGET" = production ]; then BASE=https://vamar-owner-portal.vamar-api.workers.dev; else BASE=https://vamar-owner-portal-staging.vamar-api.workers.dev; fi
+          curl -fsSL --retry 3 -o served.apk "$BASE/download/vamar-owner-app.apk"
+          a=$(sha256sum < new.apk); b=$(sha256sum < served.apk)
+          [ "$a" = "$b" ] || { echo "::error::the link serves a different file"; exit 1; }
+          echo "Serving version $VERSION at $BASE/download"
