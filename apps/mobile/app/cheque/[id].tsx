@@ -1,15 +1,14 @@
 import { useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
 import { ScrollView, View } from 'react-native';
 import { sharePct } from '@/lib/shared';
-import { API_BASE, authHeaders } from '@/lib/api';
+import { API_BASE } from '@/lib/api';
 import { useI18n } from '@/lib/i18n';
 import { useCheque } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { AskVamar } from '@/ui/ask-vamar';
+import { AuthImage } from '@/ui/auth-image';
 import {
   Card,
-  DateText,
   ErrorState,
   Money,
   Row,
@@ -124,18 +123,14 @@ export default function ChequeDetailScreen() {
       {c?.hasImage ? (
         <View>
           <SectionTitle>{tr('cheque_image')}</SectionTitle>
-          <Image
-            source={{ uri: `${API_BASE}/api/owner/cheques/${c.id}/image`, headers: authHeaders() }}
-            cachePolicy="memory-disk"
+          <AuthImage
+            uri={`${API_BASE}/api/owner/cheques/${c.id}/image`}
             accessibilityLabel={tr('cheque_image')}
             style={{ width: '100%', aspectRatio: 2.2, borderRadius: t.radius.md }}
             contentFit="contain"
-            placeholder={null}
-            transition={150}
           />
         </View>
       ) : null}
-      <DateText date={null} style={{ display: 'none' }} />
       <AskVamar
         type="cheque"
         id={id}

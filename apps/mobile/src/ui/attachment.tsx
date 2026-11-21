@@ -3,12 +3,12 @@
  * anything else (a PDF invoice or quote) as a button that downloads it with the session and opens
  * it. One place for expenses, maintenance jobs, repair approvals and messages.
  */
-import { Image, type ImageStyle } from 'expo-image';
+import type { ImageStyle } from 'expo-image';
 import { useState } from 'react';
 import { View, type StyleProp } from 'react-native';
-import { authHeaders } from '@/lib/api';
 import { attachmentUrl, openAttachment, type AttachmentFile } from '@/lib/attachments';
 import { useI18n } from '@/lib/i18n';
+import { AuthImage } from './auth-image';
 import { Button, Text } from './index';
 
 export function AttachmentImage({
@@ -22,14 +22,10 @@ export function AttachmentImage({
   decorative?: boolean;
 }) {
   return (
-    <Image
-      source={{ uri: attachmentUrl(file.id), headers: authHeaders() }}
-      cachePolicy="memory-disk"
-      {...(decorative ? {} : { accessibilityLabel: file.fileName })}
+    <AuthImage
+      uri={attachmentUrl(file.id)}
       style={style}
-      contentFit="cover"
-      placeholder={null}
-      transition={150}
+      accessibilityLabel={decorative ? undefined : file.fileName}
     />
   );
 }

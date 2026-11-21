@@ -1,9 +1,7 @@
-import { Image } from 'expo-image';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { EXPENSE_KIND_LABEL, WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
-import { authHeaders } from '@/lib/api';
 import { attachmentUrl, isImage } from '@/lib/attachments';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
@@ -11,6 +9,7 @@ import { useExpense } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { AskVamar } from '@/ui/ask-vamar';
 import { AttachmentButton, AttachmentImage } from '@/ui/attachment';
+import { AuthImage } from '@/ui/auth-image';
 import {
   Card,
   Chip,
@@ -210,9 +209,8 @@ export default function ExpenseDetailScreen() {
               centerContent
               contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
             >
-              <Image
-                source={{ uri: zoom, headers: authHeaders() }}
-                cachePolicy="memory-disk"
+              <AuthImage
+                uri={zoom}
                 style={{ width: '100%', aspectRatio: Platform.OS === 'web' ? 0.75 : 0.72 }}
                 contentFit="contain"
                 accessibilityLabel={tr('expense_invoice')}
