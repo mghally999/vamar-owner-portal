@@ -30,6 +30,7 @@ export default function SettingsScreen() {
   const [notify, setNotify] = useState(true);
   const [pushState, setPushState] = useState<PushState | null>(null);
   const [busyStatement, setBusyStatement] = useState(false);
+  const [statementError, setStatementError] = useState(false);
   const tm = useMessageText();
   const threads = useThreads();
   const unreadThreads = threads.data?.unreadThreads ?? 0;
@@ -42,6 +43,7 @@ export default function SettingsScreen() {
   /** This month's cheques; the yearly statement has its own picker below. */
   async function monthStatement() {
     setBusyStatement(true);
+    setStatementError(false);
     try {
       const today = todayInDubai();
       const page = await request<Page<ChequeItem>>(
@@ -55,6 +57,8 @@ export default function SettingsScreen() {
         lang,
         generatedOn: today,
       });
+    } catch {
+      setStatementError(true);
     } finally {
       setBusyStatement(false);
     }
@@ -109,14 +113,17 @@ export default function SettingsScreen() {
         <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text>{tr('settings_notifications')}</Text>
-            {notify && pushState && pushState !== 'registered' ? (
+            {pushState === 'unsupported' || (notify && pushState && pushState !== 'registered') ? (
               <Text variant="caption" color="soft">
                 {tr(`settings_push_${pushState}`)}
               </Text>
             ) : null}
           </View>
           <Switch
+            accessibilityLabel={tr('settings_notifications')}
             value={notify}
+            // The web app has no push channel; the line above says so.
+            disabled={pushState === 'unsupported'}
             onValueChange={(v) => {
               setNotify(v);
               void setNotifications(v).then(setPushState);
@@ -129,6 +136,7 @@ export default function SettingsScreen() {
         <Row style={{ justifyContent: 'space-between', minHeight: 56 }}>
           <Text>{tr('settings_biometrics')}</Text>
           <Switch
+            accessibilityLabel={tr('settings_biometrics')}
             value={auth.biometricsEnabled}
             disabled={!auth.biometricsAvailable}
             onValueChange={(v) => void auth.setBiometrics(v)}
@@ -178,6 +186,11 @@ export default function SettingsScreen() {
             loading={busyStatement}
             onPress={() => void monthStatement()}
           />
+          {statementError ? (
+            <Text variant="caption" color="danger" accessibilityLiveRegion="polite">
+              {tr('error_generic')}
+            </Text>
+          ) : null}
           <Separator />
           <Text weight="medium" style={{ paddingTop: 4 }}>
             {tr('yearStatement_title')}
@@ -250,7 +263,7 @@ export default function SettingsScreen() {
               variant="danger"
               loading={del.isPending}
               onPress={() => {
-                void del.mutateAsync('').then(() => auth.signOut());
+                del.mutate('', { onSuccess: () => void auth.signOut() });
               }}
               style={{ flex: 1 }}
             />
@@ -262,7 +275,13 @@ export default function SettingsScreen() {
               }}
             />
           </Row>
-        ) : (
+        ) : null}
+        {confirmDelete && del.isError ? (
+          <Text variant="caption" color="danger" accessibilityLiveRegion="polite">
+            {tr('error_generic')}
+          </Text>
+        ) : null}
+        {confirmDelete ? null : (
           <Button
             title={tr('settings_delete')}
             variant="danger"

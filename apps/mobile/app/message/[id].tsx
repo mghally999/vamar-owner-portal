@@ -21,11 +21,13 @@ export default function ThreadScreen() {
   const threadId = th?.id ?? id;
   const reply = useReply(threadId, id);
   const lastId = th?.messages.at(-1)?.id;
+  const hasUnread = (th?.unread ?? 0) > 0;
 
+  // Only when something is unread: a read thread costs no request (and no list refetch).
   const { mutate: markRead } = read;
   useEffect(() => {
-    if (th?.id && lastId) markRead(th.id);
-  }, [th?.id, lastId, markRead]);
+    if (th?.id && lastId && hasUnread) markRead(th.id);
+  }, [th?.id, lastId, hasUnread, markRead]);
 
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
 

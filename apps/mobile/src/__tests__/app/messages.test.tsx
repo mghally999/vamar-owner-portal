@@ -8,7 +8,7 @@ import { setAccessToken } from '@/lib/api';
 import type { ThreadDetail, ThreadSummary } from '@/lib/message-queries';
 import { mockApi, sent } from '@/test/api';
 import { chequeDetail } from '@/test/fixtures';
-import { renderApp } from '@/test/render';
+import { pullToRefresh, renderApp } from '@/test/render';
 import { routeState, router } from '@/test/router';
 
 const link = {
@@ -251,5 +251,34 @@ describe('Ask Vamar about this', () => {
     await fireEvent.press(screen.getByRole('button', { name: 'إرسال' }));
     expect(screen.getByText('الموضوع مطلوب.')).toBeTruthy();
     expect(sent('POST /api/owner/messages')).toHaveLength(0);
+  });
+});
+
+describe('Messages, requests', () => {
+  it('reloads the list, and its unread counts, when pulled down', async () => {
+    mockApi({ 'GET /api/owner/messages': { body: { items: [summary()], unreadThreads: 1 } } });
+    await renderApp(<MessagesScreen />);
+    await screen.findByText('Cheque 000123');
+    mockApi({
+      'GET /api/owner/messages': {
+        body: { items: [summary({ unread: 0 })], unreadThreads: 0 },
+      },
+    });
+    await pullToRefresh();
+    await waitFor(() => {
+      expect(screen.queryByText('1 new')).toBeNull();
+    });
+  });
+
+  it('does not mark a thread read when nothing in it is unread', async () => {
+    routeState.params = { id: 'th-1' };
+    mockApi({
+      'GET /api/owner/messages/th-1': { body: detail({ unread: 0 }) },
+      'POST /api/owner/messages/th-1/read': { body: { ok: true } },
+    });
+    await renderApp(<ThreadScreen />);
+    expect(await screen.findByText('Is this cheque <b>registered</b>?')).toBeTruthy();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent('POST /api/owner/messages/th-1/read')).toHaveLength(0);
   });
 });

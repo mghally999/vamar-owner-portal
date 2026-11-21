@@ -248,3 +248,32 @@ describe('Settings', () => {
     expect(sent('POST /api/owner/account/delete-request')[0]?.body).toEqual({ reason: '' });
   });
 });
+
+describe('Settings, accessibility and failures', () => {
+  it('names both switches for screen readers', async () => {
+    await open();
+    expect(screen.getByRole('switch', { name: 'Notifications' })).toBeTruthy();
+    expect(screen.getByRole('switch', { name: 'Face ID / fingerprint lock' })).toBeTruthy();
+  });
+
+  it('says so when the month statement cannot be made', async () => {
+    mockApi({ 'GET /api/owner/cheques': { status: 500, body: {} } });
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: 'This month (PDF)' }));
+    expect(
+      await screen.findByText('Something went wrong. Pull to refresh or try again.'),
+    ).toBeTruthy();
+    expect(sharing.shareAsync).not.toHaveBeenCalled();
+  });
+
+  it('stays signed in and says so when the deletion request fails', async () => {
+    mockApi({ 'POST /api/owner/account/delete-request': { status: 500, body: {} } });
+    await open();
+    await fireEvent.press(screen.getByRole('button', { name: 'Request account deletion' }));
+    await fireEvent.press(screen.getByRole('button', { name: 'Request deletion' }));
+    expect(
+      await screen.findByText('Something went wrong. Pull to refresh or try again.'),
+    ).toBeTruthy();
+    expect(screen.getByText('stage:authenticated')).toBeTruthy();
+  });
+});

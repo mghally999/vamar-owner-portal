@@ -1,5 +1,5 @@
 import { Link } from 'expo-router';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { MESSAGE_THREAD_STATUS_LABEL } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { useThreads } from '@/lib/message-queries';
@@ -37,7 +37,16 @@ export default function MessagesScreen() {
     );
 
   return (
-    <ScrollView contentContainerStyle={layout.screen}>
+    <ScrollView
+      contentContainerStyle={layout.screen}
+      refreshControl={
+        <RefreshControl
+          refreshing={q.isRefetching}
+          onRefresh={() => void q.refetch()}
+          tintColor={t.colors.primary}
+        />
+      }
+    >
       {newButton}
       {q.data.items.length === 0 ? (
         <EmptyState title={tm('messages_empty')} body={tm('messages_empty_body')} />
