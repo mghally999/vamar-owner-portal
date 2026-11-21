@@ -11,6 +11,7 @@ import {
   MANUAL_UNIT_STATUSES,
   nextDueDate,
   ownerShareOfExpense,
+  ownersByUnitOnDate,
   ownersOnDate,
   projectFixedExpenses,
   recurringDueDates,
@@ -114,6 +115,67 @@ describe('splitByWeights (largest remainder)', () => {
       ),
       { numRuns: 500 },
     );
+  });
+
+  /** The definition in BigInt only: floors, then one fil to each largest remainder, ties by key. */
+  const reference = (total: number, items: readonly { key: string; weight: number }[]) => {
+    const sum = items.reduce((a, i) => a + BigInt(i.weight), 0n);
+    const parts = items.map((i) => {
+      const scaled = BigInt(total) * BigInt(i.weight);
+      return { key: i.key, amountFils: Number(scaled / sum), remainder: scaled % sum };
+    });
+    let leftover = total - parts.reduce((a, p) => a + p.amountFils, 0);
+    const order = [...parts].sort((a, b) =>
+      a.remainder === b.remainder ? (a.key < b.key ? -1 : 1) : a.remainder > b.remainder ? -1 : 1,
+    );
+    for (const p of order) {
+      if (leftover === 0) break;
+      p.amountFils += 1;
+      leftover -= 1;
+    }
+    return parts.map(({ key, amountFils }) => ({ key, amountFils }));
+  };
+
+  it('gives exactly the BigInt result on the fast path and past 2^53 (property)', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.integer({ min: 0, max: 10_000_000_000 }),
+          // Totals whose products with the weights pass 2^53: the BigInt path.
+          fc.integer({ min: 2 ** 40, max: Number.MAX_SAFE_INTEGER }),
+        ),
+        fc.uniqueArray(
+          fc.record({
+            key: fc.string({ minLength: 1, maxLength: 4 }),
+            weight: fc.oneof(fc.integer({ min: 0, max: 20 }), fc.integer({ min: 0, max: 2 ** 31 })),
+          }),
+          { minLength: 1, maxLength: 30, selector: (x) => x.key },
+        ),
+        (total, items) => {
+          fc.pre(items.some((i) => i.weight > 0));
+          expect(splitByWeights(total, items)).toEqual(reference(total, items));
+        },
+      ),
+      { numRuns: 1000 },
+    );
+  });
+
+  it('is exact at the edge of exact arithmetic, on both sides of it', () => {
+    // total * sum just under and just over 2^53: the last totals of the fast path and the first
+    // of the BigInt one, where a rounded quotient would show first.
+    for (const sum of [3, 7, 97, 1_001, 10_000, 65_537]) {
+      const edge = Math.floor(Number.MAX_SAFE_INTEGER / sum);
+      for (let total = edge - 50; total <= edge + 50; total += 1) {
+        for (const w of [1, 2, Math.floor(sum / 2), sum - 1]) {
+          if (w <= 0 || w >= sum) continue;
+          const items = [
+            { key: 'a', weight: w },
+            { key: 'b', weight: sum - w },
+          ];
+          expect(splitByWeights(total, items)).toEqual(reference(total, items));
+        }
+      }
+    }
   });
 });
 
@@ -232,6 +294,27 @@ describe('allocateExpense', () => {
       { numRuns: 300 },
     );
   });
+
+  it('a 2,000-unit building: every method sums exactly and gives each owner their units', () => {
+    const units: AllocationUnit[] = Array.from({ length: 2_000 }, (_, i) => ({
+      unitId: `u${String(i).padStart(4, '0')}`,
+      sizeSqft: 400 + (i % 1_300),
+      owners: owners([`a${i % 1_400}`, 6_000], [`b${i % 600}`, 4_000]),
+    }));
+    const total = 987_654_321;
+    for (const method of ['by_area', 'equal_units', 'by_ownership'] as const) {
+      const parts = allocateExpense(total, method, units);
+      expect(sumAllocations(parts)).toBe(total);
+      expect(parts).toHaveLength(4_000);
+    }
+    // by_ownership: 2,000 owners get an equal part each, spread over their own units.
+    const perOwner = new Map<string, number>();
+    for (const p of allocateExpense(total, 'by_ownership', units))
+      perOwner.set(p.ownerId, (perOwner.get(p.ownerId) ?? 0) + p.amountFils);
+    const amounts = [...perOwner.values()];
+    expect(perOwner.size).toBe(2_000);
+    expect(Math.max(...amounts) - Math.min(...amounts)).toBeLessThanOrEqual(1);
+  });
 });
 
 describe('ownerShareOfExpense', () => {
@@ -322,6 +405,16 @@ describe('ownership on a date', () => {
     expect(shareOnDate(rows, 'u', 'b', D('2026-05-31'))).toBe(0);
     expect(shareOnDate(rows, 'u', 'b', D('2026-07-15'))).toBe(4_000);
     expect(shareOnDate(rows, 'v', 'c', D('2026-07-15'))).toBe(10_000);
+  });
+  it('every unit at once is the same as asking unit by unit', () => {
+    for (const date of ['2021-12-31', '2026-05-31', '2026-06-01', '2030-01-01'].map(D)) {
+      const all = ownersByUnitOnDate(rows, date);
+      for (const unitId of ['u', 'v']) {
+        const one = ownersOnDate(rows, unitId, date);
+        expect(all.get(unitId) ?? []).toEqual(one);
+      }
+    }
+    expect(ownersByUnitOnDate(rows, D('2021-12-31')).size).toBe(0);
   });
 });
 

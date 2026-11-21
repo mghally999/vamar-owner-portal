@@ -100,43 +100,58 @@ export function splitByWeights<K extends string>(
   if (totalFils < 0) throw new RangeError('totalFils must not be negative');
   if (items.length === 0) throw new RangeError('Nothing to split across');
   const seen = new Set<string>();
-  let sum = 0n;
+  let sum = 0;
   for (const it of items) {
     if (!Number.isInteger(it.weight) || it.weight < 0)
       throw new RangeError(`weight must be a non-negative integer, got ${String(it.weight)}`);
     if (seen.has(it.key)) throw new RangeError(`duplicate key ${it.key}`);
     seen.add(it.key);
-    sum += BigInt(it.weight);
+    sum += it.weight;
   }
-  if (sum === 0n) throw new RangeError('All weights are zero');
-  const total = BigInt(totalFils);
-  const parts = items.map((it) => {
-    const scaled = total * BigInt(it.weight);
-    return { key: it.key, amountFils: Number(scaled / sum), remainder: scaled % sum };
-  });
+  if (sum === 0) throw new RangeError('All weights are zero');
+
+  // floor(total * weight / sum) and its remainder. With plain numbers while every product stays
+  // exact (below 2^53: any rent or expense against any building's areas or shares), otherwise in
+  // BigInt; the BigInt path is several times slower and splits run for every unit of a building.
+  const parts: { key: K; amountFils: number; remainder: number | bigint }[] = [];
+  if (Number.isSafeInteger(sum) && totalFils * sum <= Number.MAX_SAFE_INTEGER) {
+    for (const it of items) {
+      const scaled = totalFils * it.weight;
+      // Both operands are integers below 2^53, so the rounded quotient floors to the exact one
+      // (being one off needs a dividend of 2^53 or more) and the remainder is exact too.
+      const q = Math.floor(scaled / sum);
+      parts.push({ key: it.key, amountFils: q, remainder: scaled - q * sum });
+    }
+  } else {
+    const total = BigInt(totalFils);
+    const bigSum = items.reduce((acc, it) => acc + BigInt(it.weight), 0n);
+    for (const it of items) {
+      const scaled = total * BigInt(it.weight);
+      parts.push({ key: it.key, amountFils: Number(scaled / bigSum), remainder: scaled % bigSum });
+    }
+  }
+
+  // The floors leave fewer fils over than there are parts with a remainder (the remainders add
+  // up to leftover * sum, each below sum): one fil each to the largest remainders, ties by key.
   let leftover = totalFils - parts.reduce((acc, p) => acc + p.amountFils, 0);
   if (leftover > 0) {
-    const order = [...parts].sort((a, b) =>
-      a.remainder === b.remainder
-        ? a.key < b.key
-          ? -1
-          : a.key > b.key
-            ? 1
-            : 0
-        : a.remainder > b.remainder
-          ? -1
-          : 1,
-    );
-    for (let i = 0; leftover > 0; i = (i + 1) % order.length) {
-      const target = order[i];
-      if (target && target.remainder > 0n) {
-        target.amountFils += 1;
-        leftover -= 1;
-      } else if (target && order.every((p) => p.remainder === 0n)) {
-        // Cannot happen (the floors already sum to the total), but never loop forever.
-        target.amountFils += 1;
-        leftover -= 1;
-      }
+    const order = parts
+      .filter((p) => p.remainder > 0)
+      .sort((a, b) =>
+        a.remainder === b.remainder
+          ? a.key < b.key
+            ? -1
+            : a.key > b.key
+              ? 1
+              : 0
+          : a.remainder > b.remainder
+            ? -1
+            : 1,
+      );
+    for (const target of order) {
+      if (leftover === 0) break;
+      target.amountFils += 1;
+      leftover -= 1;
     }
   }
   return parts.map(({ key, amountFils }) => ({ key, amountFils }));
@@ -287,24 +302,33 @@ export function allocateExpense(
           weight: method === 'by_area' && u.sizeSqft !== null ? Math.round(u.sizeSqft) : 1,
         };
       });
-      const parts = splitByWeights(totalFils, weights);
-      for (const p of parts) {
-        const unit = units.find((u) => u.unitId === p.key);
+      // splitByWeights returns the parts in the order of its items, so part i is unit i.
+      for (const [i, p] of splitByWeights(totalFils, weights).entries()) {
+        const unit = units[i];
         if (unit) splitUnit(unit, p.amountFils);
       }
       break;
     }
     case 'by_ownership': {
-      const ownerIds = [...new Set(units.flatMap((u) => u.owners.map((o) => o.ownerId)))].sort();
+      // Each owner's units in one pass (in the order of `units`), not a scan of every unit per
+      // owner: a 2,000-unit building took 130 ms that way, past the Worker's CPU budget.
+      const unitsOf = new Map<string, string[]>();
+      for (const u of units)
+        for (const o of u.owners) {
+          const list = unitsOf.get(o.ownerId);
+          if (list) list.push(u.unitId);
+          else unitsOf.set(o.ownerId, [u.unitId]);
+        }
+      const ownerIds = [...unitsOf.keys()].sort();
       const perOwner = splitByWeights(
         totalFils,
         ownerIds.map((id) => ({ key: id, weight: 1 })),
       );
       for (const p of perOwner) {
-        const theirUnits = units.filter((u) => u.owners.some((o) => o.ownerId === p.key));
+        const theirUnits = unitsOf.get(p.key) ?? [];
         for (const q of splitByWeights(
           p.amountFils,
-          theirUnits.map((u) => ({ key: u.unitId, weight: 1 })),
+          theirUnits.map((unitId) => ({ key: unitId, weight: 1 })),
         ))
           add(q.key, p.key, q.amountFils);
       }
@@ -345,6 +369,26 @@ export function ownersOnDate(
       (r) => r.unitId === unitId && r.fromDate <= date && (r.toDate === null || r.toDate > date),
     )
     .map((r) => ({ ownerId: r.ownerId, shareBp: r.shareBp }));
+}
+
+/**
+ * The owners of every unit on `date` in one pass over the rows: for a whole building, where
+ * calling `ownersOnDate` once per unit reads all the rows once per unit. Units nobody held on
+ * that date are absent from the map.
+ */
+export function ownersByUnitOnDate(
+  rows: readonly OwnershipRow[],
+  date: PlainDate,
+): Map<string, AllocationOwner[]> {
+  const out = new Map<string, AllocationOwner[]>();
+  for (const r of rows) {
+    if (!(r.fromDate <= date && (r.toDate === null || r.toDate > date))) continue;
+    const owner = { ownerId: r.ownerId, shareBp: r.shareBp };
+    const list = out.get(r.unitId);
+    if (list) list.push(owner);
+    else out.set(r.unitId, [owner]);
+  }
+  return out;
 }
 
 /** One owner's share of a unit on `date`, 0 when they did not hold it then. */
