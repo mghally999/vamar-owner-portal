@@ -8,20 +8,24 @@ import AllTestFilesRan from '../../tooling/ci/vitest-all-files-ran';
 const SHELL_PACKAGES = new Set([
   'lucide-react',
   'radix-ui',
-  'zod',
-  'react-hook-form',
-  '@hookform/resolvers',
   // Used by the shell's buttons (asChild); the rest of Radix loads with the dialogs that need it.
   '@radix-ui/react-slot',
   '@radix-ui/react-compose-refs',
 ]);
 
 /**
+ * Validation and form state, used only by pages with forms (owners, buildings, import) and the
+ * shared schemas: their own lazy `forms` chunk. In `vendor` they made every first visit download
+ * about 30 kB gzip that the shell and the login page never run.
+ */
+const FORM_PACKAGES = new Set(['zod', 'react-hook-form', '@hookform/resolvers']);
+
+/**
  * App modules the shell loads at start and every page shares; kept together in `index-core`.
  * Page modules are left out: they load with their routes.
  */
 const CORE_SOURCES = [
-  /\/apps\/dashboard\/src\/lib\/(messages|i18n|api|auth|theme|hooks|firebase)\.tsx?$/,
+  /\/apps\/dashboard\/src\/lib\/(messages|i18n|api|auth|theme|hooks)\.tsx?$/,
   /\/apps\/dashboard\/src\/ui\/(primitives|shell|logo|search-shortcut)\.tsx?$/,
   /\/apps\/dashboard\/src\/v2\/index\.tsx?$/,
   /\/packages\/shared\/src\/(dates|money)\.ts$/,
@@ -36,12 +40,16 @@ function chunkName(id: string): string | null {
   if (!pkg) return null;
   if (pkg === 'xlsx') return 'xlsx';
   if (pkg === 'firebase' || pkg.startsWith('@firebase/')) return 'firebase';
+  // The row virtualiser serves the cheques list only: it stays in that route's chunk instead of
+  // adding about 9 kB gzip to the startup `tanstack` chunk.
+  if (pkg === '@tanstack/react-virtual' || pkg === '@tanstack/virtual-core') return null;
   if (pkg.startsWith('@tanstack/')) return 'tanstack';
   if (pkg === 'react' || pkg === 'react-dom' || pkg === 'scheduler') return 'react';
   if (pkg.startsWith('@fullcalendar/') || pkg === 'preact') return 'fullcalendar';
   if (pkg === 'react-day-picker' || pkg === 'date-fns' || pkg.startsWith('@date-fns/'))
     return 'datepicker';
   if (SHELL_PACKAGES.has(pkg)) return 'vendor';
+  if (FORM_PACKAGES.has(pkg)) return 'forms';
   return null;
 }
 

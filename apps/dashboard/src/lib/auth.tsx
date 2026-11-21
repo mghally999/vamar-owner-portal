@@ -8,7 +8,6 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { firebaseEmailLogin, firebaseSendVerificationEmail } from './firebase';
 import {
   ApiRequestError,
   getCachedUser,
@@ -37,6 +36,16 @@ export interface AuthState {
 }
 
 const AuthContext = createContext<AuthState | null>(null);
+
+/**
+ * Firebase Auth (about 24 kB gzip) is needed only when a password is submitted, so it loads then
+ * instead of with the app and a signed-in visit never downloads it. The login form calls this
+ * when it appears, so the submit does not wait for the download.
+ */
+export function loadFirebase() {
+  return import('./firebase');
+}
+
 const RANK = { viewer: 0, editor: 1, admin: 2 } as const;
 /** Access tokens live 15 minutes; refresh with a margin. */
 const ACCESS_TOKEN_MINUTES = 15;
@@ -96,6 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [stage, queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
+    const { firebaseEmailLogin, firebaseSendVerificationEmail } = await loadFirebase();
     const idToken = await firebaseEmailLogin(email, password);
     let res:
       | { preAuthToken: string; totpEnrolled: boolean; name: string; role: StaffUser['role'] }

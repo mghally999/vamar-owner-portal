@@ -1,8 +1,7 @@
 import { useNavigate } from '@tanstack/react-router';
-import QRCode from 'qrcode';
 import { useEffect, useState, type SyntheticEvent } from 'react';
 import { ApiRequestError } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
+import { loadFirebase, useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
 import { Button, Field, Input } from '@/ui/primitives';
 import { Logo } from '@/ui/logo';
@@ -59,6 +58,10 @@ function Credentials() {
       ? t('session_expired')
       : null,
   );
+  useEffect(() => {
+    // Fetch Firebase while the address is typed; failures surface on submit.
+    loadFirebase().catch(() => undefined);
+  }, []);
 
   async function submit(e: SyntheticEvent) {
     e.preventDefault();
@@ -204,6 +207,8 @@ function TotpSetup() {
       .then(async (r) => {
         if (cancelled) return;
         setSecret(r.secret);
+        // Only a first sign-in shows a QR code, so its encoder loads here and not with the app.
+        const { default: QRCode } = await import('qrcode');
         setQr(
           await QRCode.toDataURL(r.otpauthUri, {
             margin: 1,

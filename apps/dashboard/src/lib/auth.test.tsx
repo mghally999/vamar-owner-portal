@@ -8,10 +8,15 @@ import { testQueryClient } from '@/test/render';
 import { getAccessToken, setAccessToken } from './api';
 import { AuthProvider, useAuth } from './auth';
 
-vi.mock('@/lib/firebase', () => ({
-  firebaseEmailLogin: vi.fn(() => Promise.resolve('firebase-id-token')),
-  firebaseSendVerificationEmail: vi.fn(),
-}));
+/** How many times the Firebase module was loaded (the mock factory runs on first import). */
+const firebaseLoads = vi.hoisted(() => ({ count: 0 }));
+vi.mock('@/lib/firebase', () => {
+  firebaseLoads.count += 1;
+  return {
+    firebaseEmailLogin: vi.fn(() => Promise.resolve('firebase-id-token')),
+    firebaseSendVerificationEmail: vi.fn(),
+  };
+});
 
 /** Shows the stage and gives the test the hook's functions. */
 let current: ReturnType<typeof useAuth> | null = null;
@@ -136,5 +141,21 @@ describe('AuthProvider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     expect(() => render(<Probe />)).toThrow('useAuth outside AuthProvider');
     spy.mockRestore();
+  });
+
+  it('loads Firebase only when a password is submitted, not with the signed-in app', async () => {
+    localStorage.setItem('vamar_staff_session', '1');
+    mockApi({
+      'POST /api/auth/staff/refresh': reply(200, { accessToken: 'tok', user: staffUser }),
+      'POST /api/auth/staff/exchange': reply(200, { preAuthToken: 'pre', totpEnrolled: true }),
+    });
+    renderAuth();
+    expect(await screen.findByText('stage:authenticated')).toBeTruthy();
+    expect(firebaseLoads.count).toBe(0);
+    await act(async () => {
+      await current!.login('omar@vamar.ae', 'pw');
+    });
+    expect(firebaseLoads.count).toBe(1);
+    expect(screen.getByText('stage:pre-mfa')).toBeTruthy();
   });
 });
