@@ -123,8 +123,8 @@ describe('Approval request', () => {
     mockApi({
       'GET /api/owner/approvals/ap-1': { body: approval() },
       'POST /api/owner/approvals/ap-1': {
-        status: 409,
-        body: { error: { code: 'conflict', message: 'already answered' } },
+        status: 500,
+        body: { error: { code: 'internal', message: 'down' } },
       },
     });
     await renderApp(<ApprovalScreen />);
@@ -133,6 +133,38 @@ describe('Approval request', () => {
       await screen.findByText('Your answer could not be sent. Please try again.'),
     ).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+  });
+
+  it('a request answered meanwhile (409) shows where it stands, without the buttons', async () => {
+    let answered = false;
+    mockApi({
+      'GET /api/owner/approvals/ap-1': () => ({
+        body: answered
+          ? approval({
+              status: 'approved_by_silence',
+              answeredAt: '2026-10-09T04:00:00Z',
+              waiting: false,
+              canAnswer: false,
+            })
+          : approval(),
+      }),
+      'POST /api/owner/approvals/ap-1': () => {
+        answered = true;
+        return {
+          status: 409,
+          body: { error: { code: 'conflict', message: 'This request has already been answered' } },
+        };
+      },
+    });
+    await renderApp(<ApprovalScreen />);
+    await fireEvent.press(await screen.findByRole('button', { name: 'Approve' }));
+    expect(
+      await screen.findByText('This request was already answered. This is where it stands now.'),
+    ).toBeTruthy();
+    expect(await screen.findByText('Your answer')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.queryByText('Your answer could not be sent. Please try again.')).toBeNull();
+    expect(sent('GET /api/owner/approvals/ap-1').length).toBeGreaterThan(1);
   });
 
   it('a job that no longer waits shows no buttons; silence and no deadline read as such', async () => {

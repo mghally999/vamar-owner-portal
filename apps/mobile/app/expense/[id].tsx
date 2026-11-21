@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { EXPENSE_KIND_LABEL, WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
 import { attachmentUrl, isImage } from '@/lib/attachments';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useExpense } from '@/lib/queries';
@@ -175,9 +176,7 @@ export default function ExpenseDetailScreen() {
                 <Text weight="medium">{pick(e.workOrder.titleAr, e.workOrder.titleEn)}</Text>
                 <Text variant="caption" color="soft">
                   {WORK_ORDER_STATUS_LABEL[e.workOrder.status][lang]}
-                  {e.workOrder.completedAt
-                    ? ` · ${date(e.workOrder.completedAt.slice(0, 10))}`
-                    : ''}
+                  {e.workOrder.completedAt ? ` · ${date(dubaiDay(e.workOrder.completedAt))}` : ''}
                 </Text>
               </Card>
             </Pressable>

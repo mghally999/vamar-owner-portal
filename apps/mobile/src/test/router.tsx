@@ -10,6 +10,8 @@ export const router = {
   replace: jest.fn(),
   back: jest.fn(),
   navigate: jest.fn(),
+  setParams: jest.fn(),
+  canGoBack: jest.fn(() => routeState.canGoBack),
 };
 
 export const routeState = {
@@ -31,6 +33,8 @@ export const tabNavigation = {
 
 export function resetRouter(): void {
   for (const fn of Object.values(router)) fn.mockReset();
+  // The reset drops the implementation; canGoBack follows routeState like the header's does.
+  router.canGoBack.mockImplementation(() => routeState.canGoBack);
   tabNavigation.emit.mockClear();
   tabNavigation.navigate.mockReset();
   routeState.params = {};

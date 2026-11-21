@@ -34,6 +34,7 @@ const ar = {
   approval_answered_on: 'تاريخ الرد',
   approval_not_waiting: 'لم يعد هذا العمل بانتظار ردك.',
   approval_error: 'تعذّر إرسال ردك. حاول مرة أخرى.',
+  approval_already_answered: 'تمت الإجابة على هذا الطلب من قبل، وهذه حالته الآن.',
   approval_kind_expense: 'مصروف',
   approval_kind_work_order: 'صيانة',
 };
@@ -66,6 +67,7 @@ const en: Record<keyof typeof ar, string> = {
   approval_answered_on: 'Answered on',
   approval_not_waiting: 'This job no longer needs your answer.',
   approval_error: 'Your answer could not be sent. Please try again.',
+  approval_already_answered: 'This request was already answered. This is where it stands now.',
   approval_kind_expense: 'Expense',
   approval_kind_work_order: 'Maintenance',
 };

@@ -1,16 +1,17 @@
 import { FlashList } from '@shopify/flash-list';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import {
   CHEQUE_STATUSES,
-  isChequeStatus,
   todayInDubai,
   type ChequeStatus,
   type PlainDate,
   sharePct,
 } from '@/lib/shared';
 import { groupByDay } from '@/lib/calendar';
+import { chequeStatusFromParam, chequeStatusParam } from '@/lib/cheque-filter';
+import { tooLongForCalendar } from '@/lib/period-limits';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriod } from '@/lib/period';
@@ -26,7 +27,7 @@ type Section = { kind: 'header'; date: string } | { kind: 'cheque'; cheque: Cheq
 
 /**
  * Cheques tab: the shared period switcher, property and status filters, a List | Calendar toggle.
- * Home's tiles open it with a status (`?status=cleared`), which seeds the status filter.
+ * Home's figures open it with a status (`?status=cleared`, or `all`), which sets the status filter.
  */
 export default function ChequesScreen() {
   const { t: tr, pick, date } = useI18n();
@@ -35,17 +36,28 @@ export default function ChequesScreen() {
   const settings = useMe().data?.settings;
   const [view, setView] = useState<'list' | 'calendar'>('list');
   const [buildingId, setBuildingId] = useState<string | undefined>();
+  const router = useRouter();
   const [status, setStatus] = useState<ChequeStatus | undefined>(
-    isChequeStatus(params.status) ? params.status : undefined,
+    chequeStatusFromParam(params.status),
   );
+  // Each link from Home names its filter ("all" included), so every visit from there applies it.
   useEffect(() => {
-    if (isChequeStatus(params.status)) setStatus(params.status);
+    setStatus(chequeStatusFromParam(params.status));
   }, [params.status]);
+  // A chip writes its choice into the address too: the next link from Home then differs from it
+  // and applies, even when it names the status the owner had before choosing the chip.
+  const chooseStatus = (s: ChequeStatus | undefined) => {
+    setStatus(s);
+    router.setParams({ status: chequeStatusParam(s) });
+  };
   const buildings = useBuildings();
   const q = useCheques({ from: period.from, to: period.to, buildingId, status });
+  // The calendar endpoint takes at most 400 days: a longer custom period gets a hint instead of
+  // a request that is refused every time.
+  const calendarTooLong = tooLongForCalendar(period.from, period.to);
   // Only the Calendar view shows it: the List view (the default) does not fetch it.
   const cal = useCalendar(period.from, period.to, ['cheque_due', 'holiday'], {
-    enabled: view === 'calendar',
+    enabled: view === 'calendar' && !calendarTooLong,
   });
   const [selectedDay, setSelectedDay] = useState<PlainDate | null>(null);
 
@@ -100,7 +112,7 @@ export default function ChequesScreen() {
               label={tr('cheques_filter_status')}
               active={status === undefined}
               onPress={() => {
-                setStatus(undefined);
+                chooseStatus(undefined);
               }}
             />
             {CHEQUE_STATUSES.map((s) => (
@@ -109,7 +121,7 @@ export default function ChequesScreen() {
                 label={tr(`status_${s}` as MessageKey)}
                 active={status === s}
                 onPress={() => {
-                  setStatus(s);
+                  chooseStatus(s);
                 }}
               />
             ))}
@@ -118,6 +130,17 @@ export default function ChequesScreen() {
       ) : null}
     </View>
   );
+
+  if (view === 'calendar' && calendarTooLong) {
+    return (
+      <ScrollView contentContainerStyle={{ paddingBottom: 32, gap: 12 }}>
+        {header}
+        <View style={{ paddingHorizontal: 16 }}>
+          <EmptyState title={tr('cheques_calendar_tooLong')} />
+        </View>
+      </ScrollView>
+    );
+  }
 
   if (view === 'calendar') {
     const items = cal.data?.items ?? [];

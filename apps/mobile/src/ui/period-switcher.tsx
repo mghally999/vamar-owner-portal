@@ -11,6 +11,7 @@ import {
 } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { QUICK_PRESETS, sameSelection, selectionLabel, type PeriodSelection } from '@/lib/period';
+import { customRangeProblem } from '@/lib/period-limits';
 import { useTheme } from '@/lib/theme';
 import { Button, Row, Text } from '.';
 import { DatePickerField, YearMonthPicker } from './date-picker';
@@ -57,6 +58,8 @@ export function PeriodSwitcher({
   const [pickMonth, setPickMonth] = useState(m);
   const [from, setFrom] = useState<PlainDate>(`${today.slice(0, 7)}-01` as PlainDate);
   const [to, setTo] = useState<PlainDate>(today);
+  // The API refuses a range past its limit (422), which would leave the screens on an error.
+  const rangeProblem = customRangeProblem(from, to);
   const quickActive = value.kind === 'preset' && quick.includes(value.preset);
 
   const chip = (label: string, active: boolean, onPress: () => void, key: string) => (
@@ -260,14 +263,14 @@ export function PeriodSwitcher({
                       weekStart={weekStart}
                     />
                   </Row>
-                  {to < from ? (
+                  {rangeProblem ? (
                     <Text variant="caption" color="danger">
-                      {tr('period_invalidRange')}
+                      {tr(rangeProblem === 'too_long' ? 'period_tooLong' : 'period_invalidRange')}
                     </Text>
                   ) : null}
                   <Button
                     title={tr('period_apply')}
-                    disabled={to < from || !isPlainDate(from) || !isPlainDate(to)}
+                    disabled={rangeProblem !== null || !isPlainDate(from) || !isPlainDate(to)}
                     onPress={() => {
                       onChange({ kind: 'custom', from, to });
                       setSheet(null);

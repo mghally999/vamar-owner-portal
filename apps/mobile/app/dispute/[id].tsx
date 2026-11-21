@@ -1,6 +1,7 @@
 import { Link, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { DISPUTE_STATUS_LABEL, DISPUTE_TYPE_LABEL } from '@/lib/shared';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import { useDispute } from '@/lib/queries';
 import {
@@ -68,7 +69,7 @@ export default function DisputeDetailScreen() {
               ),
             ],
             [tr('dispute_hearing'), d.nextHearingDate ? date(d.nextHearingDate) : '—'],
-            [tr('dispute_opened'), date(d.openedAt.slice(0, 10))],
+            [tr('dispute_opened'), date(dubaiDay(d.openedAt))],
           ].map(([label, value], i) => (
             <View key={i}>
               {i > 0 ? <Separator /> : null}
@@ -115,7 +116,7 @@ export default function DisputeDetailScreen() {
                     <Text variant="caption" color="faint" tnum>
                       {tr('dispute_dueDate')}: {date(c.dueDate)}
                       {c.bouncedAt
-                        ? ` · ${tr('dispute_bouncedOn')}: ${date(c.bouncedAt.slice(0, 10))}`
+                        ? ` · ${tr('dispute_bouncedOn')}: ${date(dubaiDay(c.bouncedAt))}`
                         : ''}
                     </Text>
                     {c.bounceReason ? (
@@ -144,7 +145,7 @@ export default function DisputeDetailScreen() {
                 {i > 0 ? <Separator /> : null}
                 <View style={{ paddingVertical: 12, gap: 4 }}>
                   <Text>{u.note}</Text>
-                  <DateText date={u.at.slice(0, 10)} variant="caption" color="faint" />
+                  <DateText date={dubaiDay(u.at)} variant="caption" color="faint" />
                 </View>
               </View>
             ))}

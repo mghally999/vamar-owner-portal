@@ -3,9 +3,11 @@ import { useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { REPAIR_APPROVAL_STATUS_LABEL, type RepairApprovalStatus } from '@/lib/shared';
 import { isImage } from '@/lib/attachments';
+import { isAlreadyAnswered } from '@/lib/approval-answer';
 import { useApprovalText } from '@/lib/approval-messages';
 import { useAnswerApproval, useApproval } from '@/lib/approval-queries';
 import type { ApprovalDetail } from '@/lib/approval-types';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import { fonts, statusColors, useTheme } from '@/lib/theme';
 import {
@@ -34,6 +36,10 @@ export default function ApprovalScreen() {
   const { pick, date, money } = useI18n();
   const q = useApproval(id);
   const a = q.data;
+  // Held here, not in the form: after a 409 the refreshed request hides the form, and the
+  // reason it went away must stay on screen.
+  const answer = useAnswerApproval(id);
+  const alreadyAnswered = answer.isError && isAlreadyAnswered(answer.error);
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
 
   return (
@@ -108,7 +114,16 @@ export default function ApprovalScreen() {
 
           <Photos approval={a} />
 
-          {a.canAnswer ? <AnswerForm approval={a} /> : <AnswerSummary approval={a} />}
+          {alreadyAnswered ? (
+            <Text variant="secondary" color="danger" accessibilityLiveRegion="polite">
+              {ta('approval_already_answered')}
+            </Text>
+          ) : null}
+          {a.canAnswer ? (
+            <AnswerForm approval={a} answer={answer} />
+          ) : (
+            <AnswerSummary approval={a} />
+          )}
         </>
       )}
     </ScrollView>
@@ -176,11 +191,16 @@ function Photos({ approval }: { approval: ApprovalDetail }) {
   );
 }
 
-function AnswerForm({ approval }: { approval: ApprovalDetail }) {
+function AnswerForm({
+  approval,
+  answer,
+}: {
+  approval: ApprovalDetail;
+  answer: ReturnType<typeof useAnswerApproval>;
+}) {
   const t = useTheme();
   const ta = useApprovalText();
   const { date } = useI18n();
-  const answer = useAnswerApproval(approval.id);
   const [note, setNote] = useState('');
   // Rejecting holds the work back, so it takes a second, explicit tap.
   const [confirmReject, setConfirmReject] = useState(false);
@@ -222,7 +242,7 @@ function AnswerForm({ approval }: { approval: ApprovalDetail }) {
           writingDirection: 'auto',
         }}
       />
-      {answer.isError ? (
+      {answer.isError && !isAlreadyAnswered(answer.error) ? (
         <Text variant="secondary" color="danger">
           {ta('approval_error')}
         </Text>
@@ -303,7 +323,7 @@ function AnswerSummary({ approval }: { approval: ApprovalDetail }) {
               {ta('approval_answered_on')}
             </Text>
             <Text variant="secondary" weight="medium" tnum>
-              {date(approval.answeredAt.slice(0, 10))}
+              {date(dubaiDay(approval.answeredAt))}
             </Text>
           </Row>
         </>

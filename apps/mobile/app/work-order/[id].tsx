@@ -2,6 +2,7 @@ import { Link, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
 import { isImage } from '@/lib/attachments';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useWorkOrder } from '@/lib/queries';
@@ -35,7 +36,7 @@ export default function WorkOrderDetailScreen() {
     ? [
         [tr('workOrder_reported'), date(w.reportedOn)],
         [tr('workOrder_scheduled'), w.scheduledFor ? date(w.scheduledFor) : '—'],
-        [tr('workOrder_completed'), w.completedAt ? date(w.completedAt.slice(0, 10)) : '—'],
+        [tr('workOrder_completed'), w.completedAt ? date(dubaiDay(w.completedAt)) : '—'],
         [tr('workOrder_vendor'), w.vendorName ?? '—'],
         [tr('workOrder_priority'), tr(`workOrder_priorityValue_${w.priority}` as MessageKey)],
       ]

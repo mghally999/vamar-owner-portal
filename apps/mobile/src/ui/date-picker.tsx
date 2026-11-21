@@ -35,7 +35,7 @@ export function DatePickerField({
   max?: PlainDate | undefined;
 }) {
   const t = useTheme();
-  const { date } = useI18n();
+  const { date, t: tr } = useI18n();
   const [open, setOpen] = useState(false);
   return (
     <View style={{ flex: 1, gap: 6 }}>
@@ -69,7 +69,7 @@ export function DatePickerField({
         }}
       >
         <Pressable
-          accessibilityLabel="close"
+          accessibilityLabel={tr('cancel')}
           onPress={() => {
             setOpen(false);
           }}

@@ -2,6 +2,7 @@ import { FlashList } from '@shopify/flash-list';
 import { Link } from 'expo-router';
 import { Pressable, View } from 'react-native';
 import { WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import { useWorkOrders } from '@/lib/queries';
 import type { WorkOrderItem } from '@/lib/types';
@@ -75,7 +76,7 @@ export default function WorkOrdersScreen() {
                   )}{' '}
                   <DateText
                     date={
-                      w.completedAt ? w.completedAt.slice(0, 10) : (w.scheduledFor ?? w.reportedOn)
+                      w.completedAt ? dubaiDay(w.completedAt) : (w.scheduledFor ?? w.reportedOn)
                     }
                     variant="caption"
                     color="faint"

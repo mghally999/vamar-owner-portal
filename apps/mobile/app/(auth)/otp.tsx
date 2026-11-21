@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountDisabledError, NotRegisteredError, useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
+import { goBackOr } from '@/lib/navigation';
 import { fonts, useTheme } from '@/lib/theme';
 import { Button, Text } from '@/ui';
 
@@ -104,7 +105,8 @@ export default function OtpScreen() {
           title={tr('otp_change')}
           variant="ghost"
           onPress={() => {
-            router.back();
+            // Opened straight on this screen (a reload of the web app): back would do nothing.
+            goBackOr(router, '/(auth)');
           }}
         />
         <Button

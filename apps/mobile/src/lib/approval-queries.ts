@@ -5,6 +5,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { RepairApprovalStatus } from './shared';
 import { qs, request } from './api';
+import { staleAfterAnswerError } from './approval-answer';
 import type { ApprovalAnswer, ApprovalDetail, ApprovalItem } from './approval-types';
 
 export interface ApprovalFilters {
@@ -44,6 +45,11 @@ export function useAnswerApproval(id: string) {
       void qc.invalidateQueries({ queryKey: ['work-orders'] });
       if (detail.workOrderId)
         void qc.invalidateQueries({ queryKey: ['work-order', detail.workOrderId] });
+    },
+    // Answered meanwhile or the job started: fetch the current state so the buttons go away.
+    onError: (error) => {
+      for (const queryKey of staleAfterAnswerError(error, id))
+        void qc.invalidateQueries({ queryKey });
     },
   });
 }

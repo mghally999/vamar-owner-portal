@@ -5,6 +5,7 @@ import { Linking, Pressable, ScrollView, Switch, View } from 'react-native';
 import { todayInDubai } from '@/lib/shared';
 import { API_BASE, request } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import { useThreads } from '@/lib/message-queries';
 import { useMessageText } from '@/lib/message-text';
@@ -14,7 +15,17 @@ import { periodLabel, shareStatement } from '@/lib/statement';
 import { THEME_NAMES } from '@vamar/tokens';
 import { useTheme, useThemeChoice } from '@/lib/theme';
 import type { ChequeItem, Page } from '@/lib/types';
-import { Button, Card, Row, SectionTitle, Separator, Text, layout } from '@/ui';
+import {
+  Button,
+  Card,
+  ErrorState,
+  Row,
+  SectionTitle,
+  Separator,
+  Skeleton,
+  Text,
+  layout,
+} from '@/ui';
 import { YearStatementPicker } from '@/ui/year-statement';
 
 export default function SettingsScreen() {
@@ -201,39 +212,59 @@ export default function SettingsScreen() {
 
       <View>
         <SectionTitle>{tr('settings_devices')}</SectionTitle>
-        <Card style={{ paddingHorizontal: 16 }}>
-          {(devices.data ?? [])
-            .filter((d) => !d.revokedAt)
-            .map((d, i) => (
-              <View key={d.id}>
-                {i > 0 ? <Separator /> : null}
-                <Row style={{ justifyContent: 'space-between', minHeight: 56, gap: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text numberOfLines={1}>{d.model || d.platform}</Text>
-                    {d.current ? (
-                      <Text variant="caption" color="soft">
-                        {tr('this_device')}
-                      </Text>
-                    ) : null}
-                  </View>
-                  <Text variant="caption" color="faint" tnum>
-                    {date(d.lastSeen.slice(0, 10))}
-                  </Text>
-                </Row>
+        {devices.isError ? (
+          <ErrorState onRetry={() => void devices.refetch()} />
+        ) : (
+          <Card style={{ paddingHorizontal: 16 }}>
+            {devices.isPending ? (
+              <View style={{ paddingVertical: 12, gap: 12 }}>
+                <Skeleton height={20} />
+                <Skeleton height={20} width="60%" />
               </View>
-            ))}
-          <Separator />
-          <View style={{ paddingVertical: 12 }}>
-            <Button
-              title={tr('settings_signOutOthers')}
-              variant="secondary"
-              onPress={() => {
-                revoke.mutate();
-              }}
-              loading={revoke.isPending}
-            />
-          </View>
-        </Card>
+            ) : null}
+            {(devices.data ?? [])
+              .filter((d) => !d.revokedAt)
+              .map((d, i) => (
+                <View key={d.id}>
+                  {i > 0 ? <Separator /> : null}
+                  <Row style={{ justifyContent: 'space-between', minHeight: 56, gap: 12 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text numberOfLines={1}>{d.model || d.platform}</Text>
+                      {d.current ? (
+                        <Text variant="caption" color="soft">
+                          {tr('this_device')}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <Text variant="caption" color="faint" tnum>
+                      {date(dubaiDay(d.lastSeen))}
+                    </Text>
+                  </Row>
+                </View>
+              ))}
+            <Separator />
+            <View style={{ paddingVertical: 12 }}>
+              <Button
+                title={tr('settings_signOutOthers')}
+                variant="secondary"
+                onPress={() => {
+                  revoke.mutate();
+                }}
+                loading={revoke.isPending}
+              />
+              {revoke.isError ? (
+                <Text
+                  variant="caption"
+                  color="danger"
+                  accessibilityLiveRegion="polite"
+                  style={{ paddingTop: 8 }}
+                >
+                  {tr('settings_signOutOthers_failed')}
+                </Text>
+              ) : null}
+            </View>
+          </Card>
+        )}
       </View>
 
       <Card style={{ paddingHorizontal: 16 }}>

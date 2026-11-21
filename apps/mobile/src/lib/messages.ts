@@ -115,6 +115,8 @@ const en = {
   settings_devices: 'Signed-in devices',
   settings_devices_body: 'Sign out of every other device.',
   settings_signOutOthers: 'Sign out other devices',
+  settings_signOutOthers_failed:
+    'Could not sign out the other devices. Check your connection and try again.',
   settings_statement: 'Statements',
   settings_statement_month: 'This month (PDF)',
   settings_delete: 'Request account deletion',
@@ -151,6 +153,7 @@ const en = {
   period_to: 'To',
   period_apply: 'Apply',
   period_invalidRange: 'The end date must be on or after the start date.',
+  period_tooLong: 'Choose a period of five years or less.',
   period_compare: 'vs previous period',
   home_expectedRent: 'Expected rent',
   home_collected: 'Collected',
@@ -245,6 +248,8 @@ const en = {
   calendar_items: '{n} items',
   cheques_view_list: 'List',
   cheques_view_calendar: 'Calendar',
+  cheques_calendar_tooLong:
+    'The calendar shows up to 400 days. Choose a shorter period, or use the list.',
 
   unit_status: 'Status',
   unit_identifiers: 'Property record',
@@ -464,6 +469,8 @@ const ar: Record<MessageKey, string> = {
   settings_devices: 'الأجهزة المسجّلة',
   settings_devices_body: 'تسجيل الخروج من كل الأجهزة الأخرى.',
   settings_signOutOthers: 'تسجيل الخروج من الأجهزة الأخرى',
+  settings_signOutOthers_failed:
+    'تعذّر تسجيل الخروج من الأجهزة الأخرى. تحقّق من الاتصال وحاول مرة أخرى.',
   settings_statement: 'كشوف الحساب',
   settings_statement_month: 'كشف هذا الشهر PDF',
   settings_delete: 'طلب حذف الحساب',
@@ -499,6 +506,7 @@ const ar: Record<MessageKey, string> = {
   period_to: 'إلى',
   period_apply: 'تطبيق',
   period_invalidRange: 'تاريخ النهاية يجب أن يكون في تاريخ البداية أو بعده.',
+  period_tooLong: 'اختر فترة لا تزيد على خمس سنوات.',
   period_compare: 'مقارنة بالفترة السابقة',
   home_expectedRent: 'الإيجار المتوقع',
   home_collected: 'المحصّل',
@@ -593,6 +601,7 @@ const ar: Record<MessageKey, string> = {
   calendar_items: '{n} عناصر',
   cheques_view_list: 'قائمة',
   cheques_view_calendar: 'تقويم',
+  cheques_calendar_tooLong: 'يعرض التقويم 400 يوم كحد أقصى. اختر فترة أقصر أو استخدم القائمة.',
 
   unit_status: 'الحالة',
   unit_identifiers: 'سجل العقار',

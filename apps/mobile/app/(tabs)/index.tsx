@@ -2,6 +2,7 @@ import { Link, useGlobalSearchParams, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
 import { useAuth } from '@/lib/auth';
+import { chequesHref } from '@/lib/cheque-filter';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { formatPeriod } from '@/lib/shared';
@@ -206,7 +207,7 @@ export default function HomeScreen() {
               padding: 16,
             }}
           >
-            <Link href={{ pathname: '/(tabs)/cheques', params: {} }} asChild>
+            <Link href={chequesHref()} asChild>
               <Pressable accessibilityRole="button">
                 <Text variant="secondary" weight="medium" color="onHeroSoft">
                   {tr('home_expectedRent')}
@@ -221,18 +222,9 @@ export default function HomeScreen() {
               </Pressable>
             </Link>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
-              {tile(tr('home_collected'), d?.rent.collectedFils, {
-                pathname: '/(tabs)/cheques',
-                params: { status: 'cleared' },
-              })}
-              {tile(tr('home_outstanding'), d?.rent.outstandingFils, {
-                pathname: '/(tabs)/cheques',
-                params: { status: 'upcoming' },
-              })}
-              {tile(tr('home_atRisk'), d?.rent.atRiskFils, {
-                pathname: '/(tabs)/cheques',
-                params: { status: 'bounced' },
-              })}
+              {tile(tr('home_collected'), d?.rent.collectedFils, chequesHref('cleared'))}
+              {tile(tr('home_outstanding'), d?.rent.outstandingFils, chequesHref('upcoming'))}
+              {tile(tr('home_atRisk'), d?.rent.atRiskFils, chequesHref('bounced'))}
             </View>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
               {tile(

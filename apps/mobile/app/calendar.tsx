@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, View } from 'react-native';
 import {
   addDays,
-  addMonthsClamped,
   formatMonth,
   monthGrid,
   startOfWeek,
@@ -10,6 +9,7 @@ import {
   type PlainDate,
 } from '@/lib/shared';
 import { groupByDay } from '@/lib/calendar';
+import { moveCursor, type CalendarView } from '@/lib/calendar-cursor';
 import { useI18n } from '@/lib/i18n';
 import { useCalendar, useMe } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -18,8 +18,6 @@ import { Agenda, HijriLine, Legend, MonthGrid, WeekStrip, YearGrid } from '@/ui/
 import { YearMonthPicker } from '@/ui/date-picker';
 import { Icon } from '@/ui/icon';
 import { Segmented } from '@/ui/segmented';
-
-type ViewKind = 'year' | 'month' | 'week' | 'agenda';
 
 /**
  * The calendar: Year (twelve mini months), Month, Week and Agenda, opening on today. Arrows move
@@ -32,7 +30,7 @@ export default function CalendarScreen() {
   const settings = useMe().data?.settings;
   const weekStart = settings?.weekStart ?? 'monday';
   const today = todayInDubai();
-  const [view, setView] = useState<ViewKind>('month');
+  const [view, setView] = useState<CalendarView>('month');
   const [cursor, setCursor] = useState<PlainDate>(today);
   const [selected, setSelected] = useState<PlainDate | null>(today);
   const [jump, setJump] = useState(false);
@@ -62,10 +60,7 @@ export default function CalendarScreen() {
   const holidays = useMemo(() => new Set(q.data?.holidays ?? []), [q.data]);
 
   const move = (dir: -1 | 1) => {
-    if (view === 'year') setCursor(`${year + dir}${cursor.slice(4)}` as PlainDate);
-    else if (view === 'week') setCursor(addDays(cursor, 7 * dir));
-    else if (view === 'agenda') setCursor(addDays(cursor, 60 * dir));
-    else setCursor(addMonthsClamped(cursor, dir));
+    setCursor(moveCursor(view, cursor, dir));
   };
 
   const title =

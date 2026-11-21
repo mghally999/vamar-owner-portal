@@ -2,6 +2,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { ScrollView, View } from 'react-native';
 import { sharePct } from '@/lib/shared';
 import { API_BASE } from '@/lib/api';
+import { dubaiDay } from '@/lib/dubai-day';
 import { useI18n } from '@/lib/i18n';
 import { useCheque } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
@@ -111,7 +112,7 @@ export default function ChequeDetailScreen() {
                 <View style={{ flex: 1, gap: 2 }}>
                   <StatusChip status={e.toStatus} />
                   <Text variant="caption" color="faint" tnum>
-                    {date(e.at.slice(0, 10))}
+                    {date(dubaiDay(e.at))}
                   </Text>
                 </View>
               </Row>
