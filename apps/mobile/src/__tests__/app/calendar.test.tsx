@@ -149,6 +149,18 @@ describe('Calendar', () => {
       expect(r.from! <= r.to!).toBe(true);
     });
     await fireEvent.press(screen.getByRole('button', { name: 'Today' }));
+    // The agenda starts today: its event is dated today, so the test holds on any day of the
+    // month (dated the 20th, it failed from the 21st on).
+    mockApi({
+      'GET /api/owner/calendar': {
+        body: {
+          items: items.map((i) =>
+            i.id === 'event:ev-1' ? { ...i, date: today, endDate: today } : i,
+          ),
+          holidays: [inMonth(2)],
+        },
+      },
+    });
     await fireEvent.press(screen.getByRole('tab', { name: 'Agenda' }));
     expect(await screen.findByText('Owners meeting')).toBeTruthy();
     expect(screen.getByText('Event · 18:00')).toBeTruthy();

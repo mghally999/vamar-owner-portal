@@ -4,6 +4,7 @@
  * the layout direction; digits are always Western; the week starts on the configured day.
  */
 import { Link } from 'expo-router';
+import { memo } from 'react';
 import { Pressable, View } from 'react-native';
 import {
   CALENDAR_ITEM_KIND_LABEL,
@@ -39,27 +40,34 @@ export function Dots({ kinds }: { kinds: CalendarItemKind[] }) {
   );
 }
 
-function DayCell({
+const NO_ITEMS: CalendarItem[] = [];
+
+/**
+ * One day. Memoised with plain props (the day's own items array from the map, the shared select
+ * callback): a tap re-renders the old and the new selected day, not every day of a year view.
+ */
+const DayCell = memo(function DayCell({
   date,
   inMonth,
   selected,
   today,
-  kinds,
+  items,
   nonWorking,
-  onPress,
+  onSelect,
   compact,
 }: {
   date: PlainDate;
   inMonth: boolean;
   selected: boolean;
   today: boolean;
-  kinds: CalendarItemKind[];
+  items: CalendarItem[];
   nonWorking: boolean;
-  onPress?: (() => void) | undefined;
+  onSelect?: ((d: PlainDate) => void) | undefined;
   compact?: boolean | undefined;
 }) {
   const t = useTheme();
   const { date: fmt, t: tr } = useI18n();
+  const kinds = items.map((it) => it.kind);
   const day = Number(date.slice(8, 10));
   const inner = (
     <View
@@ -107,21 +115,24 @@ function DayCell({
       )}
     </View>
   );
-  if (!onPress) return <View style={{ flex: 1 }}>{inner}</View>;
+  if (!onSelect) return <View style={{ flex: 1 }}>{inner}</View>;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${fmt(date)}${kinds.length ? `, ${tr('calendar_items', { n: kinds.length })}` : ''}`}
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        onSelect(date);
+      }}
       style={{ flex: 1 }}
     >
       {inner}
     </Pressable>
   );
-}
+});
 
-export function WeekdayHeader({
+/** The weekday names over a grid; unchanged by a selection, so not drawn again for one. */
+export const WeekdayHeader = memo(function WeekdayHeader({
   weekStart,
   compact,
 }: {
@@ -152,7 +163,7 @@ export function WeekdayHeader({
       ))}
     </Row>
   );
-}
+});
 
 /** One month: a tap on a day selects it. */
 export function MonthGrid({
@@ -183,7 +194,6 @@ export function MonthGrid({
       {rows.map((row, i) => (
         <Row key={i}>
           {row.map((cell) => {
-            const kinds = (byDay.get(cell.date) ?? []).map((it) => it.kind);
             const dow = new Date(`${cell.date}T00:00:00Z`).getUTCDay();
             return (
               <DayCell
@@ -192,15 +202,9 @@ export function MonthGrid({
                 inMonth={cell.inMonth}
                 selected={selected === cell.date}
                 today={cell.date === today}
-                kinds={kinds}
+                items={byDay.get(cell.date) ?? NO_ITEMS}
                 nonWorking={holidays.has(cell.date) || dow === 0 || dow === 6}
-                onPress={
-                  onSelect
-                    ? () => {
-                        onSelect(cell.date);
-                      }
-                    : undefined
-                }
+                onSelect={onSelect}
                 compact={compact}
               />
             );
@@ -255,11 +259,9 @@ export function WeekStrip({
               inMonth
               selected={selected === d}
               today={d === today}
-              kinds={(byDay.get(d) ?? []).map((it) => it.kind)}
+              items={byDay.get(d) ?? NO_ITEMS}
               nonWorking={holidays.has(d) || dow === 0 || dow === 6}
-              onPress={() => {
-                onSelect(d);
-              }}
+              onSelect={onSelect}
             />
           );
         })}
