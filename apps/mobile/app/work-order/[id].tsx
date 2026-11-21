@@ -1,8 +1,7 @@
-import { Image } from 'expo-image';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 import { WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
-import { API_BASE, authHeaders } from '@/lib/api';
+import { isImage } from '@/lib/attachments';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useWorkOrder } from '@/lib/queries';
@@ -21,6 +20,7 @@ import {
   layout,
 } from '@/ui';
 import { AskVamar } from '@/ui/ask-vamar';
+import { AttachmentButton, AttachmentImage } from '@/ui/attachment';
 
 /** One maintenance job: status, dates, contractor, the before and after photos and the invoice. */
 export default function WorkOrderDetailScreen() {
@@ -115,18 +115,14 @@ export default function WorkOrderDetailScreen() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {w.attachments.map((a) => (
               <View key={a.id} style={{ width: '48%', flexGrow: 1, gap: 4 }}>
-                <Image
-                  source={{
-                    uri: `${API_BASE}/api/owner/attachments/${a.id}`,
-                    headers: authHeaders(),
-                  }}
-                  cachePolicy="memory-disk"
-                  accessibilityLabel={a.fileName}
-                  style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: t.radius.md }}
-                  contentFit="cover"
-                  placeholder={null}
-                  transition={150}
-                />
+                {isImage(a) ? (
+                  <AttachmentImage
+                    file={a}
+                    style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: t.radius.md }}
+                  />
+                ) : (
+                  <AttachmentButton file={a} title={tr('file_open')} />
+                )}
                 <Text variant="caption" color="faint" numberOfLines={1}>
                   {a.fileName}
                 </Text>

@@ -3,9 +3,8 @@
  * other), the writing box with its counter and send button, and where a thread's linked item
  * opens. Message text is always rendered as plain text.
  */
-import { Image } from 'expo-image';
 import { useState } from 'react';
-import { Linking, Pressable, TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import {
   MAX_MESSAGE_LENGTH,
   MESSAGE_LINK_LABEL,
@@ -13,7 +12,7 @@ import {
   textLength,
   type MessageLinkType,
 } from '@/lib/shared';
-import { API_BASE, authHeaders } from '@/lib/api';
+import { isImage } from '@/lib/attachments';
 import { useI18n } from '@/lib/i18n';
 import {
   MAX_MESSAGE_FILE_BYTES,
@@ -24,6 +23,7 @@ import {
 } from '@/lib/message-queries';
 import { messageTime, useMessageText, type MessageTextKey } from '@/lib/message-text';
 import { fonts, useTheme } from '@/lib/theme';
+import { AttachmentButton, AttachmentImage } from './attachment';
 import { FilePickButton } from './file-pick';
 import { Button, Row, Text } from './index';
 
@@ -52,7 +52,6 @@ export function MessageBubble({ message }: { message: ThreadMessage }) {
   const tm = useMessageText();
   const { lang } = useI18n();
   const mine = message.senderType === 'owner';
-  const fileUrl = (id: string) => `${API_BASE}/api/owner/attachments/${id}`;
   return (
     <View
       testID={`message-${message.id}`}
@@ -78,23 +77,17 @@ export function MessageBubble({ message }: { message: ThreadMessage }) {
       {message.files.map((f) =>
         // Photos show in the bubble with the session's token (expo-image sends the headers);
         // a PDF opens outside the app, as an expense invoice does.
-        f.mime.startsWith('image/') ? (
-          <Image
+        isImage(f) ? (
+          <AttachmentImage
             key={f.id}
-            source={{ uri: fileUrl(f.id), headers: authHeaders() }}
-            cachePolicy="memory-disk"
-            accessibilityLabel={f.fileName}
+            file={f}
             style={{ width: 220, maxWidth: '100%', aspectRatio: 4 / 3, borderRadius: t.radius.md }}
-            contentFit="cover"
-            placeholder={null}
-            transition={150}
           />
         ) : (
-          <Button
+          <AttachmentButton
             key={f.id}
+            file={f}
             title={`${tm('message_open_file')} · ${f.fileName || 'PDF'}`}
-            variant="secondary"
-            onPress={() => void Linking.openURL(fileUrl(f.id))}
           />
         ),
       )}

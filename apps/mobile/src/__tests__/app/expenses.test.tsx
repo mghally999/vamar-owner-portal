@@ -1,5 +1,4 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react-native';
-import { Linking } from 'react-native';
 import ExpensesScreen from '../../../app/(tabs)/expenses';
 import ExpenseDetailScreen from '../../../app/expense/[id]';
 import { setAccessToken } from '@/lib/api';
@@ -7,6 +6,7 @@ import { mockApi, sent } from '@/test/api';
 import { building, expense, expenseDetail, summary } from '@/test/fixtures';
 import { pullToRefresh, renderApp } from '@/test/render';
 import { routeState, router } from '@/test/router';
+import { fileSystem, sharing } from '@/test/native';
 
 const items = [
   expense(),
@@ -191,8 +191,8 @@ describe('Expense detail', () => {
     });
   });
 
-  it('opens a PDF invoice outside, shows the share of a shared cost and the case, or says there is no file', async () => {
-    jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+  it('opens a PDF invoice with the session, shows the share of a shared cost and the case, or says there is no file', async () => {
+    setAccessToken('access-1');
     mockApi({
       'GET /api/owner/expenses/exp-1': {
         body: expenseDetail({
@@ -220,8 +220,17 @@ describe('Expense detail', () => {
     expect(screen.getByText('D-2026-0001')).toBeTruthy();
     expect(screen.getByText('1 Oct 2026 – 31 Oct 2026')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Open the invoice · invoice.pdf' }));
-    expect(Linking.openURL).toHaveBeenCalledWith(
+    // Downloaded with the Bearer header (a plain link gets 401), then handed to the phone.
+    await waitFor(() => {
+      expect(sharing.shareAsync).toHaveBeenCalledWith(
+        'file:///cache/att-pdf-invoice.pdf',
+        expect.objectContaining({ mimeType: 'application/pdf' }),
+      );
+    });
+    expect(fileSystem.downloadAsync).toHaveBeenCalledWith(
       expect.stringContaining('/api/owner/attachments/att-pdf'),
+      'file:///cache/att-pdf-invoice.pdf',
+      { headers: { authorization: 'Bearer access-1' } },
     );
     mockApi({ 'GET /api/owner/expenses/exp-1': { body: expenseDetail({ attachments: [] }) } });
     await renderApp(<ExpenseDetailScreen />, { signedIn: false });
@@ -236,3 +245,4 @@ describe('Expense detail', () => {
     expect(await screen.findByText('AED 13,020')).toBeTruthy();
   });
 });
+

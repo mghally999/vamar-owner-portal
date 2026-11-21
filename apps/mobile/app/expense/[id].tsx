@@ -1,16 +1,17 @@
 import { Image } from 'expo-image';
 import { Link, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Linking, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import { EXPENSE_KIND_LABEL, WORK_ORDER_STATUS_LABEL } from '@/lib/shared';
-import { API_BASE, authHeaders } from '@/lib/api';
+import { authHeaders } from '@/lib/api';
+import { attachmentUrl, isImage } from '@/lib/attachments';
 import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { useExpense } from '@/lib/queries';
 import { useTheme } from '@/lib/theme';
 import { AskVamar } from '@/ui/ask-vamar';
+import { AttachmentButton, AttachmentImage } from '@/ui/attachment';
 import {
-  Button,
   Card,
   Chip,
   ErrorState,
@@ -36,7 +37,6 @@ export default function ExpenseDetailScreen() {
   const [zoom, setZoom] = useState<string | null>(null);
   if (q.isError) return <ErrorState onRetry={() => void q.refetch()} />;
 
-  const fileUrl = (attachmentId: string) => `${API_BASE}/api/owner/attachments/${attachmentId}`;
   const rows: [string, React.ReactNode][] = e
     ? [
         [tr('expense_reason'), pick(e.reasonAr, e.reasonEn)],
@@ -108,12 +108,11 @@ export default function ExpenseDetailScreen() {
         ) : (
           <View style={{ gap: 8 }}>
             {e.attachments.map((a) =>
-              a.mime === 'application/pdf' ? (
-                <Button
+              !isImage(a) ? (
+                <AttachmentButton
                   key={a.id}
+                  file={a}
                   title={`${tr('expense_openFile')} · ${a.fileName || 'PDF'}`}
-                  variant="secondary"
-                  onPress={() => void Linking.openURL(fileUrl(a.id))}
                 />
               ) : (
                 <Pressable
@@ -121,16 +120,13 @@ export default function ExpenseDetailScreen() {
                   accessibilityRole="imagebutton"
                   accessibilityLabel={a.fileName || tr('expense_invoice')}
                   onPress={() => {
-                    setZoom(fileUrl(a.id));
+                    setZoom(attachmentUrl(a.id));
                   }}
                 >
-                  <Image
-                    source={{ uri: fileUrl(a.id), headers: authHeaders() }}
-                    cachePolicy="memory-disk"
+                  <AttachmentImage
+                    decorative
+                    file={a}
                     style={{ width: '100%', aspectRatio: 1.4, borderRadius: t.radius.md }}
-                    contentFit="cover"
-                    placeholder={null}
-                    transition={150}
                   />
                 </Pressable>
               ),

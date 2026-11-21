@@ -63,11 +63,30 @@ export const netInfo = {
 };
 
 export interface PushResponse {
-  notification: { request: { content: { data: unknown } } };
+  notification: { request: { identifier?: string; content: { data: unknown } } };
+  actionIdentifier?: string;
 }
 type PushListener = (r: PushResponse) => void;
-/** The notification that opened the app (tests set `last`) and the tap listeners the app added. */
-export const pushResponses = { last: null as PushResponse | null, listeners: [] as PushListener[] };
+type ReceivedListener = (n: PushResponse['notification']) => void;
+/**
+ * The notification that opened the app (tests set `last`), the tap listeners the app added, and
+ * the listeners for notifications arriving while it is open and for new push tokens.
+ */
+export const pushResponses = {
+  last: null as PushResponse | null,
+  listeners: [] as PushListener[],
+  received: [] as ReceivedListener[],
+  tokens: [] as (() => void)[],
+};
+
+function listen<L>(list: () => L[], set: (next: L[]) => void, listener: L) {
+  list().push(listener);
+  return {
+    remove: () => {
+      set(list().filter((l) => l !== listener));
+    },
+  };
+}
 
 export const notifications = {
   __esModule: true,
@@ -76,12 +95,31 @@ export const notifications = {
   // Called once when push.ts loads; not reset so the handler stays inspectable.
   setNotificationHandler: jest.fn(),
   setNotificationChannelAsync: stub((_id: string, _channel: unknown) => Promise.resolve(null)),
-  getPermissionsAsync: stub(() => Promise.resolve({ status: 'granted' })),
+  getPermissionsAsync: stub((): Promise<{ status: string; canAskAgain?: boolean }> =>
+    Promise.resolve({ status: 'granted' }),
+  ),
   requestPermissionsAsync: stub(() => Promise.resolve({ status: 'granted' })),
   getExpoPushTokenAsync: stub((_options?: { projectId: string }) =>
     Promise.resolve({ data: 'ExponentPushToken[device-1]' }),
   ),
   getLastNotificationResponse: stub(() => pushResponses.last),
+  clearLastNotificationResponse: stub(() => {
+    pushResponses.last = null;
+  }),
+  addNotificationReceivedListener: stub((listener: ReceivedListener) =>
+    listen(
+      () => pushResponses.received,
+      (next) => (pushResponses.received = next),
+      listener,
+    ),
+  ),
+  addPushTokenListener: stub((listener: () => void) =>
+    listen(
+      () => pushResponses.tokens,
+      (next) => (pushResponses.tokens = next),
+      listener,
+    ),
+  ),
   addNotificationResponseReceivedListener: stub((listener: PushListener) => {
     pushResponses.listeners.push(listener);
     return {
@@ -132,6 +170,12 @@ export const fileSystem = {
   cacheDirectory: 'file:///cache/' as string | null,
   readAsStringAsync: stub((_uri: string, _options?: unknown) => Promise.resolve('Rk9OVA==')),
   moveAsync: stub((_options: { from: string; to: string }) => Promise.resolve()),
+  // A download "succeeds" with 200 unless a test says otherwise.
+  downloadAsync: stub(
+    (_url: string, fileUri: string, _options?: { headers?: Record<string, string> }) =>
+      Promise.resolve({ uri: fileUri, status: 200, headers: {}, mimeType: null }),
+  ),
+  deleteAsync: stub((_uri: string, _options?: unknown) => Promise.resolve()),
 };
 export const fontAsset = {
   downloadAsync: stub(() => Promise.resolve()),
@@ -159,6 +203,8 @@ export function resetNative(): void {
   constants.expoConfig = { extra: { eas: { projectId: 'eas-project-1' } } };
   pushResponses.last = null;
   pushResponses.listeners = [];
+  pushResponses.received = [];
+  pushResponses.tokens = [];
   fileSystem.cacheDirectory = 'file:///cache/';
   fontAsset.localUri = 'file:///assets/Almarai-Regular.ttf';
 }

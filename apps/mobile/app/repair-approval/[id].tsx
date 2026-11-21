@@ -1,9 +1,8 @@
-import { Image } from 'expo-image';
 import { useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, TextInput, View } from 'react-native';
 import { REPAIR_APPROVAL_STATUS_LABEL, type RepairApprovalStatus } from '@/lib/shared';
-import { API_BASE, authHeaders } from '@/lib/api';
+import { isImage } from '@/lib/attachments';
 import { useApprovalText } from '@/lib/approval-messages';
 import { useAnswerApproval, useApproval } from '@/lib/approval-queries';
 import type { ApprovalDetail } from '@/lib/approval-types';
@@ -21,6 +20,7 @@ import {
   Text,
   layout,
 } from '@/ui';
+import { AttachmentButton, AttachmentImage } from '@/ui/attachment';
 
 const NOTE_MAX = 500;
 
@@ -143,6 +143,7 @@ function ApprovalStatusChip({ status }: { status: RepairApprovalStatus }) {
 function Photos({ approval }: { approval: ApprovalDetail }) {
   const t = useTheme();
   const ta = useApprovalText();
+  const { t: tr } = useI18n();
   return (
     <View>
       <SectionTitle>{ta('approval_photos')}</SectionTitle>
@@ -156,20 +157,14 @@ function Photos({ approval }: { approval: ApprovalDetail }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {approval.attachments.map((f) => (
             <View key={f.id} style={{ width: '48%', flexGrow: 1, gap: 4 }}>
-              {f.mime.startsWith('image/') ? (
-                <Image
-                  source={{
-                    uri: `${API_BASE}/api/owner/attachments/${f.id}`,
-                    headers: authHeaders(),
-                  }}
-                  cachePolicy="memory-disk"
-                  accessibilityLabel={f.fileName}
+              {isImage(f) ? (
+                <AttachmentImage
+                  file={f}
                   style={{ width: '100%', aspectRatio: 4 / 3, borderRadius: t.radius.md }}
-                  contentFit="cover"
-                  placeholder={null}
-                  transition={150}
                 />
-              ) : null}
+              ) : (
+                <AttachmentButton file={f} title={tr('file_open')} />
+              )}
               <Text variant="caption" color="faint" numberOfLines={1}>
                 {f.fileName}
               </Text>
