@@ -16,7 +16,7 @@ name: Nightly database backup
 
 on:
   schedule:
-    - cron: '30 0 * * *' # 00:30 UTC = 04:30 Dubai, after the 04:00 UTC alerts cron has run
+    - cron: '30 0 * * *' # 00:30 UTC = 04:30 Dubai, quiet hours (the daily job runs at 04:00 UTC = 08:00 Dubai)
   workflow_dispatch:
 
 permissions:

@@ -28,6 +28,12 @@ directly. Every consumer is a bundler (wrangler, Vite, Metro, Vitest, tsx), so t
 step and no stale `dist` to chase. `@vamar/tokens` has one build step that writes `dist/tokens.css`
 for the dashboard.
 
+`@vamar/shared` has subpath exports: `@vamar/shared` (everything, zod schemas included),
+`@vamar/shared/rules` (every rule, no zod), `@vamar/shared/schemas`, and one module at a time
+(`@vamar/shared/dates`, `@vamar/shared/i18n/labels`, ...). Rule modules never import zod; schemas
+go in `src/schemas/` (`src/rules.test.ts` enforces it). ARCHITECTURE.md has the one-page picture
+and where each kind of code lives.
+
 ## Local development
 
 Prerequisites: Node 24 (`.nvmrc`), pnpm 12 (`npm i -g pnpm`). Docker is optional: without it,
