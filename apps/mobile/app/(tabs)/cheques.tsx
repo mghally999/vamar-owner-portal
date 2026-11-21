@@ -15,21 +15,11 @@ import { useI18n } from '@/lib/i18n';
 import type { MessageKey } from '@/lib/messages';
 import { usePeriod } from '@/lib/period';
 import { useBuildings, useCalendar, useCheques, useMe } from '@/lib/queries';
-import { useTheme } from '@/lib/theme';
 import type { ChequeItem } from '@/lib/types';
-import {
-  Card,
-  DateText,
-  EmptyState,
-  ErrorState,
-  Money,
-  Row,
-  Skeleton,
-  StatusChip,
-  Text,
-} from '@/ui';
+import { Card, EmptyState, ErrorState, Money, Row, Skeleton, StatusChip, Text } from '@/ui';
 import { Agenda, Legend, MonthGrid } from '@/ui/calendar';
 import { PeriodSwitcher } from '@/ui/period-switcher';
+import { FilterChip, FilterChipRow } from '@/ui/filter-chip';
 import { Segmented } from '@/ui/segmented';
 
 type Section = { kind: 'header'; date: string } | { kind: 'cheque'; cheque: ChequeItem };
@@ -39,7 +29,6 @@ type Section = { kind: 'header'; date: string } | { kind: 'cheque'; cheque: Cheq
  * Home's tiles open it with a status (`?status=cleared`), which seeds the status filter.
  */
 export default function ChequesScreen() {
-  const t = useTheme();
   const { t: tr, pick, date } = useI18n();
   const params = useLocalSearchParams<{ status?: string }>();
   const { selection, setSelection, period } = usePeriod();
@@ -54,7 +43,10 @@ export default function ChequesScreen() {
   }, [params.status]);
   const buildings = useBuildings();
   const q = useCheques({ from: period.from, to: period.to, buildingId, status });
-  const cal = useCalendar(period.from, period.to, ['cheque_due', 'holiday']);
+  // Only the Calendar view shows it: the List view (the default) does not fetch it.
+  const cal = useCalendar(period.from, period.to, ['cheque_due', 'holiday'], {
+    enabled: view === 'calendar',
+  });
   const [selectedDay, setSelectedDay] = useState<PlainDate | null>(null);
 
   const rows = useMemo<Section[]>(() => {
@@ -71,32 +63,6 @@ export default function ChequesScreen() {
     return out;
   }, [q.data]);
 
-  const chip = (label: string, active: boolean, onPress: () => void) => (
-    <Pressable
-      key={label}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={{
-        height: 36,
-        paddingHorizontal: 14,
-        borderRadius: 18,
-        justifyContent: 'center',
-        backgroundColor: active ? t.colors.primary : t.colors.bgElevated,
-        borderWidth: 1,
-        borderColor: active ? t.colors.primary : t.colors.border,
-      }}
-    >
-      <Text
-        variant="caption"
-        weight="medium"
-        style={{ color: active ? t.colors.onPrimary : t.colors.ink }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-
   const header = (
     <View style={{ paddingHorizontal: 16, gap: 8 }}>
       <PeriodSwitcher value={selection} onChange={setSelection} weekStart={settings?.weekStart} />
@@ -110,34 +76,44 @@ export default function ChequesScreen() {
       />
       {view === 'list' ? (
         <>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-          >
-            {chip(tr('cheques_filter_all'), buildingId === undefined, () => {
-              setBuildingId(undefined);
-            })}
-            {buildings.data?.map((b) =>
-              chip(pick(b.nameAr, b.nameEn), buildingId === b.id, () => {
-                setBuildingId(b.id);
-              }),
-            )}
-          </ScrollView>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-          >
-            {chip(tr('cheques_filter_status'), status === undefined, () => {
-              setStatus(undefined);
-            })}
-            {CHEQUE_STATUSES.map((s) =>
-              chip(tr(`status_${s}` as MessageKey), status === s, () => {
-                setStatus(s);
-              }),
-            )}
-          </ScrollView>
+          <FilterChipRow>
+            <FilterChip
+              label={tr('cheques_filter_all')}
+              active={buildingId === undefined}
+              onPress={() => {
+                setBuildingId(undefined);
+              }}
+            />
+            {buildings.data?.map((b) => (
+              <FilterChip
+                key={b.id}
+                label={pick(b.nameAr, b.nameEn)}
+                active={buildingId === b.id}
+                onPress={() => {
+                  setBuildingId(b.id);
+                }}
+              />
+            ))}
+          </FilterChipRow>
+          <FilterChipRow>
+            <FilterChip
+              label={tr('cheques_filter_status')}
+              active={status === undefined}
+              onPress={() => {
+                setStatus(undefined);
+              }}
+            />
+            {CHEQUE_STATUSES.map((s) => (
+              <FilterChip
+                key={s}
+                label={tr(`status_${s}` as MessageKey)}
+                active={status === s}
+                onPress={() => {
+                  setStatus(s);
+                }}
+              />
+            ))}
+          </FilterChipRow>
         </>
       ) : null}
     </View>
@@ -255,7 +231,6 @@ export default function ChequesScreen() {
           }
         />
       )}
-      <DateText date={null} style={{ display: 'none' }} />
     </View>
   );
 }

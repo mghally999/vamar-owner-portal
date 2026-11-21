@@ -246,3 +246,52 @@ describe('Expense detail', () => {
   });
 });
 
+describe('Expenses tab filters and amounts', () => {
+  it('keeps every category chip after one is chosen, so another is one tap away', async () => {
+    mockApi({
+      'GET /api/owner/expenses': (req) => ({
+        body: {
+          items: items.filter(
+            (e) => !req.query.get('categoryId') || e.categoryId === req.query.get('categoryId'),
+          ),
+          nextCursor: null,
+        },
+      }),
+    });
+    await renderApp(<ExpensesScreen />);
+    await screen.findByText('Lift 2 repair');
+    await fireEvent.press(screen.getByRole('button', { name: 'Plumbing' }));
+    await waitFor(() => {
+      expect(screen.queryByText('Lift 2 repair')).toBeNull();
+    });
+    // Only plumbing rows are loaded, yet the other categories are still offered.
+    await fireEvent.press(screen.getByRole('button', { name: 'Building staff salaries' }));
+    await waitFor(() => {
+      expect(lastQuery()).toMatchObject({ categoryId: 'cat-sal' });
+    });
+    expect(
+      screen.getByRole('button', { name: 'Building staff salaries' }).props.accessibilityState,
+    ).toMatchObject({ selected: true });
+  });
+
+  it('shows a shared cost and its VAT to the fils, as every other amount', async () => {
+    mockApi({
+      'GET /api/owner/expenses': {
+        body: {
+          items: [
+            expense({
+              id: 'exp-9',
+              shared: true,
+              amountFils: 123_450,
+              grossTotalFils: 246_900,
+              grossVatFils: 11_755,
+            }),
+          ],
+          nextCursor: null,
+        },
+      },
+    });
+    await renderApp(<ExpensesScreen />);
+    expect(await screen.findByText('Your share of 1,234.50 / 2,469 · VAT 117.55')).toBeTruthy();
+  });
+});

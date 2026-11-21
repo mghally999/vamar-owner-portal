@@ -115,6 +115,8 @@ describe('Cheques', () => {
   it('shows the cheques on a calendar with the List | Calendar toggle', async () => {
     await renderApp(<ChequesScreen />);
     await screen.findByText('5 Oct 2026');
+    // The List view never needs the calendar, so it is fetched only once the Calendar is shown.
+    expect(sent('GET /api/owner/calendar')).toHaveLength(0);
     await fireEvent.press(screen.getByRole('tab', { name: 'Calendar' }));
     expect(await screen.findByText('Cheque due')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'All properties' })).toBeNull();

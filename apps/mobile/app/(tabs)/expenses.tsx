@@ -1,27 +1,22 @@
 import { FlashList } from '@shopify/flash-list';
 import { Link, useLocalSearchParams } from 'expo-router';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { EXPENSE_KIND_LABEL, type ExpenseKind } from '@/lib/shared';
 import { useI18n } from '@/lib/i18n';
 import { usePeriod } from '@/lib/period';
 import { useBuildings, useExpenses, useMe, useSummary } from '@/lib/queries';
-import { useTheme } from '@/lib/theme';
 import type { ExpenseItem } from '@/lib/types';
-import {
-  Amount,
-  Card,
-  Chip,
-  DateText,
-  EmptyState,
-  ErrorState,
-  Money,
-  Row,
-  Skeleton,
-  Text,
-} from '@/ui';
+import { Amount, Card, Chip, EmptyState, ErrorState, Money, Row, Skeleton, Text } from '@/ui';
 import { PeriodSwitcher } from '@/ui/period-switcher';
+import { FilterChip, FilterChipRow } from '@/ui/filter-chip';
 import { Segmented } from '@/ui/segmented';
+
+interface Category {
+  id: string;
+  nameAr: string;
+  nameEn: string;
+}
 
 /**
  * Expenses tab: the shared period switcher with month / 6 months / year shortcuts, totals for
@@ -29,8 +24,7 @@ import { Segmented } from '@/ui/segmented';
  * its category, reason, property, date and value (VAT shown when there is any).
  */
 export default function ExpensesScreen() {
-  const t = useTheme();
-  const { t: tr, pick, date, lang } = useI18n();
+  const { t: tr, pick, date, lang, num } = useI18n();
   const params = useLocalSearchParams<{ kind?: string }>();
   const { selection, setSelection, query } = usePeriod();
   const settings = useMe().data?.settings;
@@ -48,44 +42,23 @@ export default function ExpensesScreen() {
     kind: kind === 'all' ? undefined : kind,
   });
   const items = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
+  // The categories come from the rows. Once one is chosen only its rows load, so the chips keep
+  // the list seen before the choice; otherwise the others vanish and switching needs "All" first.
+  const seenCategories = useRef<Category[]>([]);
   const categories = useMemo(() => {
-    const map = new Map<string, { id: string; nameAr: string; nameEn: string }>();
+    if (categoryId !== undefined) return seenCategories.current;
+    const map = new Map<string, Category>();
     for (const e of items)
       map.set(e.categoryId, {
         id: e.categoryId,
         nameAr: e.categoryNameAr,
         nameEn: e.categoryNameEn,
       });
-    return [...map.values()];
-  }, [items]);
+    seenCategories.current = [...map.values()];
+    return seenCategories.current;
+  }, [items, categoryId]);
 
   const quick = selection.kind === 'preset' ? selection.preset : null;
-  const chip = (label: string, active: boolean, onPress: () => void) => (
-    <Pressable
-      key={label}
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={onPress}
-      style={{
-        height: 36,
-        paddingHorizontal: 14,
-        borderRadius: 18,
-        justifyContent: 'center',
-        backgroundColor: active ? t.colors.primary : t.colors.bgElevated,
-        borderWidth: 1,
-        borderColor: active ? t.colors.primary : t.colors.border,
-      }}
-    >
-      <Text
-        variant="caption"
-        weight="medium"
-        style={{ color: active ? t.colors.onPrimary : t.colors.ink }}
-      >
-        {label}
-      </Text>
-    </Pressable>
-  );
-
   const s = summary.data;
   const header = (
     <View style={{ paddingHorizontal: 16, gap: 10, paddingBottom: 8 }}>
@@ -151,35 +124,45 @@ export default function ExpensesScreen() {
         value={kind}
         onChange={setKind}
       />
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-      >
-        {chip(tr('cheques_filter_all'), buildingId === undefined, () => {
-          setBuildingId(undefined);
-        })}
-        {buildings.data?.map((b) =>
-          chip(pick(b.nameAr, b.nameEn), buildingId === b.id, () => {
-            setBuildingId(b.id);
-          }),
-        )}
-      </ScrollView>
+      <FilterChipRow>
+        <FilterChip
+          label={tr('cheques_filter_all')}
+          active={buildingId === undefined}
+          onPress={() => {
+            setBuildingId(undefined);
+          }}
+        />
+        {buildings.data?.map((b) => (
+          <FilterChip
+            key={b.id}
+            label={pick(b.nameAr, b.nameEn)}
+            active={buildingId === b.id}
+            onPress={() => {
+              setBuildingId(b.id);
+            }}
+          />
+        ))}
+      </FilterChipRow>
       {categories.length > 1 || categoryId ? (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-        >
-          {chip(tr('expenses_filter_category'), categoryId === undefined, () => {
-            setCategoryId(undefined);
-          })}
-          {categories.map((c) =>
-            chip(pick(c.nameAr, c.nameEn), categoryId === c.id, () => {
-              setCategoryId(c.id);
-            }),
-          )}
-        </ScrollView>
+        <FilterChipRow>
+          <FilterChip
+            label={tr('expenses_filter_category')}
+            active={categoryId === undefined}
+            onPress={() => {
+              setCategoryId(undefined);
+            }}
+          />
+          {categories.map((c) => (
+            <FilterChip
+              key={c.id}
+              label={pick(c.nameAr, c.nameEn)}
+              active={categoryId === c.id}
+              onPress={() => {
+                setCategoryId(c.id);
+              }}
+            />
+          ))}
+        </FilterChipRow>
       ) : null}
     </View>
   );
@@ -250,11 +233,9 @@ export default function ExpensesScreen() {
                             .replace(/\s+/g, ' ')
                             .trim()
                         : ''}
-                      {e.shared
-                        ? ` ${fmt(e.amountFils, lang)} / ${fmt(e.grossTotalFils, lang)}`
-                        : ''}
+                      {e.shared ? ` ${num(e.amountFils)} / ${num(e.grossTotalFils)}` : ''}
                       {e.grossVatFils > 0
-                        ? `${e.shared ? ' · ' : ''}${tr('expense_vat')} ${fmt(e.grossVatFils, lang)}`
+                        ? `${e.shared ? ' · ' : ''}${tr('expense_vat')} ${num(e.grossVatFils)}`
                         : ''}
                     </Text>
                   ) : null}
@@ -264,15 +245,6 @@ export default function ExpensesScreen() {
           )}
         />
       )}
-      <DateText date={null} style={{ display: 'none' }} />
     </View>
   );
-}
-
-function fmt(fils: number, lang: 'ar' | 'en'): string {
-  return new Intl.NumberFormat(lang === 'ar' ? 'ar-AE-u-nu-latn' : 'en-AE', {
-    maximumFractionDigits: 0,
-  })
-    .format(Math.round(fils / 100))
-    .replace(/[‎‏؜]/g, '');
 }

@@ -236,9 +236,15 @@ export function useUnitTimeline(unitId: string, kinds: TimelineKind[] | undefine
 }
 
 /** One request per visible range; the range is the cache key. */
-export function useCalendar(from: string, to: string, kinds?: string[]) {
+export function useCalendar(
+  from: string,
+  to: string,
+  kinds?: string[],
+  options: { enabled?: boolean } = {},
+) {
   return useQuery({
     queryKey: ['calendar', from, to, kinds ?? []],
+    enabled: options.enabled ?? true,
     queryFn: () =>
       request<CalendarResponse>(`/api/owner/calendar${qs({ from, to, kinds: kinds?.join(',') })}`),
     staleTime: 5 * 60_000,
