@@ -17,6 +17,7 @@ import {
   setAccessToken,
   setSessionLostHandler,
   refreshSession,
+  type RefreshOutcome,
 } from './api';
 import { confirmCode, startPhoneSignIn, type Confirmation } from './firebase';
 import { forgetPushToken, registerForPush } from './push';
@@ -45,6 +46,8 @@ export interface AuthState {
 
 const Ctx = createContext<AuthState | null>(null);
 const LOCK_AFTER_MS = 5 * 60 * 1000;
+/** What the start-up refresh reads as when it outlasts the splash's 4 s (see the bootstrap). */
+const SLOW_REFRESH: RefreshOutcome = { ok: false, reason: 'transient' };
 
 export class NotRegisteredError extends Error {}
 export class AccountDisabledError extends Error {}
@@ -61,6 +64,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Resume the session from the stored refresh token.
   useEffect(() => {
+    const endSession = () => {
+      setAccessToken(null);
+      setStage('anonymous');
+      setOwner(null);
+    };
     // Never let a native call keep the splash screen up: anything slower than 4 s or failing is
     // treated as "no session" and the user simply signs in again.
     const withTimeout = <T,>(p: Promise<T>, fallback: T) =>
@@ -76,7 +84,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // The refresh is the slow part (the network) and the splash waits for it: start it at
         // once, alongside the keychain and biometric checks, instead of after them.
-        const refreshed = withTimeout(refreshSession(), null);
+        const refreshing = refreshSession();
+        // A refresh slower than the splash allows (a database waking up, a weak signal) is not a
+        // refusal: it counts as no connection, so an owner who was signed in stays signed in, and
+        // its answer is applied when it comes. Screens' requests wait for the same refresh.
+        const refreshed = withTimeout(refreshing, SLOW_REFRESH);
         const [bio, savedOwner, hasHw] = await Promise.all([
           withTimeout(getItem('biometrics'), null),
           withTimeout(getItem('owner'), null),
@@ -90,24 +102,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const r = await refreshed;
         // A refused refresh ends the session; no connection keeps the owner signed in with what
         // was shown last (the offline banner explains), and the next request refreshes again.
-        const keep =
-          r?.ok === true || (r?.ok === false && r.reason === 'transient' && !!savedOwner);
+        const keep = r.ok || (r.reason === 'transient' && !!savedOwner);
         if (keep) {
           if (savedOwner) setOwner(JSON.parse(savedOwner) as AuthState['owner']);
           setStage('authenticated');
           setLocked(bio === '1');
           if (r.ok) void registerForPush();
+          else if (r === SLOW_REFRESH)
+            void refreshing.then((late) => {
+              if (late.ok) void registerForPush();
+              else if (late.reason !== 'transient') endSession();
+            });
         } else setStage('anonymous');
       } catch (e) {
         if (__DEV__) console.warn('[auth] bootstrap failed', e);
         setStage('anonymous');
       }
     })();
-    setSessionLostHandler(() => {
-      setAccessToken(null);
-      setStage('anonymous');
-      setOwner(null);
-    });
+    setSessionLostHandler(endSession);
   }, []);
 
   // Lock after 5 minutes in the background.

@@ -135,6 +135,71 @@ describe('resuming a session', () => {
     }
   });
 
+  it('keeps a signed-in owner signed in when the refresh outlasts the splash', async () => {
+    // A database waking up or a weak signal: the answer comes after the 4 s the splash waits.
+    await seedSession();
+    let answer: () => void = () => undefined;
+    mockApi({
+      'POST /api/auth/owner/refresh': () =>
+        new Promise((r) => {
+          answer = () => {
+            r({ body: { accessToken: 'access-2', refreshToken: 'refresh-2', owner } });
+          };
+        }),
+      'POST /api/owner/push-token': { body: { ok: true } },
+    });
+    jest.useFakeTimers();
+    try {
+      await start();
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(screen.getByText(/^authenticated Salem Al Kaabi/)).toBeTruthy();
+      expect(sent('POST /api/owner/push-token')).toHaveLength(0);
+      await act(async () => {
+        answer();
+        await jest.advanceTimersByTimeAsync(10);
+      });
+    } finally {
+      answer(); // never leave the shared refresh pending for the next test
+      jest.useRealTimers();
+    }
+    await waitFor(() => {
+      expect(sent('POST /api/owner/push-token')).toHaveLength(1);
+    });
+    expect(await getItem('refreshToken')).toBe('refresh-2');
+    expect(screen.getByText(/^authenticated/)).toBeTruthy();
+  });
+
+  it('signs out after a slow refresh once it comes back refused', async () => {
+    await seedSession();
+    let answer: () => void = () => undefined;
+    mockApi({
+      'POST /api/auth/owner/refresh': () =>
+        new Promise((r) => {
+          answer = () => {
+            r({ status: 401, body: {} });
+          };
+        }),
+    });
+    jest.useFakeTimers();
+    try {
+      await start();
+      await act(async () => {
+        await jest.advanceTimersByTimeAsync(4000);
+      });
+      expect(screen.getByText(/^authenticated/)).toBeTruthy();
+      await act(async () => {
+        answer();
+        await jest.advanceTimersByTimeAsync(10);
+      });
+    } finally {
+      answer(); // never leave the shared refresh pending for the next test
+      jest.useRealTimers();
+    }
+    expect(await screen.findByText(/^anonymous nobody/)).toBeTruthy();
+  });
+
   it('asks for the session while the biometric checks are still running, not after them', async () => {
     await seedSession();
     let finishCheck: (v: boolean) => void = () => undefined;
