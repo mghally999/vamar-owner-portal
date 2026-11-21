@@ -4,7 +4,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   allocationPreviewSchema,
-  auditReasonSchema,
+  voidExpenseSchema,
   bulkExpenseActionSchema,
   createExpenseCategorySchema,
   createExpenseSchema,
@@ -316,10 +316,7 @@ export const expensesRoutes = new Hono<AppEnv>()
     '/expenses/:id/void',
     admin,
     idParam,
-    zValidator(
-      'json',
-      z.object({ reason: auditReasonSchema, correction: createExpenseSchema.optional() }),
-    ),
+    zValidator('json', voidExpenseSchema.extend({ correction: createExpenseSchema.optional() })),
     async (c) => {
       const settings = await getSettings(readDb(c));
       const body = c.req.valid('json');

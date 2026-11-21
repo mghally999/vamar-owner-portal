@@ -23,7 +23,8 @@ import {
   expenseTotal,
   isExpenseOutlier,
   isLargeExpense,
-  ownersOnDate,
+  coveredPeriod,
+  addMonthsClamped,
   recurringDueDates,
   resolvePeriodQuery,
   vatFor,
@@ -51,6 +52,7 @@ import {
   sortedKeyset,
   type SortChoice,
 } from '../util/pagination.js';
+import { holdersByUnit } from './allocation-owners.js';
 import { approvalStateSql, awaitingApprovalSql } from './approvals.js';
 import { listAttachments } from './attachments.js';
 import { audit, type AuditActor } from './audit.js';
@@ -264,19 +266,12 @@ export function buildAllocationUnits(
     throw notFound('Unit');
   if (chosen.length === 0) throw validation('The building has no active units');
   const ids = new Set(chosen.map((u) => u.id));
-  const typed = ownershipRows
-    .filter((r) => ids.has(r.unitId))
-    .map((r) => ({
-      ...r,
-      fromDate: r.fromDate as PlainDate,
-      toDate: r.toDate as PlainDate | null,
-    }));
+  const holdersOf = holdersByUnit(
+    ownershipRows.filter((r) => ids.has(r.unitId)),
+    date,
+  );
   return chosen.map((u) => {
-    let holders = ownersOnDate(typed, u.id, date);
-    if (holders.length === 0)
-      holders = typed
-        .filter((r) => r.unitId === u.id && r.toDate === null)
-        .map((r) => ({ ownerId: r.ownerId, shareBp: r.shareBp }));
+    const holders = holdersOf(u.id);
     if (holders.length === 0)
       throw new ApiError(422, 'validation', 'A unit of this expense has no owners', {
         unitId: u.id,
@@ -677,8 +672,8 @@ export async function expenseWarnings(
     if (dup)
       duplicateInvoice = { expenseId: dup.id, invoiceDate: dup.invoiceDate, status: dup.status };
   }
-  const [y, m, d] = input.today.split('-').map(Number) as [number, number, number];
-  const yearAgo = `${y - 1}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  // Clamped: a year before 29 Feb is 28 Feb (building "2027-02-29" by hand was an invalid date).
+  const yearAgo = addMonthsClamped(input.today, -12);
   const [avg] = await db
     .select({
       averageFils: sql<string>`coalesce(avg(${expenses.totalFils}), 0)`,
@@ -1256,8 +1251,8 @@ export async function createRecurringDrafts(db: Dbx, today: PlainDate): Promise<
           reasonEn: rule.reasonEn,
           invoiceNo: null,
           invoiceDate: dueDate,
-          coversFrom: coveredFrom(dueDate),
-          coversTo: coveredTo(dueDate, rule.frequency),
+          coversFrom: coveredPeriod(dueDate, rule.frequency).from,
+          coversTo: coveredPeriod(dueDate, rule.frequency).to,
           amountFils: rule.amountFils,
           vatFils: rule.vatFils,
           totalFils: expenseTotal(rule.amountFils, rule.vatFils),
@@ -1284,17 +1279,6 @@ export async function createRecurringDrafts(db: Dbx, today: PlainDate): Promise<
     }
   }
   return created;
-}
-
-function coveredFrom(dueDate: PlainDate): PlainDate {
-  return `${dueDate.slice(0, 7)}-01` as PlainDate;
-}
-
-function coveredTo(dueDate: PlainDate, frequency: 'monthly' | 'quarterly' | 'yearly'): PlainDate {
-  const [y, m] = dueDate.split('-').map(Number) as [number, number];
-  const months = frequency === 'monthly' ? 1 : frequency === 'quarterly' ? 3 : 12;
-  const end = new Date(Date.UTC(y, m - 1 + months, 0));
-  return end.toISOString().slice(0, 10) as PlainDate;
 }
 
 // Owner side ---------------------------------------------------------------------------------------

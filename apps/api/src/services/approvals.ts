@@ -17,7 +17,6 @@ import {
   defaultAllocationMethod,
   isBlockingApproval,
   needsOwnerApproval,
-  ownersOnDate,
   silenceCutoff,
   silenceDeadline,
   type AllocationMethod,
@@ -28,6 +27,7 @@ import {
 } from '@vamar/shared';
 import type { Dbx } from '../db.js';
 import { ApiError, conflict, notFound } from '../errors.js';
+import { holdersByUnit } from './allocation-owners.js';
 import { audit, type AuditActor } from './audit.js';
 
 const {
@@ -106,18 +106,10 @@ export async function ownerSharesFor(
         unitRows.map((u) => u.id),
       ),
     );
-  const typed = holdings.map((r) => ({
-    ...r,
-    fromDate: r.fromDate as PlainDate,
-    toDate: r.toDate as PlainDate | null,
-  }));
+  const holdersOf = holdersByUnit(holdings, input.date);
   const allocationUnits: AllocationUnit[] = [];
   for (const u of unitRows) {
-    let holders = ownersOnDate(typed, u.id, input.date);
-    if (holders.length === 0)
-      holders = typed
-        .filter((r) => r.unitId === u.id && r.toDate === null)
-        .map((r) => ({ ownerId: r.ownerId, shareBp: r.shareBp }));
+    const holders = holdersOf(u.id);
     if (holders.length > 0)
       allocationUnits.push({ unitId: u.id, sizeSqft: u.sizeSqft, owners: holders });
   }
