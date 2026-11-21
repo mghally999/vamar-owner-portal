@@ -126,7 +126,8 @@ describe('Cheques', () => {
       to: thisMonth.to,
       kinds: 'cheque_due,holiday',
     });
-    await fireEvent.press(screen.getByLabelText(new RegExp(`^1 .*1 items`)));
+    // The calendar is fetched once the view is shown: wait for its day to carry the item.
+    await fireEvent.press(await screen.findByLabelText(new RegExp(`^1 .*1 items`)));
     expect(await screen.findByText('Cheque 000123 · Oasis Tower 1204')).toBeTruthy();
     await fireEvent.press(screen.getByText('Cheque 000123 · Oasis Tower 1204'));
     expect(router.push).toHaveBeenLastCalledWith({
