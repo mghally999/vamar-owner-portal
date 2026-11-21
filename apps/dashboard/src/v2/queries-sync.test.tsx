@@ -6,7 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useCreateVendor } from '@/lib/queries-v2';
 import { mockApi } from '@/test/api';
 import { testQueryClient } from '@/test/render';
-import { useDeleteHoliday, useSaveCategory, useSaveVendor, useUpdateSettings, useUpsertHoliday } from './queries';
+import {
+  useDeleteHoliday,
+  useSaveCategory,
+  useSaveVendor,
+  useUpdateSettings,
+  useUpsertHoliday,
+} from './queries';
 
 afterEach(() => {
   cleanup();
