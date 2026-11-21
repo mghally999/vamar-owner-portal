@@ -149,7 +149,7 @@ the toolchain; the CI job "Docker image" proves it on every push.
   id; the same id is in the `x-request-id` header and in any error the user reports.
 - **Uptime**: the `vamar-uptime` Cloudflare Worker (`monitor/`, its README has the deploy steps)
   checks production and staging every 5 minutes. It calls `/healthz` every time and `/readyz`
-  every 30 minutes for production and every 2 hours for staging: each `/readyz` wakes the Neon
+  every 2 hours for production and every 12 hours for staging (about 9 CU-hours a month): each `/readyz` wakes the Neon
   compute, and the free plan's compute hours would not last a month at 5 minutes. A target that
   fails twice in a row, 20 s apart, gets an issue labelled `outage` (status, endpoint, body
   excerpt, time); repository watchers get an e-mail. While it stays down the issue gets a comment

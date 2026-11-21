@@ -94,8 +94,8 @@ ids are UUID v7 made in code. `audit_log` and `cheque_events` are append-only fo
 
 ## Monitoring, backups
 
-`monitor/` is a separate Worker that checks `/healthz` every 5 minutes and `/readyz` every 30 min
-(production) or 2 h (staging) and opens a GitHub issue when a target is down; `uptime.yml` is its
+`monitor/` is a separate Worker that checks `/healthz` every 5 minutes and `/readyz` every 2 h
+(production) or 12 h (staging) and opens a GitHub issue when a target is down; `uptime.yml` is its
 backup and watcher. Logs: Workers observability and `wrangler tail` (one line per request,
 request id). Errors go to Sentry once `SENTRY_DSN` is set. `backup.yml` dumps production nightly,
 encrypts it with age and keeps it as a workflow artifact (35 days) and, with a key, in R2.

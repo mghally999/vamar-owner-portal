@@ -13,8 +13,8 @@ triggers run on time. The workflow stays as the backup and watches this Worker (
 | When                                   | Request                                                                                 |
 | -------------------------------------- | --------------------------------------------------------------------------------------- |
 | Every 5 minutes                        | `GET /healthz` on both targets (the portal Worker answers; no database)                 |
-| Every 30 min (production)              | `GET /readyz` instead (the database answers)                                            |
-| Every 2 hours (staging)                | `GET /readyz` instead                                                                   |
+| Every 2 hours (production)             | `GET /readyz` instead (the database answers)                                            |
+| Every 12 hours (staging)               | `GET /readyz` instead                                                                   |
 | While a target is down or has an issue | `GET /readyz` every run, so a database outage is not "recovered" by a `/healthz` answer |
 
 Each request has a 15 s timeout. A failed try is retried once after 20 s, and a target is down
@@ -155,8 +155,8 @@ run `gh variable delete UPTIME_WORKER_URL`, then `npx wrangler delete --name vam
 - The Worker runs on Cloudflare, like the portal. If Cloudflare Workers itself fails, the monitor
   fails too. The only alert then comes from the `Uptime` workflow, on its next run (GitHub runs it
   3 to 5 times a day), which finds the Worker's `/readyz` unreachable.
-- Detection time is about 1 to 6 minutes for a portal Worker that does not answer, up to 30 minutes
-  for a production database outage, and up to 2 hours for staging's database. GitHub's e-mail
+- Detection time is about 1 to 6 minutes for a portal Worker that does not answer, up to 2 hours
+  for a production database outage, and up to 12 hours for staging's database. GitHub's e-mail
   usually follows within a minute.
 - If the GitHub App is removed or its key revoked, the Worker keeps checking but cannot alert. Its
   `/readyz` turns 503, and the workflow raises an issue on its next run.

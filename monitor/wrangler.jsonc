@@ -22,16 +22,19 @@
     // /healthz every run; /readyz (wakes the Neon compute) every readyEveryMinutes. Neon Free has
     // 100 compute-unit hours a month per project and suspends after 5 idle minutes: /readyz every
     // 5 minutes would keep both computes awake around the clock and use the month up in ~8 days.
+    // Production every 2 hours and staging every 12 hours cost about 9 CU-hours a month (each check
+    // keeps the compute up about 5 minutes); every 30 min / 2 h cost about 37, too much next to the
+    // portal's own use. A Worker that stops answering is still caught by /healthz within minutes.
     "TARGETS": [
       {
         "name": "production",
         "base": "https://vamar-owner-portal.vamar-api.workers.dev",
-        "readyEveryMinutes": 30,
+        "readyEveryMinutes": 120,
       },
       {
         "name": "staging",
         "base": "https://vamar-owner-portal-staging.vamar-api.workers.dev",
-        "readyEveryMinutes": 120,
+        "readyEveryMinutes": 720,
       },
     ],
   },
