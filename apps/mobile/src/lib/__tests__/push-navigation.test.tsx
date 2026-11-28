@@ -137,7 +137,7 @@ describe('notifications while the app is open', () => {
     await renderHook(() => {
       usePushUpdates(jest.fn(), true);
     });
-    pushResponses.tokens[0]!();
+    pushResponses.tokens[0]!({ data: 'fcm-new', type: 'android' });
     await waitFor(() => {
       expect(sent('POST /api/owner/push-token')[0]?.body).toMatchObject({
         pushToken: 'ExponentPushToken[new]',
@@ -145,6 +145,30 @@ describe('notifications while the app is open', () => {
     });
     // Without asking for permission.
     expect(notifications.requestPermissionsAsync).not.toHaveBeenCalled();
+  });
+
+  it('registers each new token once, so its own announcement does not loop', async () => {
+    // Every registration asks for the token, and the library then announces that same token as
+    // new: reacting to it again registered without end.
+    mockApi({ 'POST /api/owner/push-token': { body: { ok: true } } });
+    await renderHook(() => {
+      usePushUpdates(jest.fn(), true);
+    });
+    const announce = (data: string) => {
+      pushResponses.tokens[0]!({ data, type: 'android' });
+    };
+    announce('fcm-2');
+    await waitFor(() => {
+      expect(sent('POST /api/owner/push-token')).toHaveLength(1);
+    });
+    announce('fcm-2'); // the echo of that registration
+    announce('fcm-2');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(sent('POST /api/owner/push-token')).toHaveLength(1);
+    announce('fcm-3'); // a real rotation
+    await waitFor(() => {
+      expect(sent('POST /api/owner/push-token')).toHaveLength(2);
+    });
   });
 
   it('listens to nothing while signed out', async () => {

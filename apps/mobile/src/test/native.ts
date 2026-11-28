@@ -76,7 +76,7 @@ export const pushResponses = {
   last: null as PushResponse | null,
   listeners: [] as PushListener[],
   received: [] as ReceivedListener[],
-  tokens: [] as (() => void)[],
+  tokens: [] as ((token: { data: string; type: string }) => void)[],
 };
 
 function listen<L>(list: () => L[], set: (next: L[]) => void, listener: L) {
@@ -113,7 +113,7 @@ export const notifications = {
       listener,
     ),
   ),
-  addPushTokenListener: stub((listener: () => void) =>
+  addPushTokenListener: stub((listener: (token: { data: string; type: string }) => void) =>
     listen(
       () => pushResponses.tokens,
       (next) => (pushResponses.tokens = next),

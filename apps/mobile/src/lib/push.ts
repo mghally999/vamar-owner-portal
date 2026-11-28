@@ -147,6 +147,14 @@ export function usePushNavigation(navigate: (href: PushHref) => void, enabled: b
 }
 
 /**
+ * The device token the token listener last acted on. Asking for the token, as every registration
+ * does, makes expo-notifications announce it again as if it were new; acting on each announcement
+ * registered in an endless loop (hundreds of requests a minute while the app was open, and a
+ * token put back right after sign-out removed it). Only a token that changed is registered.
+ */
+let lastAnnouncedToken: string | null = null;
+
+/**
  * While the owner is signed in: a notification that arrives with the app open refreshes what it
  * makes out of date (see refreshKeysFor), and a new push token from the phone (FCM/APNs rotate
  * them) is registered at once instead of at the next launch.
@@ -158,7 +166,10 @@ export function usePushUpdates(refresh: (keys: string[][]) => void, enabled: boo
       const keys = refreshKeysFor(n.request.content.data);
       if (keys.length) refresh(keys);
     });
-    const token = Notifications.addPushTokenListener(() => {
+    const token = Notifications.addPushTokenListener((t) => {
+      const value = typeof t.data === 'string' ? t.data : JSON.stringify(t.data);
+      if (value === lastAnnouncedToken) return;
+      lastAnnouncedToken = value;
       void registerForPush({ ask: false });
     });
     return () => {
