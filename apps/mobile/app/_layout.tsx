@@ -64,6 +64,9 @@ function stackHeader(title: string) {
 
 const queryClient = createQueryClient();
 
+/** Widest the web app gets on a desktop browser; a phone browser is narrower and unaffected. */
+const WEB_MAX_WIDTH = 560;
+
 export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -132,11 +135,9 @@ function Root() {
 
   if (!booted) return null;
 
-  return (
-    // On the web, direction is a CSS property inherited down the tree; native uses I18nManager.
-    <View
-      style={[{ flex: 1 }, Platform.OS === 'web' ? { direction: isRTL ? 'rtl' : 'ltr' } : null]}
-    >
+  const web = Platform.OS === 'web';
+  const app = (
+    <>
       <StatusBar style={t.scheme === 'dark' ? 'light' : 'dark'} />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: t.colors.bg } }}>
         <Stack.Protected guard={auth.stage === 'authenticated'}>
@@ -176,6 +177,29 @@ function Root() {
       </Stack>
       {auth.stage === 'authenticated' && auth.locked ? <LockScreen /> : null}
       {update.kind === 'required' ? <UpdateRequired state={update} /> : null}
+    </>
+  );
+
+  return (
+    // On the web, direction is a CSS property inherited down the tree; native uses I18nManager.
+    <View
+      style={[
+        { flex: 1 },
+        web ? { direction: isRTL ? 'rtl' : 'ltr', backgroundColor: t.colors.bg } : null,
+      ]}
+    >
+      {web ? (
+        // A desktop browser would stretch fields, cards and the tab bar across the screen; the
+        // web app keeps a phone-width column in the middle, overlays included. Native is as before.
+        <View
+          testID="web-column"
+          style={{ flex: 1, width: '100%', maxWidth: WEB_MAX_WIDTH, alignSelf: 'center' }}
+        >
+          {app}
+        </View>
+      ) : (
+        app
+      )}
     </View>
   );
 }

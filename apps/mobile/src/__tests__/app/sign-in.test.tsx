@@ -209,6 +209,16 @@ describe('Verification code', () => {
     await fireEvent.press(await screen.findByRole('button', { name: 'Send a new code' }));
     expect(firebaseAuth.signInWithPhoneNumber).not.toHaveBeenCalled();
   });
+
+  it('sends the owner back to the number when opened without one (a reload of the web app)', async () => {
+    routeState.params = {};
+    await renderApp(<OtpScreen />, { signedIn: false });
+    await screen.findByRole('button', { name: 'Send a new code' });
+    expect(screen.queryByText(/undefined/)).toBeNull();
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith('/(auth)');
+    });
+  });
 });
 
 describe('Not registered', () => {

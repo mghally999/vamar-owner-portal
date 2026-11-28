@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AccountDisabledError, NotRegisteredError, useAuth } from '@/lib/auth';
@@ -15,10 +15,17 @@ export default function OtpScreen() {
   const auth = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { phone } = useLocalSearchParams<{ phone: string }>();
+  // Missing when the screen is opened on its own, e.g. a reload of /otp on the web app.
+  const { phone } = useLocalSearchParams<{ phone?: string }>();
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Without the number there is no code to verify (the sent code does not survive a reload), so
+  // the owner starts again from the number.
+  useEffect(() => {
+    if (!phone) router.replace('/(auth)');
+  }, [phone, router]);
 
   async function verify(value: string) {
     if (!/^\d{6}$/.test(value)) return;
@@ -55,9 +62,11 @@ export default function OtpScreen() {
         <Text variant="title" weight="semibold">
           {tr('otp_title')}
         </Text>
-        <Text variant="secondary" color="soft">
-          {tr('otp_subtitle', { phone: ltr(phone) })}
-        </Text>
+        {phone ? (
+          <Text variant="secondary" color="soft">
+            {tr('otp_subtitle', { phone: ltr(phone) })}
+          </Text>
+        ) : null}
       </View>
       <TextInput
         maxFontSizeMultiplier={1.3}

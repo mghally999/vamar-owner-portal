@@ -1,5 +1,5 @@
 import { onlineManager, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react-native';
 import { Linking, Platform, StyleSheet, Text } from 'react-native';
 import RootLayout from '../../../app/_layout';
 import AuthLayout from '../../../app/(auth)/_layout';
@@ -157,6 +157,25 @@ describe('Root layout', () => {
     await render(<RootLayout />);
     await screen.findByTestId('stack');
     expect(JSON.stringify(screen.toJSON())).toContain('"direction":"ltr"');
+  });
+
+  it('keeps the web app in a centred phone-width column on a desktop browser', async () => {
+    jest.replaceProperty(Platform, 'OS', 'web');
+    await seedSession();
+    await render(<RootLayout />);
+    const column = await screen.findByTestId('web-column');
+    expect(StyleSheet.flatten(column.props.style)).toMatchObject({
+      maxWidth: 560,
+      alignSelf: 'center',
+    });
+    // The tabs (and their tab bar) sit inside the column, so they line up with the content.
+    expect(within(column).getByTestId('screen:(tabs)')).toBeTruthy();
+  });
+
+  it('leaves the native layout full width', async () => {
+    await render(<RootLayout />);
+    await screen.findByTestId('stack');
+    expect(screen.queryByTestId('web-column')).toBeNull();
   });
 
   it('pauses queries while the phone is offline', () => {
