@@ -456,7 +456,10 @@ export function ExpenseForm({
             ))}
           </Select>
         </Field>
-        <Field label={t('expense_allocation')}>
+        <Field
+          label={t('expense_allocation')}
+          hint={scope !== 'unit' && method === '' ? t('expense_allocation_auto_hint') : undefined}
+        >
           <Select
             value={scope === 'unit' ? 'single_unit' : method}
             disabled={scope === 'unit'}

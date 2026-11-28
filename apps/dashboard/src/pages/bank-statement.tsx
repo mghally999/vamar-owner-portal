@@ -49,6 +49,7 @@ import {
   Select,
   SkeletonRows,
   Toast,
+  chipClass,
 } from '@/ui/primitives';
 import { ResponsiveTable } from '@/ui/responsive-table';
 import { Page } from '@/ui/shell';
@@ -501,7 +502,7 @@ function Results({
                       <td className="px-4 py-3">
                         <div className="min-w-0 text-start">
                           <span
-                            className={`inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium ${m.strength === 'strong' ? 'bg-status-cleared-bg text-status-cleared' : 'bg-status-deposited-bg text-status-deposited'}`}
+                            className={`${chipClass} ${m.strength === 'strong' ? 'bg-status-cleared-bg text-status-cleared' : 'bg-status-deposited-bg text-status-deposited'}`}
                           >
                             {t(m.strength === 'strong' ? 'bank_strong' : 'bank_weak')}
                           </span>

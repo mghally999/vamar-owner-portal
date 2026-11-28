@@ -65,8 +65,18 @@ describe('WorkOrdersPage', () => {
     expect(within(row).getByText('In progress')).toBeTruthy();
     expect(within(row).getByText('Al Noor Tower · 801')).toBeTruthy();
     expect(screen.getByText('AED 13,020')).toBeTruthy();
-    // The 860 px table scrolls inside its card between 768 and 1024 px instead of being cut off.
-    expect(row.closest('table')?.parentElement?.className).toContain('overflow-x-auto');
+    // Between 768 and 1024 px the table drops its 860 px minimum and the scheduled date, so cost
+    // and status fit the card; scrolling inside the card stays as the fallback.
+    const table = row.closest('table');
+    expect(table?.parentElement?.className).toContain('overflow-x-auto');
+    expect(table?.className.split(' ')).toContain('lg:min-w-[860px]');
+    expect(table?.className.split(' ')).not.toContain('min-w-[860px]');
+    expect(screen.getByRole('columnheader', { name: 'Scheduled for' }).className).toContain(
+      'md:max-lg:hidden',
+    );
+    // The cell shows the title in the language being read, so the header names no language.
+    expect(screen.getByRole('columnheader', { name: 'Title' })).toBeTruthy();
+    expect(screen.queryByRole('columnheader', { name: 'Title (English)' })).toBeNull();
     await pickOption(user, screen.getByRole('combobox', { name: 'Building' }), 'bld-1');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Status' }), 'done');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Priority' }), 'urgent');

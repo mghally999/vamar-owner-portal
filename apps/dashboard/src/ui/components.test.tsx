@@ -8,7 +8,8 @@ import type { PlainDate } from '@vamar/shared';
 import { LangProvider } from '@/lib/i18n';
 import { applyTheme, setTheme } from '@/lib/theme';
 import { ChequeGrid, type GridRowDraft } from './cheque-grid';
-import { Amount, ErrorState } from './primitives';
+import { KindChip } from '@/pages/expenses';
+import { Amount, ChequeStatusChip, ErrorState, Select } from './primitives';
 
 afterEach(cleanup);
 
@@ -17,6 +18,33 @@ function withLang(lang: 'ar' | 'en', ui: React.ReactNode) {
   return render(<LangProvider>{ui}</LangProvider>);
 }
 
+describe('chips', () => {
+  it('stay on one line and do not shrink inside a phone card row', () => {
+    // A card cell breaks long words anywhere; a chip that wraps or shrinks showed "Fix/ed".
+    withLang('ar', <KindChip kind="fixed" />);
+    withLang('en', <ChequeStatusChip status="upcoming" />);
+    for (const chip of [screen.getByText('ثابتة'), screen.getByText('Upcoming')]) {
+      expect(chip.className.split(' ')).toEqual(
+        expect.arrayContaining(['whitespace-nowrap', 'shrink-0']),
+      );
+    }
+  });
+});
+
+describe('Select', () => {
+  it('ends a long option in an ellipsis rather than cutting it mid-word', () => {
+    withLang(
+      'ar',
+      <Select aria-label="split">
+        <option>تلقائي (حسب المساحة عندما تكون معروفة لكل الوحدات)</option>
+      </Select>,
+    );
+    expect(screen.getByRole('combobox', { name: 'split' }).className.split(' ')).toContain(
+      'truncate',
+    );
+  });
+});
+
 describe('Amount', () => {
   it('puts the currency after the number in Arabic and before it in English', () => {
     const ar = withLang('ar', <Amount fils={1_250_000} />);
@@ -24,6 +52,14 @@ describe('Amount', () => {
     cleanup();
     const en = withLang('en', <Amount fils={1_250_050} />);
     expect(en.container.textContent).toBe('AED12,500.50');
+  });
+
+  it('keeps the minus in front of a negative amount in Arabic', () => {
+    const { container } = withLang('ar', <Amount fils={-2_905_500} />);
+    const number = container.querySelector('.tnum');
+    expect(number?.textContent).toBe('-29,055');
+    // Without its own direction the number takes the page's RTL and shows as "29,055-".
+    expect(number?.getAttribute('dir')).toBe('ltr');
   });
 
   it('shows a dash when there is no amount', () => {
@@ -71,6 +107,18 @@ describe('ChequeGrid', () => {
     expect(first.disabled).toBe(true);
     await userEvent.click(screen.getByRole('button', { name: 'Fill equal amounts' }));
     expect(first.value).toBe('1000');
+  });
+
+  it('lets each due-date picker narrow to fit a phone card row', () => {
+    withLang('en', <Grid />);
+    // The phone card gives the picker less than its 224 px; the field must shrink, the calendar
+    // button must not, or the button is cut off at the card edge.
+    const input = screen.getByLabelText('Due date 1');
+    expect(input.className.split(' ')).toContain('min-w-0');
+    const picker = input.parentElement?.parentElement;
+    expect(picker?.className.split(' ')).toContain('min-w-0');
+    const button = input.parentElement?.querySelector('button');
+    expect(button?.className.split(' ')).toContain('shrink-0');
   });
 
   it('has no accessibility violations in Arabic', async () => {

@@ -26,6 +26,7 @@ import {
   Button,
   Card,
   DateText,
+  chipClass,
   EmptyState,
   ErrorState,
   Input,
@@ -57,24 +58,13 @@ const expenseChip: Record<ExpenseStatus, string> = {
 export function ExpenseStatusChip({ status }: { status: ExpenseStatus }) {
   const { t } = useI18n();
   return (
-    <span
-      className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
-        expenseChip[status],
-      )}
-    >
-      {t(`expense_status_${status}`)}
-    </span>
+    <span className={cx(chipClass, expenseChip[status])}>{t(`expense_status_${status}`)}</span>
   );
 }
 
 export function KindChip({ kind }: { kind: ExpenseKind }) {
   const { t } = useI18n();
-  return (
-    <span className="inline-flex h-6 items-center rounded-sm bg-chip px-2 text-[13px] font-medium text-on-chip">
-      {t(`expense_kind_${kind}`)}
-    </span>
-  );
+  return <span className={cx(chipClass, 'bg-chip text-on-chip')}>{t(`expense_kind_${kind}`)}</span>;
 }
 
 /**
@@ -91,6 +81,13 @@ const FILTERS = {
   vendorId: '',
   search: '',
 };
+
+/**
+ * Columns left out between 768 and 1024 px, where the table is too wide for a tablet and its total
+ * and status columns were cut off at the card edge. Both are on the expense page and the search box
+ * finds them; phones (cards) and desktops keep every column.
+ */
+const TABLET_HIDDEN = 'md:max-lg:hidden';
 
 /** Columns the API sorts this list by (its allow-list). */
 const EXPENSES_SORT = ['invoiceDate', 'category', 'building', 'vendor', 'total', 'status'] as const;
@@ -386,7 +383,7 @@ export function ExpensesPage() {
             />
           ) : null}
           <div className="max-h-[70vh] overflow-auto">
-            <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
+            <ResponsiveTable className="w-full text-[15px] lg:min-w-[900px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
                   {canEdit ? (
@@ -409,8 +406,15 @@ export function ExpensesPage() {
                   <SortHeader label={t('expense_category')} column="category" state={sorting} />
                   <th className="px-4 py-2 text-start font-medium">{t('expense_reason')}</th>
                   <SortHeader label={t('building')} column="building" state={sorting} />
-                  <SortHeader label={t('expense_vendor')} column="vendor" state={sorting} />
-                  <th className="px-4 py-2 text-start font-medium">{t('expense_invoiceNo')}</th>
+                  <SortHeader
+                    label={t('expense_vendor')}
+                    column="vendor"
+                    state={sorting}
+                    className={TABLET_HIDDEN}
+                  />
+                  <th className={cx('px-4 py-2 text-start font-medium', TABLET_HIDDEN)}>
+                    {t('expense_invoiceNo')}
+                  </th>
                   <SortHeader
                     label={t('expense_total')}
                     column="total"
@@ -458,8 +462,10 @@ export function ExpensesPage() {
                       {pick(e.buildingNameAr, e.buildingNameEn)}
                       {e.unitNo ? ` · ${e.unitNo}` : ''}
                     </td>
-                    <td className="px-4 py-3 text-ink-soft">{e.vendorName ?? '—'}</td>
-                    <td className="px-4 py-3 tnum">{e.invoiceNo ?? '—'}</td>
+                    <td className={cx('px-4 py-3 text-ink-soft', TABLET_HIDDEN)}>
+                      {e.vendorName ?? '—'}
+                    </td>
+                    <td className={cx('px-4 py-3 tnum', TABLET_HIDDEN)}>{e.invoiceNo ?? '—'}</td>
                     <td className="px-4 py-3 text-end">
                       <Money fils={e.totalFils} strong />
                       {e.vatFils > 0 ? (

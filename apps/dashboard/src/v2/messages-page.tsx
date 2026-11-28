@@ -22,6 +22,7 @@ import {
   Button,
   Card,
   Checkbox,
+  chipClass,
   cx,
   EmptyState,
   ErrorState,
@@ -54,7 +55,7 @@ function StatusChip({ status }: { status: MessageThreadStatus }) {
   return (
     <span
       className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
+        chipClass,
         status === 'open'
           ? 'bg-status-cleared-bg text-status-cleared'
           : 'bg-status-cancelled-bg text-status-cancelled',
@@ -172,12 +173,12 @@ function InboxRow({ row }: { row: ThreadRow }) {
         </span>
         <span className="flex flex-wrap items-center gap-2 text-[13px]">
           {row.unread > 0 ? (
-            <span className="tnum inline-flex h-6 items-center rounded-sm bg-primary px-2 font-medium text-on-primary">
+            <span className={cx(chipClass, 'tnum bg-primary text-on-primary')}>
               {t('messages_unread', { n: row.unread })}
             </span>
           ) : null}
           {row.waiting ? (
-            <span className="inline-flex h-6 items-center rounded-sm bg-status-upcoming-bg px-2 font-medium text-status-upcoming">
+            <span className={cx(chipClass, 'bg-status-upcoming-bg text-status-upcoming')}>
               {t('messages_waitingBadge')}
             </span>
           ) : null}

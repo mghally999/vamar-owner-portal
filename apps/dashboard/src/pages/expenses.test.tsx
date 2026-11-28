@@ -60,6 +60,17 @@ describe('ExpensesPage', () => {
     expect(within(row).getByText('AED 13,020')).toBeTruthy();
     expect(within(row).getByText(/VAT \(AED\): 620/)).toBeTruthy();
     expect(within(row).getByText('Posted')).toBeTruthy();
+    // Between 768 and 1024 px vendor and invoice number make way and the 900 px minimum is
+    // dropped, so the total and status columns fit the card instead of being cut off.
+    const table = row.closest('table');
+    expect(table?.className.split(' ')).toContain('lg:min-w-[900px]');
+    expect(table?.className.split(' ')).not.toContain('min-w-[900px]');
+    for (const name of ['Vendor', 'Invoice no.']) {
+      expect(screen.getByRole('columnheader', { name }).className).toContain('md:max-lg:hidden');
+    }
+    expect(screen.getByRole('columnheader', { name: 'Invoice total' }).className).not.toContain(
+      'hidden',
+    );
     expect(screen.getByText('2 expenses · AED 18,020')).toBeTruthy();
     expect(screen.getByText(/Fixed 5,000 · Variable 13,020 · VAT 620/)).toBeTruthy();
     expect(api.last('GET', '/api/staff/expenses').query).toMatchObject({

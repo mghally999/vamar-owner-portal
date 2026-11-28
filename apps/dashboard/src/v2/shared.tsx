@@ -8,7 +8,7 @@ import {
   type TimelineKind,
   type UnitStatus,
 } from '@vamar/shared';
-import { Button, Card, Checkbox, cx, Money, Skeleton } from '@/ui/primitives';
+import { Button, Card, Checkbox, chipClass, cx, Money, Skeleton } from '@/ui/primitives';
 import { useV2, v2Messages, type V2MessageKey } from './messages';
 import { useHolidays } from './queries';
 import type { TimelineEntry } from './types';
@@ -49,13 +49,7 @@ const statusChip: Record<UnitStatus, string> = {
 export function UnitStatusChip({ status, className }: { status: UnitStatus; className?: string }) {
   const { lang } = useV2();
   return (
-    <span
-      className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium whitespace-nowrap',
-        statusChip[status],
-        className,
-      )}
-    >
+    <span className={cx(chipClass, statusChip[status], className)}>
       {UNIT_STATUS_LABEL[status][lang]}
     </span>
   );

@@ -25,6 +25,7 @@ import {
   PageHeader,
   Select,
   SkeletonRows,
+  chipClass,
   cx,
 } from '@/ui/primitives';
 import { LoadMore } from '@/ui/load-more';
@@ -49,12 +50,7 @@ const statusChip: Record<WorkOrderStatus, string> = {
 export function WorkOrderStatusChip({ status }: { status: WorkOrderStatus }) {
   const { t } = useI18n();
   return (
-    <span
-      className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
-        statusChip[status],
-      )}
-    >
+    <span className={cx(chipClass, statusChip[status])}>
       {t(`wo_status_${status}` as MessageKey)}
     </span>
   );
@@ -65,7 +61,7 @@ export function PriorityChip({ priority }: { priority: WorkOrderPriority }) {
   return (
     <span
       className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
+        chipClass,
         priority === 'urgent' ? 'bg-status-bounced-bg text-status-bounced' : 'bg-chip text-on-chip',
       )}
     >
@@ -76,6 +72,13 @@ export function PriorityChip({ priority }: { priority: WorkOrderPriority }) {
 
 /** Kept in the URL with `overdue` and `approval`, which arrive from the Today panel's links. */
 const FILTERS = { view: 'list', buildingId: '', status: '', priority: '', search: '' };
+
+/**
+ * Left out between 768 and 1024 px, where the table is too wide for a tablet and its cost and status
+ * columns were cut off at the card edge. The date is on the order's page and in the board view;
+ * phones (cards) and desktops keep every column.
+ */
+const TABLET_HIDDEN = 'md:max-lg:hidden';
 
 /** Columns the API sorts this list by (its allow-list). */
 const WORK_ORDERS_SORT = ['reportedOn', 'title', 'building', 'priority', 'status'] as const;
@@ -225,14 +228,16 @@ export function WorkOrdersPage() {
         <Board rows={rows} />
       ) : (
         <Card className="overflow-x-auto">
-          <ResponsiveTable className="w-full min-w-[860px] text-[15px]">
+          <ResponsiveTable className="w-full text-[15px] lg:min-w-[860px]">
             <thead>
               <tr className="row-line text-[13px] text-ink-soft">
                 <SortHeader label={t('wo_reportedOn')} column="reportedOn" state={sorting} />
-                <SortHeader label={t('wo_titleEn')} column="title" state={sorting} />
+                <SortHeader label={t('wo_title')} column="title" state={sorting} />
                 <SortHeader label={t('building')} column="building" state={sorting} />
                 <SortHeader label={t('wo_priority')} column="priority" state={sorting} />
-                <th className="px-4 py-2 text-start font-medium">{t('wo_scheduledFor')}</th>
+                <th className={cx('px-4 py-2 text-start font-medium', TABLET_HIDDEN)}>
+                  {t('wo_scheduledFor')}
+                </th>
                 <th className="px-4 py-2 text-end font-medium">{t('wo_cost')}</th>
                 <SortHeader label={t('status')} column="status" state={sorting} />
               </tr>
@@ -259,7 +264,7 @@ export function WorkOrdersPage() {
                   <td className="px-4 py-3">
                     <PriorityChip priority={w.priority} />
                   </td>
-                  <td className="px-4 py-3 tnum">
+                  <td className={cx('px-4 py-3 tnum', TABLET_HIDDEN)}>
                     {w.scheduledFor ? <DateText date={w.scheduledFor} /> : '—'}
                   </td>
                   <td className="px-4 py-3 text-end">

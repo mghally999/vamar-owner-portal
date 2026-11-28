@@ -1,4 +1,32 @@
-import { useLayoutEffect, useRef, type TableHTMLAttributes } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type TableHTMLAttributes } from 'react';
+
+/** The width below which `.card-table` shows rows as cards; keep in step with styles.css. */
+const CARD_QUERY = '(max-width: 767.98px)';
+
+function cardQuery(): MediaQueryList | null {
+  return typeof window.matchMedia === 'function' ? window.matchMedia(CARD_QUERY) : null;
+}
+
+/**
+ * True while tables show as cards (phones). For code that has to follow the CSS layout, such as a
+ * virtualised list that scrolls with the page on a phone but inside its own box elsewhere.
+ */
+export function useCardLayout(): boolean {
+  const [cards, setCards] = useState(() => cardQuery()?.matches ?? false);
+  useEffect(() => {
+    const mq = cardQuery();
+    if (!mq) return;
+    const sync = () => {
+      setCards(mq.matches);
+    };
+    sync();
+    mq.addEventListener('change', sync);
+    return () => {
+      mq.removeEventListener('change', sync);
+    };
+  }, []);
+  return cards;
+}
 
 /**
  * A table that becomes a list of cards on narrow screens (below 768 px, `.card-table` in

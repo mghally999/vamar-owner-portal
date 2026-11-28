@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
-import { useVirtualizer } from '@tanstack/react-virtual';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useVirtualizer, useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { CHEQUE_STATUSES } from '@vamar/shared';
 import { useAuth } from '@/lib/auth';
 import { useI18n } from '@/lib/i18n';
@@ -30,7 +30,7 @@ import {
 } from '@/ui/primitives';
 import { Page } from '@/ui/shell';
 import { LoadMore } from '@/ui/load-more';
-import { ResponsiveTable } from '@/ui/responsive-table';
+import { ResponsiveTable, useCardLayout } from '@/ui/responsive-table';
 import { SortHeader, useListSort } from '@/ui/sort-header';
 import { MobileSelectAll, SelectAllBox } from '@/ui/select-all';
 
@@ -73,16 +73,40 @@ export function ChequesPage() {
   });
   const rows = useMemo(() => q.data?.pages.flatMap((p) => p.items) ?? [], [q.data]);
   // Only the rows in view are in the DOM; a long month stays light however far staff scroll.
+  // Wider screens scroll the table inside a 70vh box under the filters. On a phone that box held
+  // about one and a half cheque cards, so there the list scrolls with the page and the window is
+  // what the virtualiser watches; both hooks always run and only the one in use is enabled.
+  const cards = useCardLayout();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const virtualizer = useVirtualizer({
+  const bodyRef = useRef<HTMLTableSectionElement>(null);
+  // Where the rows start on the page, so the window virtualiser knows which cards are in view.
+  const [listTop, setListTop] = useState(0);
+  useLayoutEffect(() => {
+    if (!cards || !bodyRef.current) return;
+    const top = Math.round(bodyRef.current.getBoundingClientRect().top + window.scrollY);
+    if (top !== listTop) setListTop(top);
+  });
+  const boxVirtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 52,
     overscan: 12,
+    enabled: !cards,
   });
+  const pageVirtualizer = useWindowVirtualizer({
+    count: rows.length,
+    estimateSize: () => 320,
+    overscan: 4,
+    scrollMargin: listTop,
+    enabled: cards,
+  });
+  const virtualizer = cards ? pageVirtualizer : boxVirtualizer;
   const virtualRows = virtualizer.getVirtualItems();
-  const padTop = virtualRows[0]?.start ?? 0;
-  const padBottom = virtualizer.getTotalSize() - (virtualRows[virtualRows.length - 1]?.end ?? 0);
+  // Item positions include the scroll margin; the spacer rows inside the table do not.
+  const margin = virtualizer.options.scrollMargin;
+  const padTop = (virtualRows[0]?.start ?? margin) - margin;
+  const padBottom =
+    virtualizer.getTotalSize() - ((virtualRows[virtualRows.length - 1]?.end ?? margin) - margin);
 
   const toggle = (id: string) => {
     setSelected((s) => {
@@ -191,7 +215,7 @@ export function ChequesPage() {
               label={t('cheque_selectAll')}
             />
           ) : null}
-          <div ref={scrollRef} className="max-h-[70vh] overflow-auto">
+          <div ref={scrollRef} className="md:max-h-[70vh] md:overflow-auto">
             <ResponsiveTable className="w-full min-w-[900px] text-[15px]">
               <thead>
                 <tr className="row-line text-[13px] text-ink-soft">
@@ -215,7 +239,7 @@ export function ChequesPage() {
                   {auth.hasRole('editor') ? <th className="px-2 py-2" /> : null}
                 </tr>
               </thead>
-              <tbody>
+              <tbody ref={bodyRef}>
                 {padTop > 0 ? (
                   <tr aria-hidden>
                     <td colSpan={9} style={{ height: padTop, padding: 0, border: 0 }} />

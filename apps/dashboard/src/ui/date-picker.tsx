@@ -240,7 +240,9 @@ export function DatePicker({
           required={required}
           aria-label={aria['aria-label']}
           aria-labelledby={aria['aria-labelledby']}
-          className="flex-1"
+          // An input's own minimum width is about 20 characters; without min-w-0 it will not
+          // shrink in a narrow box and pushes the calendar button out of it.
+          className="min-w-0 flex-1"
         />
         <button
           type="button"

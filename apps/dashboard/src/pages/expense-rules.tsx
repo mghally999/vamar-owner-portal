@@ -39,6 +39,7 @@ import {
   Select,
   SkeletonRows,
   Toast,
+  chipClass,
   cx,
 } from '@/ui/primitives';
 import { ResponsiveTable } from '@/ui/responsive-table';
@@ -148,7 +149,7 @@ export function ExpenseRulesPage() {
                     <td className="px-4 py-3">
                       <span
                         className={cx(
-                          'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
+                          chipClass,
                           r.active
                             ? 'bg-status-cleared-bg text-status-cleared'
                             : 'bg-status-cancelled-bg text-status-cancelled',
@@ -489,7 +490,10 @@ function RuleDialog({
           />
         </Field>
         {scope === 'building' ? (
-          <Field label={t('expense_allocation')}>
+          <Field
+            label={t('expense_allocation')}
+            hint={method === '' ? t('expense_allocation_auto_hint') : undefined}
+          >
             <Select
               value={method}
               onChange={(e) => {

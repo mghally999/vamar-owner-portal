@@ -95,7 +95,9 @@ export function ChequeGrid({
                         if (d) update(i, { dueDate: d });
                       }}
                       disabled={disabled}
-                      className="w-56"
+                      // min-w-0: in a phone card row the picker shares the line with its label
+                      // and has to narrow to fit, or its calendar button sits past the card edge.
+                      className="w-56 min-w-0"
                       aria-label={`${t('dueDate')} ${r.seq}`}
                     />
                   </td>

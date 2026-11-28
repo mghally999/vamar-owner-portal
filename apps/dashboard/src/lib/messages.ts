@@ -549,7 +549,9 @@ const en = {
   expense_allocation_equal_units: 'Equal per unit',
   expense_allocation_by_ownership: 'Equal per owner',
   expense_allocation_single_unit: 'This unit only',
-  expense_allocation_auto: 'Automatic (by area when every unit has a size)',
+  // Short, so it fits a phone-width select; the hint under the field explains it.
+  expense_allocation_auto: 'Automatic',
+  expense_allocation_auto_hint: 'Automatic splits by area when every unit has a size.',
   expense_preview: "Each owner's share",
   expense_preview_hint:
     'Updated live from the amount, the date and the method. Posting writes exactly these parts.',
@@ -636,6 +638,8 @@ const en = {
   workOrders_view_board: 'Board',
   wo_titleAr: 'Title (Arabic)',
   wo_titleEn: 'Title (English)',
+  // List column: the cell shows the title in the language being read.
+  wo_title: 'Title',
   wo_description: 'Description',
   wo_priority: 'Priority',
   wo_priority_low: 'Low',
@@ -1231,7 +1235,8 @@ const ar: Record<MessageKey, string> = {
   expense_allocation_equal_units: 'بالتساوي بين الوحدات',
   expense_allocation_by_ownership: 'بالتساوي بين الملاك',
   expense_allocation_single_unit: 'هذه الوحدة فقط',
-  expense_allocation_auto: 'تلقائي (حسب المساحة عندما تكون معروفة لكل الوحدات)',
+  expense_allocation_auto: 'تلقائي',
+  expense_allocation_auto_hint: 'التوزيع التلقائي حسب المساحة عندما تكون معروفة لكل الوحدات.',
   expense_preview: 'حصة كل مالك',
   expense_preview_hint:
     'تُحدَّث مباشرة من المبلغ والتاريخ وطريقة التوزيع. الترحيل يكتب هذه الحصص بالضبط.',
@@ -1316,6 +1321,7 @@ const ar: Record<MessageKey, string> = {
   workOrders_view_board: 'لوحة',
   wo_titleAr: 'العنوان (عربي)',
   wo_titleEn: 'العنوان (إنجليزي)',
+  wo_title: 'العنوان',
   wo_description: 'الوصف',
   wo_priority: 'الأولوية',
   wo_priority_low: 'منخفضة',

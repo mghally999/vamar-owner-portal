@@ -51,6 +51,8 @@ describe('DisputesPage', () => {
     const { api, user } = await renderApp('/disputes', { routes: routes() });
     const link = await screen.findByRole('link', { name: 'RDC-2026-0412' });
     expect(link.getAttribute('href')).toBe('/disputes/dsp-1');
+    // One line at tablet width, not broken at each hyphen.
+    expect(link.className.split(' ')).toContain('whitespace-nowrap');
     const row = link.closest('tr');
     if (!row) throw new Error('no row');
     expect(within(row).getByText('000101, 000102')).toBeTruthy();

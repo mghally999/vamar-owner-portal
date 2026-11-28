@@ -21,6 +21,7 @@ import {
   SectionTitle,
   Textarea,
   Toast,
+  chipClass,
   cx,
 } from '@/ui/primitives';
 import { useApprovalText } from './approvals-messages';
@@ -33,8 +34,6 @@ const tone: Record<RepairApprovalStatus | ApprovalState, string> = {
   approved_by_silence: 'bg-status-cleared-bg text-status-cleared',
   overridden: 'bg-chip text-on-chip',
 };
-
-const chipClass = 'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium';
 
 /** The one-word state of a job's approvals, for list rows and page headers. */
 export function ApprovalStateChip({ state }: { state: ApprovalState }) {

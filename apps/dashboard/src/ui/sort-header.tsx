@@ -40,18 +40,24 @@ export function SortHeader<K extends string>({
   column,
   state,
   align = 'start',
+  className,
 }: {
   label: string;
   column: K;
   state: ListSort<K>;
   align?: 'start' | 'end';
+  className?: string;
 }) {
   const active = state.sort === column;
   const Icon = !active ? ArrowUpDown : state.dir === 'asc' ? ArrowUp : ArrowDown;
   return (
     <th
       aria-sort={active ? (state.dir === 'asc' ? 'ascending' : 'descending') : undefined}
-      className={cx('px-4 py-2 font-medium', align === 'end' ? 'text-end' : 'text-start')}
+      className={cx(
+        'px-4 py-2 font-medium',
+        align === 'end' ? 'text-end' : 'text-start',
+        className,
+      )}
     >
       <button
         type="button"

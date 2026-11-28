@@ -97,6 +97,31 @@ describe('ChequesPage', () => {
     });
   });
 
+  it('scrolls the list with the page on a phone and inside its own box on wider screens', async () => {
+    // A phone-width viewport: the card layout's media query matches.
+    vi.stubGlobal(
+      'matchMedia',
+      (query: string) =>
+        ({
+          matches: query === '(max-width: 767.98px)',
+          media: query,
+          addEventListener: () => undefined,
+          removeEventListener: () => undefined,
+        }) as unknown as MediaQueryList,
+    );
+    await renderApp('/cheques', { routes: routes() });
+    const row = (await screen.findByRole('link', { name: '5 Oct 2026' })).closest('tr');
+    // Both cheques are rendered by the window-driven virtualiser.
+    expect(screen.getByRole('link', { name: '20 Oct 2026' })).toBeTruthy();
+    // The 70vh scroll box applies from 768 px up only, so a phone shows more than one card.
+    const box = row?.closest('table')?.parentElement;
+    expect(box?.className.split(' ')).toEqual(
+      expect.arrayContaining(['md:max-h-[70vh]', 'md:overflow-auto']),
+    );
+    expect(box?.className.split(' ')).not.toContain('max-h-[70vh]');
+    expect(box?.className.split(' ')).not.toContain('overflow-auto');
+  });
+
   it('filters by status, building and owner', async () => {
     const { api, user } = await renderApp('/cheques?status=bounced', { routes: routes() });
     await screen.findByText('Liam Carter');

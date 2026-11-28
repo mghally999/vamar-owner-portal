@@ -118,7 +118,8 @@ export const Select = forwardRef<
       className={cx(
         controlClass,
         widthClass(className),
-        'appearance-none bg-[length:16px] bg-no-repeat pe-9 ps-3',
+        // A long option ends in an ellipsis instead of being cut mid-word at phone width.
+        'appearance-none truncate bg-[length:16px] bg-no-repeat pe-9 ps-3',
         'bg-[image:var(--chevron)]',
         invalid && 'border-danger',
         className,
@@ -316,6 +317,14 @@ export function SkeletonRows({ rows = 5, cols = 4 }: { rows?: number; cols?: num
 
 // Status chips: colour always paired with a text label --------------------------------------------
 
+/**
+ * The 24 px pill every status and kind chip shares. It never wraps or shrinks: in a phone card row
+ * (`.card-table` cells break long words anywhere) a shrinking chip split "Fixed" into "Fix/ed" and
+ * spilled out of its pill.
+ */
+export const chipClass =
+  'inline-flex h-6 shrink-0 items-center whitespace-nowrap rounded-sm px-2 text-[13px] font-medium';
+
 const chequeChip: Record<ChequeStatus, string> = {
   upcoming: 'bg-status-upcoming-bg text-status-upcoming',
   deposited: 'bg-status-deposited-bg text-status-deposited',
@@ -328,12 +337,7 @@ const chequeChip: Record<ChequeStatus, string> = {
 export function ChequeStatusChip({ status }: { status: ChequeStatus }) {
   const { t } = useI18n();
   return (
-    <span
-      className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
-        chequeChip[status],
-      )}
-    >
+    <span className={cx(chipClass, chequeChip[status])}>
       {t(`cheque_status_${status}` as MessageKey)}
     </span>
   );
@@ -350,12 +354,7 @@ const contractChip: Record<ContractStatus, string> = {
 export function ContractStatusChip({ status }: { status: ContractStatus }) {
   const { t } = useI18n();
   return (
-    <span
-      className={cx(
-        'inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium',
-        contractChip[status],
-      )}
-    >
+    <span className={cx(chipClass, contractChip[status])}>
       {t(`contract_status_${status}` as MessageKey)}
     </span>
   );
@@ -389,13 +388,7 @@ export function disputeStatusName(status: DisputeStatus): { ar: string; en: stri
 export function DisputeStatusChip({ status }: { status: DisputeStatus }) {
   const { pick } = useI18n();
   const d = disputeLabels[status];
-  return (
-    <span
-      className={cx('inline-flex h-6 items-center rounded-sm px-2 text-[13px] font-medium', d.cls)}
-    >
-      {pick(d.ar, d.en)}
-    </span>
-  );
+  return <span className={cx(chipClass, d.cls)}>{pick(d.ar, d.en)}</span>;
 }
 
 export function Money({
@@ -435,7 +428,10 @@ export function Amount({
   return (
     <span className={cx('inline-flex items-baseline gap-1.5 whitespace-nowrap', className)}>
       {lang === 'en' ? currency : null}
-      <span className="tnum">{num(fils)}</span>
+      {/* Left to right like Money, or an Arabic page puts the minus after a negative number. */}
+      <span className="tnum" dir="ltr">
+        {num(fils)}
+      </span>
       {lang === 'ar' ? currency : null}
     </span>
   );

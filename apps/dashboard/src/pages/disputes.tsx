@@ -167,7 +167,8 @@ export function DisputesPage() {
                     <Link
                       to="/disputes/$disputeId"
                       params={{ disputeId: d.id }}
-                      className="font-medium hover:underline"
+                      // A case number reads as one token: "D-2026-0001" broke at each hyphen.
+                      className="font-medium whitespace-nowrap hover:underline"
                     >
                       {d.caseNo}
                     </Link>
