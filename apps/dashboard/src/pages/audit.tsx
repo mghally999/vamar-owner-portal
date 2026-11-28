@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react';
 import { isPlainDate, type PlainDate } from '@vamar/shared';
+import { auditActionLabels, isAuditAction } from '@/lib/audit-messages';
 import { useUrlFilters } from '@/lib/url-filters';
 import { useI18n } from '@/lib/i18n';
 import { useAudit, useStaff } from '@/lib/queries';
@@ -47,7 +48,7 @@ const FILTERS = { actorId: '', entityType: '', from: '', to: '' };
 const AUDIT_SORT = ['at', 'actor', 'action', 'entityType'] as const;
 
 export function AuditPage() {
-  const { t, dateTime } = useI18n();
+  const { t, lang, dateTime } = useI18n();
   const staff = useStaff();
   const [filters, setFilters] = useUrlFilters(FILTERS);
   const { actorId, entityType } = filters;
@@ -165,9 +166,16 @@ export function AuditPage() {
                     <td className="px-4 py-3">
                       {r.actorType === 'system' ? t('audit_system') : (r.actorName ?? r.actorType)}
                     </td>
-                    <td className="px-4 py-3 font-medium" dir="ltr">
-                      {r.action}
-                    </td>
+                    {/* An unknown code (an older or newer API) is shown as it is, left to right. */}
+                    {isAuditAction(r.action) ? (
+                      <td className="px-4 py-3 font-medium" title={r.action}>
+                        {auditActionLabels[lang][r.action]}
+                      </td>
+                    ) : (
+                      <td className="px-4 py-3 font-medium" dir="ltr">
+                        {r.action}
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-ink-soft" dir="ltr">
                       {r.entityType}
                       {r.entityId ? (

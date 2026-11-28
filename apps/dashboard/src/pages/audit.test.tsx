@@ -41,7 +41,7 @@ describe('AuditPage', () => {
         'GET /api/staff/audit': page(ROWS),
       },
     });
-    const create = await screen.findByText('owner.create');
+    const create = await screen.findByText('Owner added');
     expect(screen.getByText('System')).toBeTruthy();
     // Without a name the actor type is shown.
     const ownerRow = screen.getByText('owner.login').closest('tr');
@@ -56,8 +56,25 @@ describe('AuditPage', () => {
     await user.click(create);
     expect(screen.queryByText('Before')).toBeNull();
 
-    await user.click(screen.getByText('contract.expire'));
+    await user.click(screen.getByText('Contract expired'));
     expect(screen.getByText('—', { selector: 'pre' })).toBeTruthy();
+  });
+
+  it('names each action in words, in Arabic too, and shows an unknown code as it is', async () => {
+    await renderApp('/audit', {
+      lang: 'ar',
+      routes: {
+        'GET /api/staff/staff': { items: [staffRow()] },
+        'GET /api/staff/audit': page([
+          ...ROWS,
+          auditRow({ id: 'aud-4', action: 'repair_approval.silence' }),
+        ]),
+      },
+    });
+    expect(await screen.findByText('إضافة مالك')).toBeTruthy();
+    expect(screen.getByText('موافقة على إصلاح لعدم الرد')).toBeTruthy();
+    expect(screen.queryByText('repair_approval.silence')).toBeNull();
+    expect(screen.getByText('owner.login').getAttribute('dir')).toBe('ltr');
   });
 
   it('sends the chosen filters and pages with the cursor', async () => {
@@ -68,7 +85,7 @@ describe('AuditPage', () => {
           c.query['cursor'] ? page([]) : page([ROWS[0]], 'older'),
       },
     });
-    await screen.findByText('owner.create');
+    await screen.findByText('Owner added');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Actor' }), 'stf-2');
     await user.selectOptions(screen.getByRole('combobox', { name: 'Entity' }), 'cheque');
     await user.type(screen.getByRole('textbox', { name: 'From' }), '01/10/2026{Enter}');
@@ -95,7 +112,7 @@ describe('AuditPage', () => {
         'GET /api/staff/audit': page(ROWS),
       },
     });
-    await screen.findByText('owner.create');
+    await screen.findByText('Owner added');
     const entity = screen.getByRole('combobox', { name: 'Entity' });
     const options = Array.from(entity.querySelectorAll('option')).map((o) => o.value);
     for (const type of [
@@ -126,7 +143,7 @@ describe('AuditPage', () => {
         },
       },
     );
-    await screen.findByText('owner.create');
+    await screen.findByText('Owner added');
     // The first request already carries the filters from the link.
     expect(api.to('GET', '/api/staff/audit').map((c) => c.query)).toEqual([
       {
@@ -150,7 +167,7 @@ describe('AuditPage', () => {
         'GET /api/staff/audit': page(ROWS),
       },
     });
-    const row = (await screen.findByText('owner.create')).closest('tr');
+    const row = (await screen.findByText('Owner added')).closest('tr');
     if (!row) throw new Error('no row');
     const toggle = within(row).getByRole('button', { expanded: false });
     toggle.focus();
@@ -183,7 +200,7 @@ describe('AuditPage', () => {
         'GET /api/staff/audit': page(ROWS),
       },
     });
-    await screen.findByText('owner.create');
+    await screen.findByText('Owner added');
     await expectSortsBy(user, api, '/api/staff/audit', 'When', 'at');
     await expectSortsBy(user, api, '/api/staff/audit', 'Actor', 'actor');
   });
