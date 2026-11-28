@@ -222,8 +222,11 @@ async function ownerAnswers(
   await expect(shown(page.getByText(note))).toBeVisible();
 }
 
-/** The audit log (admins only) has the row; opening it shows what was recorded. */
-async function auditShows(page: Page, lang: Lang, action: string, entity: string, text: string) {
+/**
+ * The audit log (admins only) has the row, labelled as staff read it (not the action code);
+ * opening it shows what was recorded.
+ */
+async function auditShows(page: Page, lang: Lang, label: string, entity: string, text: string) {
   await page.goto('/audit');
   await expect(
     page.getByRole('heading', { name: L(lang, 'Audit log', 'سجل التدقيق') }),
@@ -233,7 +236,7 @@ async function auditShows(page: Page, lang: Lang, action: string, entity: string
   );
   await page.getByLabel(L(lang, 'Entity', 'العنصر')).selectOption(entity);
   await filtered;
-  const row = page.getByRole('row').filter({ hasText: action }).first();
+  const row = page.getByRole('row').filter({ hasText: label }).first();
   await expect(row).toBeVisible({ timeout: 15_000 });
   await row.click();
   await expect(page.locator('pre').filter({ hasText: text }).first()).toBeVisible();
@@ -273,7 +276,7 @@ test('repair approval: the owner approves in the web app, then staff can start t
 
   // The answer is in the audit log, for the admin.
   const admin = await staffPage(browser, 'admin', 'en');
-  await auditShows(admin, 'en', 'repair_approval.answer', 'repair_approval', note);
+  await auditShows(admin, 'en', 'Owner answered a repair approval', 'repair_approval', note);
   await admin.context().close();
 });
 
@@ -317,7 +320,7 @@ test('repair approval: the owner rejects, the admin overrides with a reason (Ara
   await expect(shown(owner.page.getByText('مرفوض', { exact: true })).first()).toBeVisible();
   await owner.close();
 
-  await auditShows(page, 'ar', 'repair_approval.override', 'work_order', reason);
+  await auditShows(page, 'ar', 'تجاوز موافقة على إصلاح', 'work_order', reason);
 });
 
 // 2. Messages ------------------------------------------------------------------------------------
