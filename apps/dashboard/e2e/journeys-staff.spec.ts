@@ -426,10 +426,16 @@ test('Expense drafts queue: post two, delete one, hide and show a posted one (Ar
   const tick = (reason: string) =>
     page.getByRole('checkbox', { name: new RegExp(`^اختيار ${reason} · `) });
   const bar = page.getByRole('region', { name: 'المصروفات المختارة' });
+  // The search box reaches the URL after a short delay, and a new list clears the selection:
+  // wait for it before ticking rows, or the bulk dialog acts on an emptied selection.
+  const searchFor = async (text: string) => {
+    await page.getByLabel('بحث').fill(text);
+    await expect.poll(() => new URL(page.url()).searchParams.get('search')).toBe(text);
+  };
 
   await page.getByRole('link', { name: 'المصروفات' }).first().click();
   await page.getByRole('tab', { name: 'قائمة المسودات' }).click();
-  await page.getByLabel('بحث').fill(`صيانة تجريبية ${stamp}`);
+  await searchFor(`صيانة تجريبية ${stamp}`);
   await expect(page.locator('main tbody tr')).toHaveCount(3);
   await expectRtl(page);
 
@@ -477,7 +483,7 @@ test('Expense drafts queue: post two, delete one, hide and show a posted one (Ar
     await expectRtl(page);
     await page.goBack();
     await page.getByRole('tab', { name: 'المرحَّلة' }).click();
-    await page.getByLabel('بحث').fill(`صيانة تجريبية ${stamp}`);
+    await searchFor(`صيانة تجريبية ${stamp}`);
     await expect(page.locator('main tbody tr')).toHaveCount(2);
   }
 });

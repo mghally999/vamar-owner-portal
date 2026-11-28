@@ -126,11 +126,13 @@ export function ExpensesPage() {
   );
   // A selection belongs to one list: another tab, filter or period starts a new one, so the bulk
   // bar never acts on expenses that are no longer shown.
+  const [bulkAction, setBulkAction] = useState<BulkExpenseAction | null>(null);
   const listKey = JSON.stringify([url, period.query, awaiting]);
   useEffect(() => {
     setSelected(new Map());
+    // An open bulk dialog acts on the selection just cleared: close it rather than send nothing.
+    setBulkAction(null);
   }, [listKey]);
-  const [bulkAction, setBulkAction] = useState<BulkExpenseAction | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const sorting = useListSort(EXPENSES_SORT);

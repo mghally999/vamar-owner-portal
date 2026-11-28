@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, screen, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import axe from 'axe-core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MAX_BULK_EXPENSES } from '@vamar/shared';
@@ -88,6 +88,29 @@ describe('expense bulk actions: drafts queue', () => {
       note: 'Month end',
     });
     expect(screen.queryByRole('region', { name: 'Selected expenses' })).toBeNull();
+  });
+
+  it('closes the dialog when the list changes under it, instead of sending an empty request', async () => {
+    // A search typed just before opening the dialog reaches the URL a moment later and starts a
+    // new list, which clears the selection the dialog was about to act on.
+    const { api, router, user } = await renderApp('/expenses?status=draft', {
+      role: 'editor',
+      routes: routes(DRAFTS, {
+        'POST /api/staff/expenses/bulk': { updated: [], unchanged: [], notified: 0 },
+      }),
+    });
+    await screen.findByText('Guard salaries October');
+    await user.click(selectAll());
+    await user.click(within(bar()).getByRole('button', { name: 'Post' }));
+    await screen.findByRole('dialog', { name: 'Post selected drafts (2)' });
+    await act(async () => {
+      await router.navigate({ to: '/expenses', search: { status: 'draft', search: 'pump' } });
+    });
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+    expect(screen.queryByRole('region', { name: 'Selected expenses' })).toBeNull();
+    expect(api.calls.filter((c) => c.path === '/api/staff/expenses/bulk')).toHaveLength(0);
   });
 
   it('lists every refused draft when nothing was posted, and deselects them', async () => {

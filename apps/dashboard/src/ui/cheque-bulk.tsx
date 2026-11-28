@@ -173,7 +173,10 @@ export function BulkStatusDialog({
   const needsDate = status !== 'cancelled';
   const future = needsDate && date !== null && date > today;
   const canSubmit =
-    (!needsDate || date !== null) && !future && (status !== 'bounced' || reason.trim().length > 0);
+    ids.length > 0 &&
+    (!needsDate || date !== null) &&
+    !future &&
+    (status !== 'bounced' || reason.trim().length > 0);
 
   async function submit() {
     if (needsDate && !date) return;

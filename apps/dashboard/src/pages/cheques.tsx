@@ -51,11 +51,13 @@ export function ChequesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // A selection is made in one list: other filters or another period start a new one, so the bulk
   // bar never counts or changes cheques that are no longer shown.
+  const [bulkStatus, setBulkStatus] = useState<BulkStatus | null>(null);
   const listKey = [status, buildingId, ownerId, period.period.from, period.period.to].join('|');
   useEffect(() => {
     setSelected(new Set());
+    // An open bulk dialog acts on the selection just cleared: close it rather than send nothing.
+    setBulkStatus(null);
   }, [listKey]);
-  const [bulkStatus, setBulkStatus] = useState<BulkStatus | null>(null);
   const [statusFor, setStatusFor] = useState<ChequeRow | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 

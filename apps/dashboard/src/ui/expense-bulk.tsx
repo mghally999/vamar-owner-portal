@@ -191,6 +191,7 @@ export function ExpenseBulkDialog({
             <Button
               variant={DANGER[action] ? 'danger' : 'primary'}
               onClick={() => void submit()}
+              disabled={ids.length === 0}
               loading={bulk.isPending}
             >
               {t('confirm')}
